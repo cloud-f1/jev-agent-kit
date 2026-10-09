@@ -60,3 +60,60 @@ export function parseEnvFile(text: string): string | undefined {
   }
   return undefined
 }
+
+// ---- Plugin settings (userConfig) layer --------------------------------------------------------
+// Precedence: built-in defaults < plugin settings (user-wide, /config) < project file.
+// Plugin settings come from `register(on, options)`; a bad value is ignored (and reported by
+// describeSources), never allowed to break the session.
+
+export type Source = 'default' | 'plugin settings' | 'project file'
+
+const OPTION_TO_FIELD: Record<string, keyof Config> = {
+  mode: 'mode',
+  backend: 'backend',
+  minimum_chars: 'minimumChars',
+  keep_threshold: 'keepThreshold',
+  retention_days: 'retentionDays',
+  enable_all_projects: 'enabled',
+}
+
+export function userDefaults(options: unknown): Partial<Config> {
+  const out: Record<string, unknown> = {}
+  if (typeof options !== 'object' || options === null) return out
+  for (const [option, field] of Object.entries(OPTION_TO_FIELD)) {
+    const value = (options as Record<string, unknown>)[option]
+    if (value === undefined || value === '') continue
+    try {
+      validateConfig({ [field]: value }) // one field at a time: a bad one is skipped, not fatal
+      out[field] = value
+    } catch {
+      // Ignored on purpose; describeSources reports it.
+    }
+  }
+  return out as Partial<Config>
+}
+
+export function mergeConfig(options: unknown, projectRaw: unknown): { config: Config; sources: Record<string, Source> } {
+  const sources: Record<string, Source> = {}
+  const merged: Record<string, unknown> = {}
+  for (const [field, value] of Object.entries(userDefaults(options))) {
+    merged[field] = value
+    sources[field] = 'plugin settings'
+  }
+  if (projectRaw !== undefined) {
+    const checked = validateConfig(projectRaw) // throws on unknown fields / bad values
+    for (const field of Object.keys(projectRaw as object)) {
+      merged[field] = (checked as unknown as Record<string, unknown>)[field]
+      sources[field] = 'project file'
+    }
+  }
+  const config = validateConfig(merged)
+  for (const field of Object.keys(DEFAULTS)) sources[field] ??= 'default'
+  return { config, sources }
+}
+
+// The key from plugin settings (secure storage); never logged, only its presence is reported.
+export function pluginKey(options: unknown): string | undefined {
+  const value = (options as Record<string, unknown> | null)?.typesafe_api_key
+  return typeof value === 'string' && value !== '' && value !== 'REPLACE_ME' ? value : undefined
+}

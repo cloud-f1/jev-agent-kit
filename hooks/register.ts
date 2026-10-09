@@ -2,7 +2,7 @@
 // all decisions live in ../core (pure, testable without a session).
 import { ENDPOINT, JevError, MAX_BYTES, MODEL, VERSION } from '../core/contracts.ts'
 import type { Config, Transport } from '../core/contracts.ts'
-import { defaultConfig, parseEnvFile, validateConfig } from '../core/config.ts'
+import { mergeConfig, parseEnvFile, pluginKey } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, prune, redact } from '../core/prune.ts'
 
@@ -10,6 +10,8 @@ const DEFAULT_GOAL = 'Diagnose the current test or build failure'
 const ARTIFACT_ID = /^[a-f0-9]{32}$/
 
 // Session-local counters for the status line and loop observation. They reset on reload.
+// Plugin settings from /config (userConfig), handed to register(on, options). Reset on reload.
+let pluginOptions: unknown = {}
 const stats = { seen: 0, pruned: 0, savedChars: 0 }
 const fingerprints = new Map<string, number>()
 
@@ -54,10 +56,15 @@ async function writePrivate($: any, path: string, text: string): Promise<void> {
   if (run.exitCode !== 0) throw new Error('private_write_failed')
 }
 
-async function loadConfig($: any, cwd: string): Promise<Config> {
+// defaults < plugin settings (/config) < project file. A bad project file throws; callers fail open.
+async function loadEffective($: any, cwd: string) {
   const path = cwd + '/.claude/jev-agent-kit.json'
-  if (!(await $.fs.exists(path))) return defaultConfig()
-  return validateConfig(JSON.parse(await $.fs.read(path)))
+  const project = (await $.fs.exists(path)) ? JSON.parse(await $.fs.read(path)) : undefined
+  return mergeConfig(pluginOptions, project)
+}
+
+async function loadConfig($: any, cwd: string): Promise<Config> {
+  return (await loadEffective($, cwd)).config
 }
 
 async function loadGoal($: any, cwd: string): Promise<string> {
@@ -73,6 +80,8 @@ async function loadGoal($: any, cwd: string): Promise<string> {
 async function apiKey($: any): Promise<string | undefined> {
   const direct = await $.env.get('TYPESAFE_API_KEY')
   if (direct && direct !== 'REPLACE_ME') return direct
+  const stored = pluginKey(pluginOptions)
+  if (stored) return stored
   const file = await $.env.get('JEV_ENV_FILE')
   if (!file) return undefined
   try {
@@ -174,15 +183,20 @@ async function statusText($: any): Promise<string> {
 
 async function doctorText($: any): Promise<string> {
   const cwd = await $.session.cwd()
-  let config = 'config: default (disabled; no .claude/jev-agent-kit.json)'
+  const lines = [`Jev Agent Kit ${VERSION} (native Mod), model ${MODEL}`]
   try {
-    const cfg = await loadConfig($, cwd)
-    config = `config: enabled=${cfg.enabled} mode=${cfg.mode} backend=${cfg.backend} minimumChars=${cfg.minimumChars}`
+    const { config: cfg, sources } = await loadEffective($, cwd)
+    const show = (name: keyof Config) => `${name}=${cfg[name]} (${sources[name]})`
+    lines.push('effective config: ' + (['enabled', 'mode', 'backend', 'minimumChars', 'keepThreshold', 'retentionDays'] as const).map(show).join(', '))
+    if (!cfg.enabled) lines.push('This project is NOT opted in: add .claude/jev-agent-kit.json with "enabled": true, or turn on "Enable in every project" in /config.')
   } catch (error) {
-    config = 'config: INVALID (' + (error instanceof Error ? error.message : 'unknown') + ')'
+    lines.push('config: INVALID (' + (error instanceof Error ? error.message : 'unknown') + '); output is left untouched')
   }
-  const key = (await apiKey($)) ? 'present (not validated)' : 'missing'
-  return [`Jev Agent Kit ${VERSION} (native Mod), model ${MODEL}`, config, 'TYPESAFE_API_KEY: ' + key].join('\n')
+  const direct = await $.env.get('TYPESAFE_API_KEY')
+  const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
+  lines.push('API key: ' + (where ? `present in ${where} (not validated)` : 'missing (only needed for the jev backend)'))
+  lines.push('Change settings with /config (plugin options) or the project file.')
+  return lines.join('\n')
 }
 
 async function readbackText($: any, id: string): Promise<string> {
@@ -195,7 +209,8 @@ async function readbackText($: any, id: string): Promise<string> {
   }
 }
 
-export function register(on: any) {
+export function register(on: any, options?: unknown) {
+  pluginOptions = options ?? {}
   on('session.start', async ($: any, e: any, next: any) => {
     // The marker tells the classic Python hook to skip this session so nothing runs twice.
     try {

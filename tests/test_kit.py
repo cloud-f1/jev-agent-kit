@@ -354,4 +354,59 @@ class HookInvariantTests(HookTests):
             prune = [r for r in rows if r.get('reason') == 'ok'][0]
             self.assertEqual(prune['delivered_chars'], prune['input_chars'])
 
+
+class SettingsLayerTests(unittest.TestCase):
+    """Plugin settings (userConfig) reach the classic hook as CLAUDE_PLUGIN_OPTION_* variables."""
+
+    def cfg(self, env, project=None):
+        with tempfile.TemporaryDirectory() as td:
+            if project is not None:
+                (Path(td) / '.claude').mkdir()
+                (Path(td) / '.claude' / 'jev-agent-kit.json').write_text(json.dumps(project))
+            return core.config(td, env)
+
+    def test_precedence_defaults_then_plugin_settings_then_project(self):
+        env = {'CLAUDE_PLUGIN_OPTION_MODE': 'assist', 'CLAUDE_PLUGIN_OPTION_RETENTION_DAYS': '14'}
+        result = self.cfg(env, {'mode': 'observe', 'enabled': True})
+        self.assertEqual((result['mode'], result['retentionDays'], result['enabled']), ('observe', 14, True))
+
+    def test_bad_plugin_option_ignored_bad_project_file_rejected(self):
+        self.assertEqual(self.cfg({'CLAUDE_PLUGIN_OPTION_MODE': 'bogus'})['mode'], 'observe')
+        self.assertEqual(core.user_defaults({'CLAUDE_PLUGIN_OPTION_KEEP_THRESHOLD': '7', 'CLAUDE_PLUGIN_OPTION_MINIMUM_CHARS': '5000'}), {'minimumChars': 5000})
+        with self.assertRaises(ValueError):
+            self.cfg({}, {'endpoint': 'https://evil.example'})
+
+    def test_enable_everywhere_is_user_level_and_project_can_refuse(self):
+        env = {'CLAUDE_PLUGIN_OPTION_ENABLE_ALL_PROJECTS': 'true'}
+        self.assertTrue(self.cfg(env)['enabled'])
+        self.assertFalse(self.cfg(env, {'enabled': False})['enabled'])
+        self.assertFalse(self.cfg({})['enabled'])
+
+    def test_matches_golden_merge_cases(self):
+        names = {'mode': 'MODE', 'backend': 'BACKEND', 'minimum_chars': 'MINIMUM_CHARS', 'keep_threshold': 'KEEP_THRESHOLD',
+                 'retention_days': 'RETENTION_DAYS', 'enable_all_projects': 'ENABLE_ALL_PROJECTS'}
+        for case in GOLDEN['merges']:
+            env = {'CLAUDE_PLUGIN_OPTION_' + names[k]: str(v).lower() if isinstance(v, bool) else str(v) for k, v in case['options'].items()}
+            if 'error' in case['expected']:
+                with self.assertRaises(ValueError):
+                    self.cfg(env, case['project'])
+            else:
+                self.assertEqual(self.cfg(env, case['project']), case['expected'])
+
+    def test_plugin_key_only_real_values(self):
+        self.assertEqual(core.plugin_key({'CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY': 'k-1'}), 'k-1')
+        self.assertIsNone(core.plugin_key({'CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY': 'REPLACE_ME'}))
+        self.assertIsNone(core.plugin_key({}))
+
+    def test_classic_hook_runs_for_a_project_without_file_when_enabled_everywhere(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'p'; project.mkdir()
+            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash', 'tool_input': {'command': 'x'},
+                       'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': False, 'isImage': False}}
+            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'), CLAUDE_PLUGIN_OPTION_ENABLE_ALL_PROJECTS='true',
+                       CLAUDE_PLUGIN_OPTION_MODE='assist', CLAUDE_PLUGIN_OPTION_MINIMUM_CHARS='100')
+            env.pop('TYPESAFE_API_KEY', None)
+            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
+            self.assertIn('updatedToolOutput', done.stdout)
+
 if __name__=='__main__': unittest.main()

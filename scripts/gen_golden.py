@@ -6,6 +6,7 @@ tests and the Python drift test both read these files, so the two cores cannot s
 """
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,7 +49,29 @@ def build():
         'sk-abcdefghijklmnop and ghp_abcdefghijklmnop and AKIAABCDEFGHIJKLMNOP',
         'plain text with no secrets: tokenizer is fine',
     ]]
-    return {'redactions': redactions, 'digests': {v: core.digest(v)[:24] for v in DIGEST_INPUTS}, 'cases': cases}
+    option_env = {'mode': 'MODE', 'backend': 'BACKEND', 'minimum_chars': 'MINIMUM_CHARS',
+                  'keep_threshold': 'KEEP_THRESHOLD', 'retention_days': 'RETENTION_DAYS', 'enable_all_projects': 'ENABLE_ALL_PROJECTS'}
+    merge_inputs = [
+        ({}, None), ({'mode': 'assist'}, None), ({'enable_all_projects': True}, None),
+        ({'mode': 'assist', 'backend': 'jev'}, {'mode': 'observe'}),
+        ({'mode': 'bogus', 'minimum_chars': 5000}, None), ({'minimum_chars': 999999999}, None),
+        ({'keep_threshold': 0.5, 'retention_days': 14}, {'enabled': True}),
+        ({'enable_all_projects': True}, {'enabled': False}), ({}, {'endpoint': 'https://evil.example'}),
+        ({'retention_days': 0}, {'minimumChars': 100}),
+    ]
+    merges = []
+    for options, project in merge_inputs:
+        env = {'CLAUDE_PLUGIN_OPTION_' + option_env[k]: str(v).lower() if isinstance(v, bool) else str(v) for k, v in options.items()}
+        with tempfile.TemporaryDirectory() as td:
+            if project is not None:
+                (Path(td) / '.claude').mkdir()
+                (Path(td) / '.claude' / 'jev-agent-kit.json').write_text(json.dumps(project))
+            try:
+                expected = core.config(td, env)
+            except ValueError as exc:
+                expected = {'error': str(exc)}
+        merges.append({'options': options, 'project': project, 'expected': expected})
+    return {'merges': merges, 'redactions': redactions, 'digests': {v: core.digest(v)[:24] for v in DIGEST_INPUTS}, 'cases': cases}
 
 
 def render():

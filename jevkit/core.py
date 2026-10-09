@@ -42,16 +42,14 @@ def load_env(path):
                 if value and value != 'REPLACE_ME':
                     os.environ.setdefault('TYPESAFE_API_KEY', value)
 
-def config(project):
-    result = {'schemaVersion': 1, 'enabled': False, 'mode': 'observe',
-              'backend': 'rules', 'minimumChars': 8000, 'timeoutSeconds': 3.0,
-              'keepThreshold': 0.8, 'retentionDays': 7}
-    path = Path(project) / '.claude' / 'jev-agent-kit.json'
-    if path.exists():
-        value = json.loads(path.read_text(encoding='utf-8'))
-        if not isinstance(value, dict) or set(value) - set(result):
-            raise ValueError('unsupported_config_fields')
-        result.update(value)
+USER_OPTION_ENV = {  # CLAUDE_PLUGIN_OPTION_<NAME> is how Claude Code hands plugin settings to hook processes
+    'mode': 'MODE', 'backend': 'BACKEND', 'minimumChars': 'MINIMUM_CHARS',
+    'keepThreshold': 'KEEP_THRESHOLD', 'retentionDays': 'RETENTION_DAYS', 'enabled': 'ENABLE_ALL_PROJECTS',
+}
+CONFIG_DEFAULTS = {'schemaVersion': 1, 'enabled': False, 'mode': 'observe', 'backend': 'rules',
+                   'minimumChars': 8000, 'timeoutSeconds': 3.0, 'keepThreshold': 0.8, 'retentionDays': 7}
+
+def _validate_config(result):
     if type(result['schemaVersion']) not in (int, float) or result['schemaVersion'] != 1:
         raise ValueError('unsupported_schema')
     if type(result['enabled']) is not bool:
@@ -62,6 +60,49 @@ def config(project):
         if type(result[key]) not in (int, float) or not math.isfinite(result[key]) or not low <= result[key] <= high:
             raise ValueError('invalid_' + key)
     return result
+
+def _parse_option(field, raw):
+    if field == 'enabled':
+        if raw.lower() not in ('true', 'false'):
+            raise ValueError('invalid_enabled')
+        return raw.lower() == 'true'
+    if field in ('mode', 'backend'):
+        return raw
+    number = float(raw)
+    return int(number) if number.is_integer() and field in ('minimumChars', 'retentionDays') else number
+
+def user_defaults(env=None):
+    """Valid plugin settings only; a bad one is skipped, never fatal (mirrors core/config.ts userDefaults)."""
+    env = os.environ if env is None else env
+    out = {}
+    for field, suffix in USER_OPTION_ENV.items():
+        raw = env.get('CLAUDE_PLUGIN_OPTION_' + suffix)
+        if not raw:
+            continue
+        try:
+            value = _parse_option(field, raw)
+            _validate_config(dict(CONFIG_DEFAULTS, **{field: value}))
+        except ValueError:
+            continue
+        out[field] = value
+    return out
+
+def plugin_key(env=None):
+    env = os.environ if env is None else env
+    value = env.get('CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY', '')
+    return value if value and value != 'REPLACE_ME' else None
+
+def config(project, env=None):
+    # Precedence: built-in defaults < plugin settings (user-wide) < project file.
+    result = dict(CONFIG_DEFAULTS)
+    result.update(user_defaults(env))
+    path = Path(project) / '.claude' / 'jev-agent-kit.json'
+    if path.exists():
+        value = json.loads(path.read_text(encoding='utf-8'))
+        if not isinstance(value, dict) or set(value) - set(CONFIG_DEFAULTS):
+            raise ValueError('unsupported_config_fields')
+        result.update(value)
+    return _validate_config(result)
 
 def blocks(text, lines_per_block=8):
     lines = text.splitlines(keepends=True)
@@ -96,7 +137,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 def request(body, timeout=3.0):
-    key = os.environ.get('TYPESAFE_API_KEY', '')
+    key = os.environ.get('TYPESAFE_API_KEY', '') or plugin_key() or ''
     if not key or key == 'REPLACE_ME':
         raise JevError('missing_key')
     encoded = json.dumps(body, ensure_ascii=False).encode()

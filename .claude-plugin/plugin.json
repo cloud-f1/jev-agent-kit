@@ -16,5 +16,63 @@
     "cost",
     "hooks",
     "log-pruning"
-  ]
+  ],
+  "userConfig": {
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "observe records only; assist shortens long Bash output. Applies to every opted-in project unless its .claude/jev-agent-kit.json says otherwise.",
+      "options": [
+        "observe",
+        "assist"
+      ],
+      "default": "observe"
+    },
+    "backend": {
+      "type": "string",
+      "title": "Backend",
+      "description": "rules is local and sends nothing. jev also sends redacted log blocks to TypeSafe (costs money, needs an API key).",
+      "options": [
+        "rules",
+        "jev"
+      ],
+      "default": "rules"
+    },
+    "minimum_chars": {
+      "type": "number",
+      "title": "Minimum output length",
+      "description": "Bash output shorter than this many characters is never touched.",
+      "default": 8000,
+      "min": 0,
+      "max": 256000
+    },
+    "keep_threshold": {
+      "type": "number",
+      "title": "Jev keep threshold",
+      "description": "Probability (0 to 1) a non-error block needs for Jev to keep it. Only used with the jev backend.",
+      "default": 0.8,
+      "min": 0,
+      "max": 1
+    },
+    "retention_days": {
+      "type": "number",
+      "title": "Keep stored logs (days)",
+      "description": "Stored original logs and decision records older than this are deleted.",
+      "default": 7,
+      "min": 1,
+      "max": 30
+    },
+    "enable_all_projects": {
+      "type": "boolean",
+      "title": "Enable in every project",
+      "description": "Off by default: a project must opt in with .claude/jev-agent-kit.json. Turn on to use the plugin everywhere without per-project files.",
+      "default": false
+    },
+    "typesafe_api_key": {
+      "type": "string",
+      "title": "TypeSafe API key",
+      "description": "Optional. Only needed for the jev backend. Stored in your system's secure storage, never in a project file.",
+      "sensitive": true
+    }
+  }
 }

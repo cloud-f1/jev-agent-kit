@@ -1,5 +1,5 @@
 import { expect, test } from 'claude-code/testing'
-import { defaultConfig, parseEnvFile, validateConfig } from '../core/config.ts'
+import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, userDefaults, validateConfig } from '../core/config.ts'
 import { JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
 import { prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
@@ -156,4 +156,47 @@ test('the goal is redacted before it leaves the machine', async () => {
   await prune(longLog(), { backend: 'jev', goal: 'debug with api_key=SUPERSECRETVALUE', threshold: 0.8, transport })
   expect(sent).not.toContain('SUPERSECRETVALUE')
   expect(sent).toContain('[REDACTED]')
+})
+
+test('settings layer: defaults < plugin settings < project file, with sources', () => {
+  const { config, sources } = mergeConfig({ mode: 'assist', retention_days: 14 }, { mode: 'observe', enabled: true })
+  expect(config.mode).toBe('observe')
+  expect(config.retentionDays).toBe(14)
+  expect(config.enabled).toBe(true)
+  expect(sources.mode).toBe('project file')
+  expect(sources.retentionDays).toBe('plugin settings')
+  expect(sources.backend).toBe('default')
+})
+
+test('settings layer: a bad plugin option is ignored, a bad project file is not', () => {
+  expect(userDefaults({ mode: 'bogus', minimum_chars: 5000, keep_threshold: 7 })).toEqual({ minimumChars: 5000 })
+  expect(mergeConfig({ mode: 'bogus' }, undefined).config.mode).toBe('observe')
+  expect(() => mergeConfig({}, { endpoint: 'https://evil.example' })).toThrow()
+  expect(() => mergeConfig({}, { mode: 'nope' })).toThrow()
+  expect(userDefaults(null)).toEqual({})
+  expect(userDefaults('x')).toEqual({})
+})
+
+test('settings layer: opting in everywhere is a user-level choice a project can still refuse', () => {
+  expect(mergeConfig({ enable_all_projects: true }, undefined).config.enabled).toBe(true)
+  expect(mergeConfig({ enable_all_projects: true }, { enabled: false }).config.enabled).toBe(false)
+  expect(mergeConfig({}, undefined).config.enabled).toBe(false)
+})
+
+test('settings layer matches the Python core on every golden merge case', () => {
+  for (const c of golden.merges) {
+    if ('error' in c.expected) {
+      expect(() => mergeConfig(c.options, c.project ?? undefined)).toThrow()
+    } else {
+      expect(mergeConfig(c.options, c.project ?? undefined).config).toEqual(c.expected)
+    }
+  }
+})
+
+test('plugin API key: only a real value counts, and it is never part of the config', () => {
+  expect(pluginKey({ typesafe_api_key: 'k-123' })).toBe('k-123')
+  expect(pluginKey({ typesafe_api_key: '' })).toBeUndefined()
+  expect(pluginKey({ typesafe_api_key: 'REPLACE_ME' })).toBeUndefined()
+  expect(pluginKey(null)).toBeUndefined()
+  expect(JSON.stringify(mergeConfig({ typesafe_api_key: 'k-123' }, undefined).config)).not.toContain('k-123')
 })

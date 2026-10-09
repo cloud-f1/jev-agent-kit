@@ -332,3 +332,57 @@ test('git state is known when git succeeds', async ($, on) => {
   await call($)
   expect(decisions(s.written).find((d) => d.feature === 'loop').repo_state_known).toBe(true)
 })
+
+const optsTest = (name: string, options: Record<string, unknown>, fn: (...a: any[]) => Promise<void>) =>
+  test(name, { options } as any, fn)
+
+optsTest('plugin setting "enable in every project" works without a project file', { enable_all_projects: true, mode: 'observe', minimum_chars: 100 }, async ($: any, on: any) => {
+  const s = stubs(on)
+  const out: any = await call($)
+  expect(out.text).toBe('original')
+  expect(decisions(s.written).some((d) => d.reason === 'ok')).toBe(true)
+})
+
+optsTest('plugin setting mode=assist rewrites; a project file can still say observe', { enable_all_projects: true, mode: 'assist', minimum_chars: 100 }, async ($: any, on: any) => {
+  const assist = stubs(on)
+  const out: any = await call($)
+  expect(out.result.stdout).toContain('/jev readback ')
+  expect(assist.written).toBeDefined()
+})
+
+optsTest('a project file overrides plugin settings, including opting out', { enable_all_projects: true, mode: 'assist', minimum_chars: 100 }, async ($: any, on: any) => {
+  const s = stubs(on, { config: { enabled: false } })
+  const out: any = await call($)
+  expect(out.text).toBe('original')
+  expect(Object.keys(s.written)).toEqual([])
+})
+
+optsTest('the API key from plugin settings is used and never recorded', { enable_all_projects: true, mode: 'assist', backend: 'jev', minimum_chars: 100, typesafe_api_key: 'settings-key-777' }, async ($: any, on: any) => {
+  const http = () => ({ ok: false, status: 401, headers: {}, text: 'settings-key-777 echoed' })
+  const s = stubs(on, { http })
+  await call($)
+  expect(s.requests[0].init.headers.Authorization).toBe('Bearer settings-key-777')
+  expect(JSON.stringify(s.written)).not.toContain('settings-key-777')
+})
+
+optsTest('the environment key wins over the plugin-settings key', { enable_all_projects: true, backend: 'jev', minimum_chars: 100, typesafe_api_key: 'settings-key-777' }, async ($: any, on: any) => {
+  const s = stubs(on, { env: { TYPESAFE_API_KEY: 'env-key-111' }, http: () => ({ ok: false, status: 500, headers: {}, text: '' }) })
+  await call($)
+  expect(s.requests[0].init.headers.Authorization).toBe('Bearer env-key-111')
+})
+
+optsTest('/jev doctor names where each value comes from and never shows the key', { enable_all_projects: true, mode: 'assist', typesafe_api_key: 'settings-key-777' }, async ($: any, on: any) => {
+  stubs(on, { config: { minimumChars: 4000 } })
+  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  expect(out.text).toContain('mode=assist (plugin settings)')
+  expect(out.text).toContain('minimumChars=4000 (project file)')
+  expect(out.text).toContain('plugin settings (secure storage)')
+  expect(out.text).not.toContain('settings-key-777')
+})
+
+test('/jev doctor tells an un-opted-in user exactly what to do', async ($, on) => {
+  stubs(on)
+  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  expect(out.text).toContain('NOT opted in')
+  expect(out.text).toContain('Enable in every project')
+})
