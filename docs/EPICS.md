@@ -8,7 +8,7 @@ Derived from [PRD.md](PRD.md). IDs are local (`E1`...), not Jira keys; no Jira p
 | E2 | Native TypeScript Mod | 0.2.0 | Done; Windows branch unrun |
 | E3 | Settings and `/jev` commands | 0.2.0 | Done; interactive `/config` screen not seen |
 | E4 | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
-| E5 | Visibility and Jev model/key handling | 0.2.1 | Built; release pending |
+| E5 | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 | Live Jev validation | next | Smoke passed once; session and bench runs not done |
 | E7 | Usability (v0.3) | planned | Not started |
 | E8 | Evidence of benefit | planned | Needs budget decision |
@@ -31,7 +31,7 @@ Derived from [PRD.md](PRD.md). IDs are local (`E1`...), not Jira keys; no Jira p
 - 0.2.1 read-only audit: project `settings.json` could supply the key (fixed: user source only); pinned model now must answer as itself; internal-error diagnostics logged.
 - Residual: `$.http.fetch` may follow redirects (the key is only ever sent to the fixed endpoint).
 
-## E5 Visibility and key/model handling (built in 0.2.1)
+## E5 Visibility and key/model handling (released in 0.2.1)
 - Once-per-reason toast + debug log; key from user `settings.json` env; `Jev model` setting with `requested_model` / `actual_model` records.
 - Not tested: a real compaction with fast-jev-compaction active.
 
