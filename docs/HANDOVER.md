@@ -8,7 +8,7 @@ For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this 
 |---|---|
 | v0.2.0 | **Released.** `main` + tag `v0.2.0` + GitHub release: https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0. Installing it from the real marketplace was verified. |
 | v0.2.1 | **Built and committed on local branch `v0.2.1`. NOT pushed, NOT merged, NOT released.** Gate is green. |
-| Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Still needs the post-release marketplace install check. |
+| Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Post-release check done: v0.2.1 installed from the real marketplace in a scratch project and `/jev doctor` reported 0.2.1. `claude plugin list` also shows a stale 0.2.0 local-scope entry that was not cleaned up. |
 | Public claim status | Mechanism works; **cost or success benefit is unproven.** Do not claim savings anywhere. |
 
 ## What the product is
@@ -57,7 +57,6 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 - The live Jev API beyond one `smoke` call: `backend: jev` in a real session and `bench-logs --live` are not run. (`/jev doctor` shows a key present in this machine's environment; its value was never read.)
 - Windows: the Mod's Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) has only stub tests on macOS.
 - The interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), `/jev readback` live, the status line, hot reload.
-- v0.2.1 installed from the marketplace (not released yet).
 - Compaction with fast-jev-compaction active.
 - **Any cost or success-rate benefit.** The paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
 
