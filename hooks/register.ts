@@ -2,7 +2,7 @@
 // all decisions live in ../core (pure, testable without a session).
 import { ENDPOINT, JevError, MAX_BYTES, MODEL, VERSION } from '../core/contracts.ts'
 import type { Config, Transport } from '../core/contracts.ts'
-import { mergeConfig, parseEnvFile, pluginKey } from '../core/config.ts'
+import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, prune, redact } from '../core/prune.ts'
 
@@ -14,6 +14,8 @@ const ARTIFACT_ID = /^[a-f0-9]{32}$/
 let pluginOptions: unknown = {}
 const stats = { seen: 0, pruned: 0, savedChars: 0 }
 const fingerprints = new Map<string, number>()
+// Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
+const toasted = new Set<string>()
 
 // Same rule as the Python core: only "~" and "~/..." expand; a result that is not absolute is
 // ignored, so state can never land in a relative path inside a repo.
@@ -91,11 +93,24 @@ async function loadGoal($: any, cwd: string): Promise<string> {
   return DEFAULT_GOAL
 }
 
+// Claude Code's own settings.json `env` block, as a fallback (the same place other tools keep it).
+async function settingsEnvKey($: any): Promise<string | undefined> {
+  try {
+    const env = (await $.settings.read())?.env
+    const value = env && typeof env === 'object' ? (env as Record<string, unknown>)['TYPESAFE_API_KEY'] : undefined
+    return typeof value === 'string' && value !== '' && value !== 'REPLACE_ME' ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function apiKey($: any): Promise<string | undefined> {
   const direct = await $.env.get('TYPESAFE_API_KEY')
   if (direct && direct !== 'REPLACE_ME') return direct
   const stored = pluginKey(pluginOptions)
   if (stored) return stored
+  const fromSettings = await settingsEnvKey($)
+  if (fromSettings) return fromSettings
   const file = await $.env.get('JEV_ENV_FILE')
   if (!file) return undefined
   try {
@@ -168,6 +183,17 @@ async function observeLoop($: any, root: string, cwd: string, cfg: Config, comma
   })
 }
 
+// Tell the user once per reason per session. Only fixed reason codes are ever shown.
+async function notifyOnce($: any, reason: string, message: string): Promise<void> {
+  if (toasted.has(reason)) return
+  toasted.add(reason)
+  try {
+    $.ui.toast('Jev Agent Kit: ' + message, { timeoutMs: 15000 })
+  } catch {
+    // A toast is a courtesy; never let it affect the tool result.
+  }
+}
+
 async function showStatus($: any, cfg: Config): Promise<void> {
   const text = cfg.mode === 'assist'
     ? `jev: ${stats.pruned}/${stats.seen} long logs pruned · ${stats.savedChars} chars saved`
@@ -207,7 +233,8 @@ async function doctorText($: any): Promise<string> {
     lines.push('config: INVALID (' + (error instanceof Error ? error.message : 'unknown') + '); output is left untouched')
   }
   const direct = await $.env.get('TYPESAFE_API_KEY')
-  const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
+  const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
+  lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   lines.push('API key: ' + (where ? `present in ${where} (not validated)` : 'missing (only needed for the jev backend)'))
   lines.push('Change settings with /config (plugin options) or the project file.')
   return lines.join('\n')
@@ -291,8 +318,15 @@ export function register(on: any, options?: unknown) {
       const transport = cfg.backend === 'jev' ? makeTransport($, await apiKey($), cfg.timeoutSeconds * 1000) : undefined
       const { output, meta } = await prune(out.stdout, {
         backend: cfg.backend, goal: await loadGoal($, cwd), threshold: cfg.keepThreshold, transport,
-        now: () => 0,
+        model: pluginModel(pluginOptions), now: () => 0,
       })
+      $.ui.log(
+        `prune ${meta.reason}: ${meta.input_chars} -> ${meta.output_chars} chars (${meta.backend}, ${cfg.mode})`,
+        { to: 'debug' },
+      )
+      if (meta.reason !== 'ok') {
+        await notifyOnce($, meta.reason, `${meta.backend === 'jev' ? 'Jev unavailable' : 'could not prune'} (${meta.reason}); original output kept. /jev doctor shows settings.`)
+      }
       const fieldsOk = 'stderr' in out && 'interrupted' in out && 'isImage' in out
       // Never change failed/interrupted/image tool results or erase stderr.
       const canRewrite = cfg.mode === 'assist' && output !== out.stdout && fieldsOk && !out.interrupted && !out.isImage
@@ -315,6 +349,7 @@ export function register(on: any, options?: unknown) {
       await showStatus($, cfg)
       return res
     } catch {
+      await notifyOnce($, 'internal_error', 'internal error while pruning; original output kept. Run claude --debug to investigate.')
       return res
     }
   })

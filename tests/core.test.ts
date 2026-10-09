@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
-import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, userDefaults, validateConfig } from '../core/config.ts'
-import { JevError, MODEL } from '../core/contracts.ts'
+import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
+import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
 import { prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
@@ -199,4 +199,39 @@ test('plugin API key: only a real value counts, and it is never part of the conf
   expect(pluginKey({ typesafe_api_key: 'REPLACE_ME' })).toBeUndefined()
   expect(pluginKey(null)).toBeUndefined()
   expect(JSON.stringify(mergeConfig({ typesafe_api_key: 'k-123' }, undefined).config)).not.toContain('k-123')
+})
+
+test('model: any jev-* name is allowed, nothing else', () => {
+  for (const ok of ['jev-1.13.0', 'jev-latest', 'jev-2.0.0-beta']) expect(isJevModel(ok)).toBe(true)
+  for (const bad of ['gpt-4', 'jev', 'jev-', 'jev-a b', 'jev-' + 'x'.repeat(41), '', 5, null, 'JEV-1']) expect(isJevModel(bad)).toBe(false)
+  expect(pluginModel({ model: 'jev-latest' })).toBe('jev-latest')
+  expect(pluginModel({ model: 'evil-model' })).toBeUndefined()
+  expect(pluginModel(null)).toBeUndefined()
+  // A project file can never set it.
+  expect(() => mergeConfig({}, { model: 'jev-latest' })).toThrow()
+})
+
+test('model: the response may name a newer jev-* model; requested and actual are both recorded', async () => {
+  let requested = ''
+  const transport = async (body: Record<string, any>) => {
+    requested = body.model
+    return {
+      model: 'jev-1.14.0', usage,
+      answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])),
+    }
+  }
+  const { meta } = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport, model: 'jev-latest' })
+  expect(requested).toBe('jev-latest')
+  expect(meta.reason).toBe('ok')
+  expect(meta.requested_model).toBe('jev-latest')
+  expect(meta.actual_model).toBe('jev-1.14.0')
+  expect(() => validateResponse({ model: 'gpt-4', usage })).toThrow()
+})
+
+test('model: default request is the pinned model, and rules runs record no model', async () => {
+  let requested = ''
+  await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async (b: Record<string, any>) => { requested = b.model; throw new JevError('stop') } })
+  expect(requested).toBe(MODEL)
+  const rules = await prune(longLog(), { backend: 'rules', goal: 'g', threshold: 0.8 })
+  expect(rules.meta.requested_model).toBeUndefined()
 })

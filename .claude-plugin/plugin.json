@@ -1,7 +1,7 @@
 {
   "name": "jev-agent-kit",
   "displayName": "Jev Agent Kit",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Measured Jev log pruning and loop observation for Claude Code; native Mod with classic-hook fallback and original-log read-back",
   "author": {
     "name": "cloud-f1"
@@ -73,6 +73,12 @@
       "title": "TypeSafe API key",
       "description": "Optional. Only needed for the jev backend. Stored in your system's secure storage, never in a project file.",
       "sensitive": true
+    },
+    "model": {
+      "type": "string",
+      "title": "Jev model",
+      "description": "Model requested from TypeSafe. Default is pinned so decisions stay calibrated. Set jev-latest to follow the newest model (re-check results after it changes). Only used with the jev backend.",
+      "default": "jev-1.13.0"
     }
   }
 }

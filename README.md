@@ -80,13 +80,14 @@ Precedence: **built-in defaults < plugin settings (`/config`, applies to you eve
 | Minimum output length | `minimumChars` | 8000 | Shorter output is never touched. (Claude Code caps Bash output near 30,000 chars itself.) |
 | Jev keep threshold | `keepThreshold` | 0.8 | Probability a non-error block needs for Jev to keep it. |
 | Keep stored logs (days) | `retentionDays` | 7 | How long originals and records are kept. |
+| Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). Any `jev-*` name is accepted; a project file cannot set it. `/jev status` records the model that actually answered. |
 | (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
 
 Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad `/config` value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
 
 ### The Jev API key
 
-Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it. Lookup order: `TYPESAFE_API_KEY` environment variable, then the plugin's secure setting, then a file named by `JEV_ENV_FILE`.
+Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it. Lookup order: `TYPESAFE_API_KEY` environment variable, then the plugin's secure setting, then the `env` block of Claude Code's `settings.json`, then a file named by `JEV_ENV_FILE`. `/jev doctor` says which one is in use (never the value).
 
 ```bash
 # easiest: enter it when Claude Code asks while you enable the plugin (secure storage).
@@ -108,6 +109,7 @@ What you can see and touch today, and what is only a plan.
 | Surface | Status | What it is |
 |---|---|---|
 | `/config` rows | **Available** | The settings above, drawn by Claude Code from the plugin manifest (pickers, numbers, a switch). |
+| Failure toast | **Available** | If Jev (or pruning) falls back to the original output, a toast says so once per reason per session, with a fixed reason code such as `http_429` or `missing_key`. Nothing from the response is ever shown. |
 | Key prompt | **Available** | Asked when you enable the plugin; stored in secure storage. |
 | `/jev doctor` | **Available** | Effective config with the source of every value, key presence (never the key), next step. |
 | `/jev status` | **Available** | Record count and the last 10 decisions. |
@@ -202,20 +204,25 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 |---|---|
 | `/jev` not found | Mod not loaded: update Claude Code, or check `claude --debug-file f.log` for `hooks module jev-agent-kit`. |
 | Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
-| `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. |
+| `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
+| `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in `/config`. |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
 
 ## Develop and verify
 
 ```bash
-uv run --no-project python -m unittest discover -s tests   # Python core + hook + release-gate tests (56)
-claude plugin test                         # TypeScript core + Mod tests (69), offline
+uv run --no-project python -m unittest discover -s tests   # Python core + hook + release-gate tests (57)
+claude plugin test                         # TypeScript core + Mod tests (82), offline
 claude plugin validate --strict .
 uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
 uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)
 ```
 
 Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `jevkit/` the Python core, `tests/fixtures/golden.*` shared by both cores. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
+
+## Using it with other Jev mods
+
+Works alongside [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction) (MIT, whole-conversation compaction). They hook different events (ours: `tool.call`; theirs: `session.compact`, `turn.complete`), and loading both in a real session worked: both modules loaded, no hook was skipped, and our pruning ran. **Not tested:** an actual compaction with both active (it needs a Jev key and a long session). Install them separately; neither depends on the other.
 
 ## Limits
 

@@ -1,9 +1,15 @@
 // Shared constants and types for the Jev Agent Kit TypeScript core. Pure: no mods API.
 
-export const VERSION = '0.2.0'
+export const VERSION = '0.2.1'
 export const QUESTION_VERSION = 'log-keep-v1'
 export const ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
-export const MODEL = 'jev-1.13.0'
+export const MODEL = 'jev-1.13.0' // default request model: pinned so decisions stay calibrated
+const JEV_MODEL_NAME = /^jev-[A-Za-z0-9._-]{1,40}$/
+
+// Any jev-* name is allowed (e.g. jev-latest); the endpoint is fixed regardless.
+export function isJevModel(name: unknown): name is string {
+  return typeof name === 'string' && JEV_MODEL_NAME.test(name)
+}
 export const MAX_BYTES = 256_000
 export const JEV_PRICE_PER_INPUT_TOKEN_USD = 0.042 / 1_000_000
 
@@ -39,6 +45,8 @@ export interface PruneMeta {
   api_output_tokens: number | null
   jev_cost_usd_estimate: number | null
   cost_complete: boolean
+  requested_model?: string
+  actual_model?: string | null
   latency_ms?: number
 }
 

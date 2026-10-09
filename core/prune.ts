@@ -1,7 +1,7 @@
 // Log pruning: deterministic skeleton (errors, head, tail) plus optional Jev relevance scoring.
 // Pure: the transport and clock are passed in. Behavior mirrors the Python core.prune().
 import {
-  JEV_PRICE_PER_INPUT_TOKEN_USD, JevError, MAX_BYTES, MODEL, QUESTION_VERSION, VERSION,
+  isJevModel, JEV_PRICE_PER_INPUT_TOKEN_USD, JevError, MAX_BYTES, MODEL, QUESTION_VERSION, VERSION,
 } from './contracts.ts'
 import type { Backend, Block, PruneMeta, Transport } from './contracts.ts'
 
@@ -109,7 +109,7 @@ export function validateNouls(obj: unknown, ids: string[]): Record<string, numbe
 export function validateResponse(obj: unknown): { model: string; usage: { input_tokens: number; output_tokens: number } } {
   if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) throw new JevError('invalid_model')
   const record = obj as { model?: unknown; usage?: unknown }
-  if (record.model !== MODEL) throw new JevError('invalid_model')
+  if (!isJevModel(record.model)) throw new JevError('invalid_model')
   const usage = record.usage as { input_tokens?: unknown; output_tokens?: unknown } | null
   const ok = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0
   if (typeof usage !== 'object' || usage === null || !ok(usage.input_tokens) || !ok(usage.output_tokens)) {
@@ -123,6 +123,7 @@ export interface PruneOptions {
   goal: string
   threshold: number
   transport?: Transport
+  model?: string // requested model; defaults to MODEL
   now?: () => number // ms clock for latency; injected so the core never reads time itself
 }
 
@@ -133,6 +134,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
     plugin_version: VERSION, question_version: QUESTION_VERSION, backend: options.backend,
     reason: 'ok', input_chars: charLength(text), api_input_tokens: null, api_output_tokens: null,
     jev_cost_usd_estimate: null, cost_complete: options.backend !== 'jev',
+    ...(options.backend === 'jev' ? { requested_model: options.model ?? MODEL, actual_model: null } : {}),
   }
   const finish = (output: string) => {
     meta.output_chars = charLength(output)
@@ -151,7 +153,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
     if (candidates.length > 0) {
       const ids = candidates.map((i) => parts[i].id)
       const body = {
-        model: MODEL,
+        model: options.model ?? MODEL,
         state: { goal: redact(options.goal.slice(0, 1200)), blocks: candidates.map((i) => ({ id: parts[i].id, text: redact(parts[i].text) })) },
         questions: Object.fromEntries(ids.map((id) => [id, {
           type: 'noul',
@@ -167,7 +169,8 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
       } else {
         try {
           const obj = await options.transport(body)
-          const { usage } = validateResponse(obj)
+          const { usage, model: actual } = validateResponse(obj)
+          meta.actual_model = actual
           const probabilities = validateNouls(obj, ids)
           for (const i of candidates) {
             if (probabilities[parts[i].id] >= options.threshold) {

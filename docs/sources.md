@@ -1,6 +1,6 @@
 # Reference projects: what we may reuse
 
-Checked 2026-10-10 with `gh api` (license, HEAD SHA, last push). READMEs only; **no source was cloned, read line-by-line, or executed**. Treat the "idea" column as inspiration; do not copy code until its source file has been read and its license obligations met.
+Checked 2026-10-10 with `gh api` (license, HEAD SHA, last push). **fast-jev-compaction was read at source level (hooks/fast-jev.ts, src/request.ts, manifests, tests) and loaded once in a scratch project; the others were README-level only.** Treat the "idea" column as inspiration; do not copy code until its source file has been read and its license obligations met.
 
 | Project | License | HEAD | Last push | May we reuse code? | Essence worth taking |
 |---|---|---|---|---|---|
@@ -17,6 +17,12 @@ Checked 2026-10-10 with `gh api` (license, HEAD SHA, last push). READMEs only; *
 - Ideas are free; code needs a license. Only MIT and BSD-3 sources above may be copied from, with their notices kept in the file or in `THIRD_PARTY_NOTICES.md`.
 - Nothing has been copied so far. If something is, record the source path, commit SHA and license here in the same commit.
 - Stars and README claims are not evidence that an approach lowers cost. Only our own paired agent-task runs are (`docs/EVALUATION.md`).
+
+## fast-jev-compaction: what we took and what we did not (read 2026-10-10, commit e3f262a)
+
+Taken as ideas (v0.2.1), no code copied: visible fallback toasts and per-decision debug log; key from `settings.json` env; a `model` setting and `jev-latest`.
+Deliberately not copied: it puts the first 200 characters of an API error body into messages (we show fixed reason codes only); it does not range-check probabilities or validate usage (we do); whole-session compaction (a different, larger feature; use that project alongside ours).
+Still open: it checks in Claude Code's `claude-code.d.ts` and runs `tsc` over its hook (needs Node for maintainers); we use `any`.
 
 ## Concrete adoption backlog (not done)
 

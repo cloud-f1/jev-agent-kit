@@ -19,6 +19,8 @@ interface Setup {
   failWrites?: boolean
   realCwd?: string
   gitExit?: number
+  settingsEnv?: Record<string, string>
+  throwOnWrite?: boolean
   http?: (url: string, init: any) => any
 }
 
@@ -32,6 +34,8 @@ function stubs(on: any, setup: Setup = {}) {
   const scripts: string[] = []
   const fsWrites: string[] = []
   const registered: string[] = []
+  const toasts: string[] = []
+  const logs: string[] = []
   const status: string[] = []
   const requests: Array<{ url: string; init: any }> = []
   mock.clock(on)
@@ -64,12 +68,15 @@ function stubs(on: any, setup: Setup = {}) {
     requests.push({ url: e.url, init: e.init })
     return { value: setup.http ? setup.http(e.url, e.init) : { ok: false, status: 500, headers: {}, text: '' } }
   })
+  on('ui.toast', (_: any, e: any) => { toasts.push(e.text); return { value: undefined } })
+  on('ui.log', (_: any, e: any) => { logs.push(e.text); return { value: undefined } })
+  on('settings.read', () => ({ value: { env: setup.settingsEnv ?? {} } }))
   on('ui.status', (_: any, e: any) => { status.push(e.text); return { value: undefined } })
   on('command.register', (_: any, e: any) => { registered.push(e.name); return { value: undefined } })
   on('session.start', () => ({ cwd: CWD }))
   const bash = { stdout: longLog(), stderr: 'WARNING stderr evidence', interrupted: false, isImage: false }
   on('tool.call', () => (setup.tool ?? { result: bash, text: 'original' }))
-  return { written, status, requests, bash, files, commands, scripts, fsWrites, registered }
+  return { written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
 }
 
 const call = ($: any) => $.tool.call({ tool: 'Bash', command: 'npm test' })
@@ -429,3 +436,94 @@ for (const [dir, ok] of dirCases) {
     if (!ok) expect(first.includes('C:\\Users\\u/.cache/jev-agent-kit/')).toBe(true)
   })
 }
+
+// ---- v0.2.1: visible failures, settings.env key, model setting
+const JEV_ASSIST = { ...ASSIST, backend: 'jev' }
+
+test('a failing Jev backend tells the user once per reason, with a fixed reason code only', async ($, on) => {
+  const http = () => ({ ok: false, status: 429, headers: {}, text: 'rate limited secret-body-xyz' })
+  const s = stubs(on, { config: JEV_ASSIST, env: { TYPESAFE_API_KEY: 'k-12345678' }, http })
+  await call($)
+  await call($)
+  await call($)
+  expect(s.toasts.length).toBe(1)
+  expect(s.toasts[0]).toContain('http_429')
+  expect(s.toasts[0]).toContain('original output kept')
+  expect(s.toasts[0]).not.toContain('secret-body-xyz')
+  expect(s.toasts[0]).not.toContain('k-12345678')
+})
+
+test('a missing key is announced too, as missing_key', async ($, on) => {
+  const s = stubs(on, { config: JEV_ASSIST })
+  await call($)
+  expect(s.toasts.some((t) => t.includes('missing_key'))).toBe(true)
+})
+
+test('a healthy run shows no toast, but every decision is written to the debug log', async ($, on) => {
+  const s = stubs(on, { config: ASSIST })
+  await call($)
+  expect(s.toasts).toEqual([])
+  expect(s.logs.some((l) => l.startsWith('prune ok:'))).toBe(true)
+})
+
+test('an internal error is announced once and the original result is kept', async ($, on) => {
+  const s = stubs(on, { config: ASSIST, failWrites: true })
+  const out: any = await call($)
+  await call($)
+  expect(out.text).toBe('original')
+  expect(s.toasts.filter((t) => t.includes('internal error')).length).toBe(1)
+})
+
+test('the key can come from Claude Code settings.json env', async ($, on) => {
+  const s = stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'settings-env-key-5' }, http: () => ({ ok: false, status: 500, headers: {}, text: '' }) })
+  await call($)
+  expect(s.requests[0].init.headers.Authorization).toBe('Bearer settings-env-key-5')
+  expect(JSON.stringify(s.written)).not.toContain('settings-env-key-5')
+})
+
+test('key order: environment, then plugin setting, then settings.env', async ($, on) => {
+  const http = () => ({ ok: false, status: 500, headers: {}, text: '' })
+  const s = stubs(on, { config: JEV_ASSIST, env: { TYPESAFE_API_KEY: 'from-env-1' }, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' }, http })
+  await call($)
+  expect(s.requests[0].init.headers.Authorization).toBe('Bearer from-env-1')
+})
+
+optsTest('plugin-setting key beats settings.env', { typesafe_api_key: 'from-plugin-2' }, async ($: any, on: any) => {
+  const http = () => ({ ok: false, status: 500, headers: {}, text: '' })
+  const s = stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' }, http })
+  await call($)
+  expect(s.requests[0].init.headers.Authorization).toBe('Bearer from-plugin-2')
+})
+
+optsTest('the model setting is sent, and the model that answered is recorded', { model: 'jev-latest', typesafe_api_key: 'k-12345678' }, async ($: any, on: any) => {
+  let sentModel = ''
+  const http = (_u: string, init: any) => {
+    const body = JSON.parse(init.body)
+    sentModel = body.model
+    const answers = Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }]))
+    return { ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'jev-1.14.0', usage: { input_tokens: 5, output_tokens: 0 }, answers }) }
+  }
+  const s = stubs(on, { config: JEV_ASSIST, http })
+  await call($)
+  expect(sentModel).toBe('jev-latest')
+  const record = decisions(s.written).find((d) => d.backend === 'jev')
+  expect(record.reason).toBe('ok')
+  expect(record.requested_model).toBe('jev-latest')
+  expect(record.actual_model).toBe('jev-1.14.0')
+})
+
+optsTest('an invalid model setting falls back to the pinned default', { model: 'gpt-4', typesafe_api_key: 'k-12345678' }, async ($: any, on: any) => {
+  let sentModel = ''
+  const http = (_u: string, init: any) => { sentModel = JSON.parse(init.body).model; return { ok: false, status: 500, headers: {}, text: '' } }
+  stubs(on, { config: JEV_ASSIST, http })
+  await call($)
+  expect(sentModel).toBe('jev-1.13.0')
+})
+
+optsTest('/jev doctor shows the model and where the key comes from', { model: 'jev-latest' }, async ($: any, on: any) => {
+  stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' } })
+  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  expect(out.text).toContain('Jev model: jev-latest (plugin settings)')
+  expect(out.text).toContain('Claude Code settings.json env')
+  expect(out.text).not.toContain('from-settings-3')
+})

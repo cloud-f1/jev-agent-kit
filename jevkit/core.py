@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 QUESTION_VERSION = 'log-keep-v1'
 ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 MODEL = 'jev-1.13.0'
@@ -151,7 +151,7 @@ def request(body, timeout=3.0):
         if len(data) > MAX_BYTES:
             raise JevError('response_too_large')
         obj = json.loads(data)
-        if not isinstance(obj, dict) or obj.get('model') != MODEL:
+        if not isinstance(obj, dict) or not (isinstance(obj.get('model'), str) and re.fullmatch(r'jev-[A-Za-z0-9._-]{1,40}', obj['model'])):
             raise JevError('invalid_model')
         usage = obj.get('usage')
         if not isinstance(usage, dict) or any(type(usage.get(k)) not in (int, float) or not float(usage[k]).is_integer() or usage[k] < 0 for k in ('input_tokens', 'output_tokens')):

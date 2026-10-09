@@ -1,5 +1,5 @@
 // Project config validation. Pure: the Mod reads the file and passes parsed JSON in.
-import { MAX_BYTES } from './contracts.ts'
+import { isJevModel, MAX_BYTES } from './contracts.ts'
 import type { Config } from './contracts.ts'
 
 const DEFAULTS: Config = {
@@ -110,6 +110,12 @@ export function mergeConfig(options: unknown, projectRaw: unknown): { config: Co
   const config = validateConfig(merged)
   for (const field of Object.keys(DEFAULTS)) sources[field] ??= 'default'
   return { config, sources }
+}
+
+// The model from plugin settings only (never a project file). Anything but a jev-* name is ignored.
+export function pluginModel(options: unknown): string | undefined {
+  const value = (options as Record<string, unknown> | null)?.model
+  return isJevModel(value) ? value : undefined
 }
 
 // The key from plugin settings (secure storage); never logged, only its presence is reported.

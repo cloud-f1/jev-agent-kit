@@ -249,4 +249,24 @@ class SettingsLayerTests(unittest.TestCase):
         self.assertIsNone(core.plugin_key({'CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY': 'REPLACE_ME'}))
         self.assertIsNone(core.plugin_key({}))
 
+
+class ModelAcceptanceTests(unittest.TestCase):
+    def test_any_jev_model_in_a_response_is_accepted_others_rejected(self):
+        usage = {'input_tokens': 5, 'output_tokens': 0}
+        def respond(model):
+            return {'model': model, 'usage': usage, 'answers': {'b1': {'type': 'noul', 'noul': 0.9}}}
+        class Resp:
+            def __init__(self, obj): self.obj = obj
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self, n=-1): return json.dumps(self.obj).encode()
+        for model, ok in (('jev-1.13.0', True), ('jev-latest', True), ('jev-1.99.0', True), ('gpt-4', False), ('', False), (None, False), ('jev-', False)):
+            opener = type('O', (), {'open': lambda self, req, timeout=0, m=model: Resp(respond(m))})()
+            with patch.dict(os.environ, {'TYPESAFE_API_KEY': 'k-12345678'}), patch('urllib.request.build_opener', return_value=opener):
+                if ok:
+                    self.assertEqual(core.request({'model': 'jev-latest'})['model'], model)
+                else:
+                    with self.assertRaises(core.JevError):
+                        core.request({'model': 'jev-latest'})
+
 if __name__=='__main__': unittest.main()

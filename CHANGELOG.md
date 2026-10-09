@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.1 (2026-10-10)
+
+Ideas taken from reading fast-jev-compaction's source (MIT, nothing copied; see docs/sources.md).
+
+- New: failures are visible. When pruning or the Jev backend falls back to the original output, a toast says so once per reason per session with a fixed reason code (`http_429`, `missing_key`, ...), plus a debug-log line for every decision (`claude --debug-file f.log`). Previously the reason was only in `/jev status`, so a bad key looked like "nothing happens".
+- New: API key is also read from Claude Code's `settings.json` `env` block (order: environment, plugin setting, settings.env, `JEV_ENV_FILE`).
+- New: `Jev model` setting (default stays the pinned `jev-1.13.0`; `jev-latest` allowed). The response may name any `jev-*` model, and decision records now hold `requested_model` and `actual_model`. Before, any other model in a response was rejected, so a retired model would have turned Jev off silently.
+- Tests: 57 Python + 82 Mod/core tests. Verified live: both this plugin and fast-jev-compaction loaded together without interference.
+
 ## 0.2.0 (2026-10-10)
 
 - New: native Claude Code Mod (`hooks/register.ts`, TypeScript, no build step). Wraps Bash `tool.call`, prunes long output in `assist` mode, keeps `stderr` intact, stores the untouched original, and adds a read-back pointer.
