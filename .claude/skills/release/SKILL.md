@@ -22,6 +22,10 @@ Installed plugins are cached **by version**: users only get a fix after the vers
 7b. **Jira**: move the matching JEV issues (see `docs/EPICS.md`) with `symphony-workflow call transition_issue` from `../symphony-workflow` (`uv run --env-file .env ...`); never print its `.env`.
 8. **Rollback**: users pin by reinstalling the previous tag; fix forward with a new patch version. Never move or delete a published tag.
 
+## Standing approval (given by the user on 2026-10-10)
+
+The user said releases may be done automatically from now on. That covers merge to `main`, tag, push, GitHub release, marketplace check and moving the matching Jira tickets, **only when** the read-only audit has no unfixed high finding and `release_check.py --release` prints `OK to proceed`. Still stop and ask for: a failing gate or high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran.
+
 ## Rules
 
 - No secrets in commits (the gate scans tracked files). The Jev key lives only in a local `.env.local`.
