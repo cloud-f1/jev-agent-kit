@@ -1,1 +1,11 @@
-{"hooks":{"PostToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"python3 \"${CLAUDE_PLUGIN_ROOT}/jev.py\" hook","timeout":15}]}],"PostToolUseFailure":[{"matcher":"Bash","hooks":[{"type":"command","command":"python3 \"${CLAUDE_PLUGIN_ROOT}/jev.py\" hook","timeout":15}]}]}}
+{
+  "hooks": {
+    "PostToolUse": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/jev.py\" hook", "timeout": 15 }] }
+    ],
+    "PostToolUseFailure": [
+      { "matcher": "Bash", "hooks": [{ "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/jev.py\" hook", "timeout": 15 }] }
+    ]
+  },
+  "modules": ["./register.ts"]
+}

@@ -1,51 +1,47 @@
 ---
 name: operate
-description: Set up, diagnose and explain the Jev Agent Kit hooks in a project. Use when the user asks to install or configure jev-agent-kit, check why a Bash log was pruned, read back an original log, switch observe/assist mode, interpret decision records, or run the evaluation report.
+description: Set up, diagnose and explain Jev Agent Kit in a project. Use when the user asks to install or configure jev-agent-kit, check why a Bash log was or was not pruned, read back an original log, switch observe/assist mode, interpret decision records, or run the evaluation report.
 ---
 
 # Operate Jev Agent Kit
 
-Jev Agent Kit prunes long Bash output (and observes repeated failures) with a local rules engine, optionally assisted by the Jev model (TypeSafe AI System One). This skill guides you through operating it. It is not required for the hooks to run.
+Jev Agent Kit shortens long Bash output with a local rules engine, optionally assisted by the Jev model (TypeSafe AI System One). It runs as a **native Mod** on Claude Code 2.1.287+ and falls back to a **classic hook** on older versions. Neither is required for you to work; this skill helps you operate them.
 
-Runtime lives in `${CLAUDE_PLUGIN_ROOT}`; run its CLI as `python3 "${CLAUDE_PLUGIN_ROOT}/jev.py" <command>`.
+CLI: `python3 "${CLAUDE_PLUGIN_ROOT}/jev.py" <command>`. In-session: `/jev status | doctor | readback <id>` (these cost no model turn; prefer them).
 
 ## Safety rules (always)
 
-- Never ask the user to paste `TYPESAFE_API_KEY`. Never read, print or commit `.env.local`. Check only whether the key exists (`doctor` reports `jev_key_present`).
-- `observe` mode does not rewrite output, but with `backend: jev` it still sends redacted log blocks to the Jev API and costs money. Say so before enabling it.
-- Only `rules` backend with `enabled: false` sends nothing anywhere.
-- Do not claim cost savings or "it works" from mock runs. Mock and `log_proxy` results are not agent-task evidence.
+- Never ask the user to paste `TYPESAFE_API_KEY`. Never read, print or commit `.env.local`. `/jev doctor` reports only whether a key exists.
+- `observe` does not rewrite output, but with `backend: jev` it still sends redacted log blocks to the Jev API and costs money. Say so before enabling it.
+- `backend: rules` sends nothing anywhere.
+- Never claim savings from mock or `log_proxy` runs. They are not agent-task evidence.
 - This is cost optimization, not a security control. Regex redaction is best effort.
 
-## Common tasks
+## How it decides
 
-| Task | Command |
+1. Project must have `.claude/jev-agent-kit.json` with `"enabled": true`. Absent file = off.
+2. Claude Code already caps Bash output near 30,000 characters before any hook sees it. Output shorter than `minimumChars` is never touched.
+3. `observe`: records the decision and stores the original; output unchanged. `assist`: replaces `stdout` with the pruned text plus a read-back line. `stderr`, interrupted runs, images, failed commands and denied calls are never rewritten.
+4. Any error returns the original output. Look at the record's `reason` (`ok`, `missing_key`, `http_429`, `budget_fallback_original`, ...).
+
+Config fields: `schemaVersion` (1), `enabled`, `mode` (`observe`|`assist`), `backend` (`rules`|`jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set endpoint, key or credential paths.
+
+Rollout: `rules`+`observe` first, then `jev`+`observe` and inspect `/jev status`, only then `assist`.
+
+## Mod vs classic hook
+
+The plugin ships both. At `session.start` the Mod writes `<state>/mod-active/<hash of session id>`; the classic hook exits at once when that marker exists. If `/jev doctor` works, the Mod is active. Do not also run `jev.py install` in the same project (it adds a second hook registration).
+
+## Diagnosing
+
+| Symptom | Check |
 |---|---|
-| Environment check | `doctor` |
-| Validate a project's config | `check-config --project <abs path>` |
-| Recent decisions for a project | `status --project <abs path>` |
-| Recover the full original log | `readback <ARTIFACT_ID> --project <abs path>` (ID is printed at the end of a pruned output) |
-| Offline demo (no key, no network) | `bench-logs --outdir results/offline` |
-| Live smoke (needs key, synthetic text only) | `--env-file .env.local smoke` |
-| Paired agent-task report | `report --manifest evals/agent-manifest.json --records results/agent-runs.jsonl` |
-
-## Project config
-
-`.claude/jev-agent-kit.json` per project. Fields: `schemaVersion` (1), `enabled`, `mode` (`observe` | `assist`), `backend` (`rules` | `jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set endpoint, key or credential paths by design.
-
-Recommended rollout: `rules` + `observe` first, then `jev` + `observe` and inspect `status`, and only then `assist`.
-
-## Plugin vs installer: pick one
-
-The plugin's `hooks/hooks.json` and the `install` command both register the same hook. Never use both in one project or the hook runs twice. The plugin ships with `defaultEnabled: false`, so enable it explicitly (`/plugin` or `claude plugin enable jev-agent-kit`).
-
-## Diagnosing "why was this pruned / not pruned"
-
-1. `status` shows recent decision records (`reason`, `backend`, char counts, `artifact_id`).
-2. `reason: ok` means the pipeline ran; any other reason (`missing_key`, `http_429`, `budget_fallback_original`, ...) means it fell back to the original output.
-3. Output under `minimumChars` is never touched. Failed commands (`PostToolUseFailure`) are observed only, never rewritten.
-4. Use `readback` to confirm no evidence was lost; report any loss as a bug.
+| Nothing happens | `/jev doctor`: is `enabled=true`? `claude --debug-file f.log` and grep `hooks module jev-agent-kit` |
+| `/jev` unknown | Mod not loaded: Claude Code older than 2.1.287, `--bare`/`--safe-mode`, or `disableAllHooks` |
+| Output not shortened | Under `minimumChars`, `observe` mode, or the record shows a fallback `reason` |
+| Need the full log | `/jev readback <id>` (id is printed at the end of pruned output) |
+| Plugin edits ignored | Installed plugins are cached by version; develop with `--plugin-dir` |
 
 ## Evaluating
 
-Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` results separate. Always report `jev_vs_local` (Jev's increment over the local rules), not just vs baseline. Insufficient, incomplete or unknown-cost data means no verdict.
+Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` separate, always report `jev_vs_local`, and treat incomplete or unknown-cost data as no verdict. Command: `python3 "${CLAUDE_PLUGIN_ROOT}/jev.py" report --manifest ... --records ...`.

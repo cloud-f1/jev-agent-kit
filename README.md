@@ -1,99 +1,160 @@
-# Jev Agent Kit v0.1.0
+# Jev Agent Kit
 
-可執行的 Python 3.10+、零第三方依賴核心，包含 Claude Code **classic hook fallback**、Log 精簡／原文讀回、循環觀察、API smoke、offline/live Log 對照與真實任務配對報告。原生 Mod／模型分流留待目標 Claude Code 版本驗證後實作；不把 classic Hook 當作已完成 Mod。
+Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) before it reaches the model, with a local rules engine and an optional [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) (TypeSafe AI System One) relevance pass. The original output is always kept and recoverable.
 
-## 從 marketplace 安裝（repo 推上 GitHub 後才有效）
+Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
+
+> **Status: v0.2.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API path has not been run against a real key.
+
+## What it does
+
+| Piece | What |
+|---|---|
+| Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
+| `/jev` command | `/jev status`, `/jev doctor`, `/jev readback <id>`: no model turn spent. |
+| Classic hook (`jev.py hook`) | Same job for Claude Code older than 2.1.287. Stays out of sessions the Mod owns. |
+| Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
+| CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `install`, `report`. |
+
+Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+
+## Install
+
+Requires Claude Code 2.1.287+ for the Mod (older versions use the classic hook automatically) and `python3` (3.10+) for the classic hook and CLI.
 
 ```
 /plugin marketplace add cloud-f1/jev-agent-kit
 /plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit
 ```
 
-Plugin 預設 `defaultEnabled: false`：安裝後要明確啟用（`/plugin` 或 `claude plugin enable jev-agent-kit`），而且每個專案要有 `.claude/jev-agent-kit.json` 且 `enabled: true` 才會處理輸出。本機開發：`claude --plugin-dir /absolute/path/to/jev-agent-kit`。Plugin 與下方 `install` 指令二選一，不可同時用。授權：MIT。
+Or from a shell: `claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`.
+Local development: `claude --plugin-dir /absolute/path/to/jev-agent-kit`.
 
-## 先跑不用 key 的驗證
+Installing changes nothing by itself. **Each project opts in** with a config file.
 
-在解壓後的 `jev-agent-kit` 目錄執行：
+## Use it: five minutes
 
-```bash
-python3 jev.py doctor
-python3 -m unittest discover -s tests -v
-python3 jev.py bench-logs --outdir results/offline
-```
+1. **Opt a project in** (start safe: local rules, observe only, no network):
 
-Windows 可將 `python3` 改成 `python`。Log demo 用 5 個合成 fixtures，mock Jev 是測試替身，**不證明真實 Agent 成功率、Jev 能力或帳單節省**。
+   ```bash
+   mkdir -p .claude && cat > .claude/jev-agent-kit.json <<'JSON'
+   {"schemaVersion": 1, "enabled": true, "mode": "observe", "backend": "rules"}
+   JSON
+   ```
 
-## 放入你的 Jev API key
+2. Start `claude` in that project and check: `/jev doctor` should show `enabled=true`.
+3. Run something noisy (a long test run). Then `/jev status` shows what was recorded. `observe` never rewrites output; it stores the original and logs the decision.
+4. Switch to `"mode": "assist"` to let it shorten output. The model sees the pruned text and a line like `full original available via /jev readback <id>`. Run `/jev readback <id>` to get everything back.
+5. Optional, **costs money and sends redacted log blocks to TypeSafe**: set `"backend": "jev"` and provide a key (below). Inspect `/jev status` in `observe` first.
 
-1. 複製 `.env.example` 為 `.env.local`。
-2. 在本機編輯 `TYPESAFE_API_KEY=REPLACE_ME`，替換為你的 key。
-3. 不要把 key 貼到 Claude 對話，也不要提交 `.env.local`。
+### Config reference (`.claude/jev-agent-kit.json`)
 
-```bash
-python3 jev.py --env-file .env.local smoke
-python3 jev.py --env-file .env.local bench-logs --live --outdir results/live-logs
-```
+| Field | Default | Meaning |
+|---|---|---|
+| `enabled` | `false` | Must be `true` or the kit does nothing. |
+| `mode` | `observe` | `observe` records only; `assist` rewrites output. |
+| `backend` | `rules` | `rules` is local; `jev` adds the API relevance pass. |
+| `minimumChars` | 8000 | Shorter output is never touched. (Claude Code caps Bash output near 30,000 chars itself.) |
+| `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
+| `keepThreshold` | 0.8 | Jev probability needed to keep a non-error block. |
+| `retentionDays` | 7 | How long state is kept. |
 
-`smoke` 只送合成文字；live Log benchmark 也只送合成 fixtures。缺 key／API 失敗 exit 3，不能當成功。Core 使用固定官方 HTTPS endpoint、不跟隨 redirect、不接受 repo 改 endpoint。輸出只記錄安全類別，不輸出 key 或 HTTP body。
+Unknown fields are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key).
 
-## 接入一個專案
+### The Jev API key
 
-先用 rules backend observe，確認可運作；installer 合併既有 `.claude/settings.json`，保留其他 hooks，並建立備份。
-
-```bash
-python3 jev.py install --project /absolute/path/to/your-repo --backend rules --mode observe
-python3 jev.py check-config --project /absolute/path/to/your-repo
-```
-
-接著修改該 repo `.claude/jev-agent-kit.json`：`backend` 改成 `jev`，先保持 `mode=observe`。observe 不替換輸出，但**會發 API request、外送篩選後的 Log、產生 API 費用**。enabled=false 才完全停用此 adapter。合成測試通過後再選 assist。
-
-要讓 Claude session 的 hook 讀 key，在啟動 Claude 的 shell 設定 **可信全域環境變數**：
+Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it.
 
 ```bash
-export JEV_ENV_FILE=/absolute/path/to/jev-agent-kit/.env.local
-claude
+cp .env.example .env.local        # then edit TYPESAFE_API_KEY=... (gitignored)
+export JEV_ENV_FILE=/absolute/path/to/.env.local   # before starting claude
+# or: export TYPESAFE_API_KEY=...
+python3 jev.py --env-file .env.local smoke          # synthetic text only; exit 3 = no verdict
 ```
 
-PowerShell：
+### Where things live
 
-```powershell
-$env:JEV_ENV_FILE = 'C:\absolute\path\jev-agent-kit\.env.local'
-claude
-```
+State (originals, decision records) is under `~/.cache/jev-agent-kit/` (override: `JEV_STATE_DIR`), files `0600`. Raw logs may contain secrets; redaction is best effort. Records never contain code, prompts, commands, full logs, keys or HTTP bodies.
 
-亦可在 shell 直接設定 TYPESAFE_API_KEY。`JEV_ENV_FILE` 不放進 repo config。CLI 的 `--env-file` 只影響該 CLI 執行，不會自動讓另開的 Claude session 擁有 key。
+## Full usage
 
-Claude 啟動後用 `/hooks` 確認事件；以安全的長測試輸出試用。Host 必須支援 `updatedToolOutput`，否則先 observe 並交給 SESSION.md 驗證。此環境沒有 Claude CLI，僅驗證模擬 Hook schema，未驗證 host load。
+### In-session commands (Mod)
 
-## 讀回與觀察
+| Command | Does |
+|---|---|
+| `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
+| `/jev status` | Count and the last 10 decision records for this project. |
+| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output. Only 32 hex chars are accepted. |
+
+The status line under the prompt shows `jev: N/M long logs pruned · X chars saved` (assist) or `jev (observe): M long logs seen` (observe).
+
+### CLI (`python3 jev.py ...`, from the plugin or a checkout)
+
+| Command | Does | Needs key |
+|---|---|---|
+| `doctor` | Python, Claude CLI, key presence, endpoint, model. | no |
+| `check-config --project DIR` | Validate `.claude/jev-agent-kit.json`. | no |
+| `status --project DIR` | Recent decision records. | no |
+| `readback ID --project DIR` | Print a stored original (classic-hook artifacts). | no |
+| `bench-logs --outdir DIR` | Offline demo on 5 synthetic logs with a mock Jev. **Not** a quality or billing result. | no |
+| `smoke` | One synthetic request to the real API; exit 3 = no verdict (missing key, 401, 429, timeout...). | yes |
+| `bench-logs --live --outdir DIR` | Same fixtures against the real API (synthetic text only). | yes |
+| `install --project DIR [--backend rules\|jev] [--mode observe\|assist]` | Classic-hook install into `.claude/settings.json` (backs up, idempotent). Only for Claude Code without Mod support; do not combine with the plugin. | no |
+| `report --manifest M --records R --outdir DIR` | Paired agent-task comparison report. | no |
+
+Add `--env-file PATH` before the command to load `TYPESAFE_API_KEY` from a local dotenv file for that run only.
+
+### Several projects
+
+Install the plugin once (user scope). In each repo commit only `.claude/jev-agent-kit.json`; do not copy plugin code. Different repos can use different modes. State is isolated per project directory, so a stored original from one repo is never readable from another.
+
+### Measuring whether it helps
+
+Shorter output is not the goal; lower **cost per successful task** at equal success is. The kit ships the harness, not the answer:
+
+1. Read [docs/EVALUATION.md](docs/EVALUATION.md). Keep the cheap `log_proxy` numbers (characters saved, evidence kept) separate from `agent_task` results.
+2. Pre-register tasks in a manifest (`evals/agent-manifest.json` shows the shape), run each task under `baseline`, `local` (rules) and `jev`, several repeats, on identical commits and verifiers.
+3. Record one JSON line per run (`evals/agent-record.example.json`), then `python3 jev.py report ...`.
+4. Compare `jev` against `local`, not only against baseline, so a cheaper-model effect is not credited to Jev. Missing runs, unknown costs or too few tasks give INCOMPLETE / UNKNOWN_COST / INSUFFICIENT_EVIDENCE, never GO. The gate numbers are a product policy you may change, not a proven threshold.
+
+### Upgrade, rollback, uninstall
+
+- Update: `claude plugin update jev-agent-kit` (installed plugins are cached by version, so a fix only arrives with a new version).
+- Roll back: reinstall the earlier tag, or remove and re-add the marketplace pinned to it. Project config files stay valid across 0.1 to 0.2 (`schemaVersion` 1).
+- Stop using it in one project: set `"enabled": false` (or delete the file). Everywhere: `claude plugin disable jev-agent-kit`, or `claude plugin uninstall jev-agent-kit`.
+- Remove stored data: delete `~/.cache/jev-agent-kit/` (or your `JEV_STATE_DIR`). Originals and records live only there.
+
+### Privacy and data flow
+
+| Backend | Leaves your machine? |
+|---|---|
+| `rules` | Nothing. |
+| `jev` | Redacted log blocks (secrets pattern-masked, best effort), the goal text, and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. |
+
+Decision records hold counts, reason codes, timing, token usage and an artifact id. They never hold code, prompts, commands, full logs, keys, response bodies or exception text. Optionally put a one-line task description in `.claude/jev-goal.txt` to tell Jev what evidence is relevant (it is redacted before sending).
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `/jev` not found | Mod not loaded: update Claude Code, or check `claude --debug-file f.log` for `hooks module jev-agent-kit`. |
+| Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
+| `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. |
+| Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
+| Both Mod and classic hook seem to run | Do not also run `jev.py install` in the same project. |
+
+## Develop and verify
 
 ```bash
-python3 jev.py status --project /absolute/path/to/your-repo
-python3 jev.py readback ARTIFACT_ID --project /absolute/path/to/your-repo
+python3 -m unittest discover -s tests      # Python core + hook + release-gate tests (72)
+claude plugin test                         # TypeScript core + Mod tests (48), offline
+claude plugin validate --strict .
+python3 jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
+python3 scripts/release_check.py           # the local release gate (add --release to tag)
 ```
 
-替換輸出末尾會提示 artifact ID。原始 Log 留本機受限檔案權限，預設儲存在 `~/.cache/jev-agent-kit/<project hash>/`；用 JEV_STATE_DIR 可改可信全域路徑。Windows 權限還需使用系統 ACL。原始 Log 可能含秘密；regex redaction 是 best effort，不保證移除所有敏感資料。TTL 清理由後續 Hook 執行觸發，不是背景服務。
+Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `jevkit/` the Python core, `tests/fixtures/golden.*` shared by both cores. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
 
-循環功能僅記錄 hash 與 repeated_count，結合 git HEAD／tracked diff；不攔截、不重試、不切模型。Untracked／ignored 檔、環境與外部服務變化未完整涵蓋，不能拿此 count 當無進展證明。
+## Limits
 
-## 真實 Agent 評估
-
-讀 `docs/EVALUATION.md`。將真實完整任務記錄寫成 JSONL，不混入 log_proxy 或 mock 結果：
-
-```bash
-python3 jev.py report --manifest evals/agent-manifest.json --records results/agent-runs.jsonl --outdir results/agent-report
-```
-
-報告包含 baseline/local/jev、Jev 相對 local 的增量、任務 cluster bootstrap 95% CI、成功任務成本、首次通過率與 P95。缺任何預先登記 run 會回傳 INCOMPLETE；成本不完整不會產生 GO。
-
-## 多專案与升級
-
-將本套件放在一個穩定絕對路徑，對多個 repo 執行 install，每個 repo 僅保留 config 與 hook 設定，程式不複製。不要搬走套件後讓既有 hooks 指向不存在的路徑。保持固定路徑替換 release，或備份後明確更新各 repo hook 路徑。
-
-Plugin manifest／hooks.json 已提供供後續 marketplace 打包，**不要同時用 installer 與 plugin-dir 啟動同一 adapter**。不提供假 marketplace URL 或未發布的 npm install 命令。
-
-升級先跑測試、mock、Claude schema integration 與兩個 consumer repo；更改問題／模型需重跑對照。保留上一版本與 settings 備份供 rollback。完整研究背景見 docs/REPO_HANDOVER.md；下一個 Claude session 直接讀 SESSION.md。
-
-## 目前驗證邊界
-
-Core、CLI、mock與子程序 Hook 測試已執行；真實 Jev API、Claude host、native Mod、真實 Agent 任務成本與 marketplace 發布未執行。使用者需提供 key 與可用 Claude 環境。此 v0.1 是可測試的成本優化 fallback，不是安全 sandbox。urllib timeout 是 socket timeout，不是完整端到端 deadline；實際 Hook 另有15秒 host timeout，逾時須以 host 行為驗證。
+Not a security control. Not proven to save money. The loop detector only observes. Windows: private file modes (`umask`) are not applied by the Mod. Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.

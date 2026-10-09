@@ -58,6 +58,8 @@ def hook():
             return
         root = core.root_for(project)
         core.cleanup(root, cfg['retentionDays'])
+        if core.mod_active(event.get('session_id')):
+            return  # the native Mod owns this session; never process the same event twice
         name = event.get('hook_event_name')
         response = event.get('tool_response')
         if name == 'PostToolUseFailure':
@@ -70,9 +72,10 @@ def hook():
         # Repo fingerprint is diagnostic only; errors preserve normal execution.
         state = 'unknown'
         try:
-            revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=project, capture_output=True, timeout=1).stdout
-            diff = subprocess.run(['git', 'diff', 'HEAD', '--'], cwd=project, capture_output=True, timeout=1).stdout
-            state = core.digest([revision.hex(), diff.hex()])
+            head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=project, capture_output=True, timeout=1)
+            diff = subprocess.run(['git', 'diff', 'HEAD', '--'], cwd=project, capture_output=True, timeout=1)
+            if head.returncode == 0 and diff.returncode == 0:  # not a repo / no commits: state stays unknown
+                state = core.digest([head.stdout.hex(), diff.stdout.hex()])
         except Exception:
             pass
         _, count = core.repeated(root, event.get('session_id', 'unknown'),
@@ -85,13 +88,15 @@ def hook():
         output, meta = core.prune(text, cfg['backend'], goal_file(project), cfg['timeoutSeconds'], cfg['keepThreshold'])
         if output != text:
             output += '\n[Jev agent kit: full original available via readback ' + original_id + ']\n'
-        core.record(root, dict(meta, mode=cfg['mode'], artifact_id=original_id,
-                               delivered_chars=len(output) if cfg['mode'] == 'assist' else len(text)))
+        fields_ok = all(k in response for k in ('stderr', 'interrupted', 'isImage'))
         # Never change failed/interrupted/image tool results or erase stderr.
-        if cfg['mode'] == 'assist' and output != text and not response.get('interrupted') and not response.get('isImage'):
-            if not all(k in response for k in ('stderr', 'interrupted', 'isImage')):
-                core.record(root, {'feature': 'compatibility', 'reason': 'missing_tool_fields'})
-                return
+        can_rewrite = (cfg['mode'] == 'assist' and output != text and fields_ok
+                       and not response.get('interrupted') and not response.get('isImage'))
+        if cfg['mode'] == 'assist' and output != text and not fields_ok:
+            core.record(root, {'feature': 'compatibility', 'reason': 'missing_tool_fields'})
+        core.record(root, dict(meta, mode=cfg['mode'], artifact_id=original_id,
+                               delivered_chars=len(output) if can_rewrite else len(text)))
+        if can_rewrite:
             emit({'hookSpecificOutput': {'hookEventName': 'PostToolUse',
                   'updatedToolOutput': dict(response, stdout=output)}})
     except Exception:
@@ -164,7 +169,7 @@ def main():
             emit({'python': sys.version.split()[0], 'claude_cli_available': bool(shutil.which('claude')),
                   'jev_key_present': bool(os.environ.get('TYPESAFE_API_KEY')), 'kit_version': core.VERSION,
                   'endpoint': core.ENDPOINT, 'model': core.MODEL,
-                  'note': 'Key presence is not authentication validation. Native Mod not implemented; classic fallback included.'})
+                  'note': 'Key presence is not authentication validation. This reports the Python side only; the native Mod ships in hooks/register.ts (use /jev doctor in a session).'})
         elif args.cmd == 'smoke':
             obj = core.request({'model': core.MODEL, 'state': 'A unit test failed.', 'questions': {
                 'failed': {'type': 'noul', 'instructions': 'Does the state say that a unit test failed?'}}})

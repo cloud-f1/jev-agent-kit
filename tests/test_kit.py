@@ -185,4 +185,173 @@ class HookTests(unittest.TestCase):
     def test_interrupted_never_rewritten(self):
         self.assertEqual(self.run_hook({'enabled':True,'mode':'assist','backend':'rules','minimumChars':0}, override={'interrupted':True}), '')
 
+class ModExclusionTests(unittest.TestCase):
+    """The native Mod writes a per-session marker; the classic hook must then stay out."""
+
+    def run_hook_with_marker(self, marker_session):
+        with tempfile.TemporaryDirectory() as td:
+            project=Path(td)/'project'; project.mkdir(); (project/'.claude').mkdir()
+            (project/'.claude'/'jev-agent-kit.json').write_text(json.dumps({'enabled':True,'mode':'assist','backend':'rules','minimumChars':0}))
+            state=Path(td)/'state'
+            if marker_session is not None:
+                marker=state/'mod-active'/core.digest(marker_session)[:24]
+                marker.parent.mkdir(parents=True); marker.write_text('0.2.0')
+            payload={'hook_event_name':'PostToolUse','cwd':str(project),'session_id':'session-a','tool_name':'Bash',
+                     'tool_input':{'command':'npm test'},
+                     'tool_response':{'stdout':long_log(),'stderr':'','interrupted':False,'isImage':False}}
+            env=dict(os.environ, JEV_STATE_DIR=str(state)); env.pop('TYPESAFE_API_KEY', None)
+            done=subprocess.run([sys.executable,'jev.py','hook'],input=json.dumps(payload),text=True,capture_output=True,env=env)
+            self.assertEqual(done.returncode,0)
+            return done.stdout
+
+    def test_marker_for_this_session_silences_classic_hook(self):
+        self.assertEqual(self.run_hook_with_marker('session-a'), '')
+
+    def test_marker_for_another_session_does_not(self):
+        self.assertIn('updatedToolOutput', self.run_hook_with_marker('session-b'))
+
+    def test_no_marker_classic_hook_runs(self):
+        self.assertIn('updatedToolOutput', self.run_hook_with_marker(None))
+
+    def test_mod_active_rejects_bad_session_ids(self):
+        for value in (None, '', 5, [], {}):
+            self.assertFalse(core.mod_active(value))
+
+
+GOLDEN = json.loads((Path(__file__).parent / 'fixtures' / 'golden.json').read_text(encoding='utf-8'))
+
+
+class GoldenParityTests(unittest.TestCase):
+    """tests/fixtures/golden.json is shared with the TypeScript core tests; both must agree."""
+
+    def test_digests_match_fixture(self):
+        for value, expected in GOLDEN['digests'].items():
+            self.assertEqual(core.digest(value)[:24], expected)
+
+    def test_fixture_files_are_in_sync_with_python_core(self):
+        sys.path.insert(0, str(Path(__file__).parent.parent / 'scripts'))
+        import gen_golden
+        as_json, as_ts = gen_golden.render()
+        fixtures = Path(__file__).parent / 'fixtures'
+        self.assertEqual((fixtures / 'golden.json').read_text(encoding='utf-8'), as_json)
+        self.assertEqual((fixtures / 'golden.ts').read_text(encoding='utf-8'), as_ts)
+
+    def test_prune_output_matches_fixture(self):
+        for case in GOLDEN['cases']:
+            output, meta = core.prune(case['input'], 'rules')
+            self.assertEqual(output, case['expected_output'], case['name'])
+            self.assertEqual(meta['input_chars'], case['expected_input_chars'], case['name'])
+            self.assertEqual(meta['reason'], case['expected_reason'], case['name'])
+
+
+class AuditRegressionTests(unittest.TestCase):
+    """One test per finding of the independent audit (2026-10-10)."""
+
+    def test_redaction_covers_bearer_json_and_quoted_secrets(self):
+        for text, secret in [
+            ('Authorization: Bearer abcdefSECRET123', 'abcdefSECRET123'),
+            ('{"api_key": "SECRETJSON123", "password":"PW99"}', 'SECRETJSON123'),
+            ('{"api_key": "SECRETJSON123", "password":"PW99"}', 'PW99'),
+            ('password: "quoted secret"', 'secret'),
+            ("token='single quoted value'", 'single quoted value'),
+            ('Basic dXNlcjpwYXNz1234', 'dXNlcjpwYXNz1234'),
+        ]:
+            self.assertNotIn(secret, core.redact(text), text)
+        self.assertEqual(core.redact('tokenizer is fine'), 'tokenizer is fine')
+
+    def test_redaction_matches_fixture(self):
+        for r in GOLDEN['redactions']:
+            self.assertEqual(core.redact(r['input']), r['expected'])
+
+    def test_private_files_and_every_new_directory_level_are_owner_only(self):
+        with tempfile.TemporaryDirectory() as td:
+            old = os.umask(0o022)  # a permissive umask must not leak into private state
+            try:
+                target = Path(td) / 'a' / 'b' / 'c' / 'f.log'
+                core.private_write(target, 'x')
+            finally:
+                os.umask(old)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o600)
+            for d in (target.parent, target.parent.parent, target.parent.parent.parent):
+                self.assertEqual(d.stat().st_mode & 0o777, 0o700, str(d))
+
+    def test_state_dir_expansion_and_relative_values_ignored(self):
+        default = Path.home() / '.cache' / 'jev-agent-kit'
+        cases = {'~/x': Path.home() / 'x', '~': Path.home(), '~other/x': default, 'relative/dir': default, '/abs/dir': Path('/abs/dir')}
+        for raw, expected in cases.items():
+            with patch.dict(os.environ, {'JEV_STATE_DIR': raw}):
+                self.assertEqual(core.state_base(), expected, raw)
+
+    def test_validation_accepts_integral_floats_like_json(self):
+        self.assertEqual(core.config.__name__, 'config')
+        with tempfile.TemporaryDirectory() as td:
+            (Path(td) / '.claude').mkdir()
+            (Path(td) / '.claude' / 'jev-agent-kit.json').write_text('{"schemaVersion": 1.0}')
+            self.assertEqual(core.config(td)['schemaVersion'], 1.0)
+
+    def test_regex_semantics_are_ascii_only(self):
+        filler = ''.join(f'filler {i}\n' for i in range(40))
+        for special in ('FA\u0131L\n', 'at foo:\u0663\n'):
+            out, _ = core.prune(filler + special + filler, 'rules')
+            self.assertNotIn(special, out, repr(special))  # not treated as important
+
+    def test_cleanup_runs_even_when_the_mod_owns_the_session(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'project'; (project / '.claude').mkdir(parents=True)
+            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'retentionDays': 1}))
+            state = Path(td) / 'state'
+            root = state / core.digest(str(project.resolve()))[:24]
+            old = root / 'artifacts' / ('a' * 32 + '.log'); old.parent.mkdir(parents=True); old.write_text('stale')
+            os.utime(old, (1, 1))
+            marker = state / 'mod-active' / core.digest('s1')[:24]; marker.parent.mkdir(parents=True); marker.write_text('x')
+            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's1', 'tool_name': 'Bash',
+                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': False, 'isImage': False}}
+            env = dict(os.environ, JEV_STATE_DIR=str(state))
+            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
+            self.assertEqual(done.stdout, '')
+            self.assertFalse(old.exists())
+
+
+class HookInvariantTests(HookTests):
+    """Invariant paths of the classic hook that were previously untested."""
+
+    def test_image_result_never_rewritten(self):
+        self.assertEqual(self.run_hook({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}, override={'isImage': True}), '')
+
+    def test_missing_tool_fields_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
+            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
+            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
+                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': ''}}
+            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
+            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
+            self.assertEqual(done.stdout, '')
+            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
+            self.assertTrue(any(r.get('reason') == 'missing_tool_fields' for r in rows))
+
+    def test_failure_event_is_observed_never_rewritten(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
+            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
+            payload = {'hook_event_name': 'PostToolUseFailure', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
+                       'tool_input': {'command': 'x'}, 'error': long_log(), 'is_interrupt': False}
+            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
+            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
+            self.assertEqual(done.stdout, '')
+            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
+            self.assertTrue(any(r.get('feature') == 'loop' for r in rows))
+
+    def test_delivered_chars_equals_input_when_not_rewritten(self):
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
+            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
+            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
+                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': True, 'isImage': False}}
+            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
+            subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
+            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
+            prune = [r for r in rows if r.get('reason') == 'ok'][0]
+            self.assertEqual(prune['delivered_chars'], prune['input_chars'])
+
 if __name__=='__main__': unittest.main()

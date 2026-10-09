@@ -9,13 +9,17 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-VERSION = '0.1.0'
+VERSION = '0.2.0'
 QUESTION_VERSION = 'log-keep-v1'
 ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 MODEL = 'jev-1.13.0'
 MAX_BYTES = 256_000
-IMPORTANT = re.compile(r'error|fail|exception|traceback|assert|warning|warn\b|expected|actual|timeout|denied|not found|at .+[:(]\d|^\s*File ', re.I)
-SECRET = re.compile(r'(?i)(?:api[_-]?key|token|password|secret|authorization)\s*[:=]\s*[^\s,;]+|\b(?:sk-[\w-]{12,}|ghp_[\w]{10,}|AKIA[A-Z0-9]{16})\b')
+WS = r'[ \t\n\r\f\v]'
+IMPORTANT = re.compile(r'error|fail|exception|traceback|assert|warning|warn\b|expected|actual|timeout|denied|not found|at [^\n]+[:(][0-9]|^' + WS + r'*File ', re.I | re.A)
+# Quoted keys/values and Bearer/Basic tokens are covered. ASCII-only semantics on purpose: the
+# TypeScript core uses identical explicit classes, and tests/fixtures/golden.* keep them in sync.
+SECRET_VALUE = r'''(?:"[^"\n]*"|'[^'\n]*'|(?:(?:bearer|basic)[ \t]+)?[^ \t\n\r\f\v"',;]+)'''
+SECRET = re.compile(r'''(?:api[_-]?key|token|password|secret|authorization)["']?[ \t\n\r\f\v]*[:=][ \t\n\r\f\v]*''' + SECRET_VALUE + r'''|\b(?:bearer|basic)[ \t]+[A-Za-z0-9._~+/=-]{8,}|\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{10,}|AKIA[A-Z0-9]{16})\b''', re.I | re.A)
 
 class JevError(Exception):
     """Only fixed diagnostic categories may leave the transport."""
@@ -48,7 +52,7 @@ def config(project):
         if not isinstance(value, dict) or set(value) - set(result):
             raise ValueError('unsupported_config_fields')
         result.update(value)
-    if type(result['schemaVersion']) is not int or result['schemaVersion'] != 1:
+    if type(result['schemaVersion']) not in (int, float) or result['schemaVersion'] != 1:
         raise ValueError('unsupported_schema')
     if type(result['enabled']) is not bool:
         raise ValueError('invalid_enabled')
@@ -109,7 +113,7 @@ def request(body, timeout=3.0):
         if not isinstance(obj, dict) or obj.get('model') != MODEL:
             raise JevError('invalid_model')
         usage = obj.get('usage')
-        if not isinstance(usage, dict) or any(type(usage.get(k)) is not int or usage[k] < 0 for k in ('input_tokens', 'output_tokens')):
+        if not isinstance(usage, dict) or any(type(usage.get(k)) not in (int, float) or not float(usage[k]).is_integer() or usage[k] < 0 for k in ('input_tokens', 'output_tokens')):
             raise JevError('invalid_usage')
         return obj
     except urllib.error.HTTPError as exc:
@@ -183,17 +187,43 @@ def prune(text, backend='rules', goal='Diagnose the current test or build failur
     meta.update(output_chars=len(output), latency_ms=round((time.monotonic()-started)*1000, 3))
     return output, meta
 
+def mkdir_private(path):
+    """mkdir -p where every newly created level is 0700 (Path.mkdir mode only covers the leaf)."""
+    old = os.umask(0o077)
+    try:
+        Path(path).mkdir(parents=True, exist_ok=True)
+    finally:
+        os.umask(old)
+
 def private_write(path, text):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    mkdir_private(path.parent)
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, 'w', encoding='utf-8') as out:
         out.write(text)
 
+def state_base():
+    # Trusted environment, never repo config. Only "~" and "~/..." are expanded (the TypeScript Mod
+    # does the same); anything not absolute afterwards is ignored so state can never land in a repo.
+    default = Path.home() / '.cache' / 'jev-agent-kit'
+    raw = os.environ.get('JEV_STATE_DIR')
+    if not raw:
+        return default
+    if raw == '~' or raw.startswith('~/'):
+        raw = str(Path.home()) + raw[1:]
+    return Path(raw) if os.path.isabs(raw) else default
+
 def root_for(project):
-    # Credentials / state directory are trusted environment, never repo config.
-    base = Path(os.environ.get('JEV_STATE_DIR', str(Path.home() / '.cache' / 'jev-agent-kit'))).expanduser()
-    return base / digest(str(Path(project).resolve()))[:24]
+    return state_base() / digest(str(Path(project).resolve()))[:24]
+
+def mod_active(session_id):
+    """True when the native Mod announced it owns this session; the classic hook then stays out."""
+    if not isinstance(session_id, str) or not session_id:
+        return False
+    try:
+        return (state_base() / 'mod-active' / digest(session_id)[:24]).exists()
+    except OSError:
+        return False
 
 def artifact(root, text):
     aid = digest(text)[:32]
@@ -207,7 +237,7 @@ def readback(root, aid):
 
 def record(root, obj):
     directory = Path(root) / 'decisions'
-    directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+    mkdir_private(directory)
     obj = dict(obj, timestamp=time.time())
     path = directory / (str(time.time_ns()) + '-' + os.urandom(4).hex() + '.json')
     private_write(path, json.dumps(obj, ensure_ascii=False))
@@ -224,7 +254,7 @@ def cleanup(root, days=7):
 def repeated(root, session, command, output, repo_state):
     fp = digest([command, output, repo_state])
     folder = Path(root) / 'fingerprints' / digest(session)[:24]
-    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    mkdir_private(folder)
     # Each call gets its own immutable record; no shared increment can be lost.
     private_write(folder / (str(time.time_ns()) + '.json'), json.dumps({'fingerprint': fp}))
     matches = 0
