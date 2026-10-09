@@ -19,6 +19,7 @@ Installed plugins are cached **by version**: users only get a fix after the vers
    `git tag vX.Y.Z && git push origin main --tags && gh release create vX.Y.Z --title vX.Y.Z --notes-file <changelog excerpt>`
 7. **Post-release verification from the real marketplace** in a scratch project:
    `claude plugin marketplace add cloud-f1/jev-agent-kit --scope local`, `claude plugin install jev-agent-kit@jev-agent-kit --scope local`, then confirm the version with `claude plugin list` and run `claude -p "/jev doctor"` there. Remove with `claude plugin uninstall` and `claude plugin marketplace remove`.
+7b. **Jira**: move the matching JEV issues (see `docs/EPICS.md`) with `symphony-workflow call transition_issue` from `../symphony-workflow` (`uv run --env-file .env ...`); never print its `.env`.
 8. **Rollback**: users pin by reinstalling the previous tag; fix forward with a new patch version. Never move or delete a published tag.
 
 ## Rules

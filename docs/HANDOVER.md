@@ -86,6 +86,10 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 - Live-test recipe: scratch project outside this repo, `--model haiku`, throwaway `JEV_STATE_DIR`, `--debug-file`, grep the log for `hooks module jev-agent-kit`.
 - Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history).
 
+## Jira
+
+Project `JEV` on cloud-f1.atlassian.net mirrors `docs/EPICS.md` (JEV-1..9 epics, JEV-10..19 stories). Created and populated 2026-10-10 through symphony-workflow's `.env` credentials (never read or printed). symphony-workflow cannot create projects (done by REST call); it can create issues and transition them. `decompose` / `sync-decomposition` were not used (LLM cost); stories were created from the bullets in EPICS.md. After a release, move the matching Jira issues and update EPICS.md.
+
 ## Independent audit (done 2026-10-10)
 
 13 findings; one high (redaction let Bearer and JSON-quoted secrets reach the Jev API). All fixed with regression tests; see `CHANGELOG.md` 0.2.0. Residual: `$.http.fetch` may follow redirects (the Authorization header is only ever sent to the fixed endpoint). A second read-only audit of v0.2.1 (2026-10-10) found: project `settings.json` could supply the key (fixed, user source only), the pinned model was not required to answer as itself (fixed, `model_mismatch`), internal-error toast had no debug line (fixed). See `docs/PRD.md`, `docs/EPICS.md` for product scope and epics, and `docs/sources.md` for the quicksilver review.
