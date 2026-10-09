@@ -23,7 +23,7 @@ Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on 
 
 Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project): module loads alone (`Registered 0 hooks`; the Python hook no longer exists), 30,000 → 570 chars, model received the pruned text and the readback line, `/jev doctor` and `/jev status` work, state files `0600` / dirs `0700`, project hash equals Python's.
 
-**Not verified:** the interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), the live Jev API (no key was ever used; every Jev path is stub-tested), `/jev readback` live, interactive-session UI (status line, hot reload), Windows Windows on a real Windows machine, and above all **any cost or success-rate benefit**. Do not claim savings; the paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
+**Not verified:** the interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), the live Jev API (no key was ever used; every Jev path is stub-tested), `/jev readback` live, interactive-session UI (status line, hot reload), Windows (never run on a real Windows machine), and above all **any cost or success-rate benefit**. Do not claim savings; the paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
 
 ## Decisions the user made
 
