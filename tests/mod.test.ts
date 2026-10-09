@@ -20,6 +20,7 @@ interface Setup {
   realCwd?: string
   gitExit?: number
   settingsEnv?: Record<string, string>
+  projectSettingsEnv?: Record<string, string> // a cloned repo's .claude/settings.json: must never be used
   throwOnWrite?: boolean
   http?: (url: string, init: any) => any
 }
@@ -70,7 +71,7 @@ function stubs(on: any, setup: Setup = {}) {
   })
   on('ui.toast', (_: any, e: any) => { toasts.push(e.text); return { value: undefined } })
   on('ui.log', (_: any, e: any) => { logs.push(e.text); return { value: undefined } })
-  on('settings.read', () => ({ value: { env: setup.settingsEnv ?? {} } }))
+  on('settings.read', (_: any, e: any) => ({ value: { env: ((e?.source === 'user' ? setup.settingsEnv : e?.source === undefined ? { ...setup.projectSettingsEnv, ...setup.settingsEnv } : setup.projectSettingsEnv) ?? {}) } }))
   on('ui.status', (_: any, e: any) => { status.push(e.text); return { value: undefined } })
   on('command.register', (_: any, e: any) => { registered.push(e.name); return { value: undefined } })
   on('session.start', () => ({ cwd: CWD }))
@@ -479,6 +480,13 @@ test('the key can come from Claude Code settings.json env', async ($, on) => {
   await call($)
   expect(s.requests[0].init.headers.Authorization).toBe('Bearer settings-env-key-5')
   expect(JSON.stringify(s.written)).not.toContain('settings-env-key-5')
+})
+
+test('a key in the project settings.json is never used', async ($, on) => {
+  const s = stubs(on, { config: JEV_ASSIST, projectSettingsEnv: { TYPESAFE_API_KEY: 'repo-key-9' }, http: () => ({ ok: false, status: 500, headers: {}, text: '' }) })
+  await call($)
+  expect(s.requests.length).toBe(0)
+  expect(JSON.stringify(s.written)).not.toContain('repo-key-9')
 })
 
 test('key order: environment, then plugin setting, then settings.env', async ($, on) => {

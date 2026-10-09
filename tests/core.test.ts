@@ -82,6 +82,12 @@ test('env file: only TYPESAFE_API_KEY is read, placeholders ignored, no evaluati
   expect(parseEnvFile('TYPESAFE_API_KEY=$(not_executed)')).toBe('$(not_executed)')
 })
 
+test('a pinned model must answer as itself; only jev-latest may resolve to another name', () => {
+  expect(() => validateResponse({ model: 'jev-1.99.0', usage }, MODEL)).toThrow()
+  expect(validateResponse({ model: MODEL, usage }, MODEL).model).toBe(MODEL)
+  expect(validateResponse({ model: 'jev-1.99.0', usage }, 'jev-latest').model).toBe('jev-1.99.0')
+})
+
 test('response validation rejects wrong model, bad usage, bad probabilities', () => {
   expect(() => validateResponse({ model: 'other', usage })).toThrow()
   expect(() => validateResponse({ model: MODEL, usage: { input_tokens: -1, output_tokens: 0 } })).toThrow()

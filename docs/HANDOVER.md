@@ -8,7 +8,7 @@ For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this 
 |---|---|
 | v0.2.0 | **Released.** `main` + tag `v0.2.0` + GitHub release: https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0. Installing it from the real marketplace was verified. |
 | v0.2.1 | **Built and committed on local branch `v0.2.1`. NOT pushed, NOT merged, NOT released.** Gate is green. |
-| Waiting on the user | (1) Push + merge + release v0.2.1? (2) Run the live Jev smoke test using the key already in this machine's environment? Neither was answered. **Do not do either without an explicit yes.** The repo is public, and the smoke test sends data to a paid third-party API. |
+| Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Still needs the post-release marketplace install check. |
 | Public claim status | Mechanism works; **cost or success benefit is unproven.** Do not claim savings anywhere. |
 
 ## What the product is
@@ -23,7 +23,7 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens l
 - Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
 - Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
 - Local release gate: `uv run --no-project scripts/release_check.py [--release]`. No CI exists (no quota).
-- Tests: **57 Python** (`uv run --no-project python -m unittest discover -s tests`; verified on Python 3.10 to 3.14) and **82 Mod/core** (`claude plugin test`, offline).
+- Tests: **58 Python** (`uv run --no-project python -m unittest discover -s tests`; verified on Python 3.10 to 3.14) and **84 Mod/core** (`claude plugin test`, offline).
 
 ### What v0.2.1 adds (on the unreleased branch)
 
@@ -54,7 +54,7 @@ docs/                                          compatibility.md, sources.md, EVA
 Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project): module loads alone (`Registered 0 hooks`), a 30,000-character log became 570, the model received the pruned text plus the readback line, `/jev doctor` and `/jev status` work, state files `0600` and directories `0700`, the project hash equals the Python core's, v0.2.0 installs from the real marketplace.
 
 **Not verified:**
-- The live Jev API: no key was ever used by us; every Jev path is stub-tested. (`/jev doctor` shows a key present in this machine's environment; its value was never read.)
+- The live Jev API beyond one `smoke` call: `backend: jev` in a real session and `bench-logs --live` are not run. (`/jev doctor` shows a key present in this machine's environment; its value was never read.)
 - Windows: the Mod's Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) has only stub tests on macOS.
 - The interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), `/jev readback` live, the status line, hot reload.
 - v0.2.1 installed from the marketplace (not released yet).
@@ -89,7 +89,7 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 
 ## Independent audit (done 2026-10-10)
 
-13 findings; one high (redaction let Bearer and JSON-quoted secrets reach the Jev API). All fixed with regression tests; see `CHANGELOG.md` 0.2.0. Residual: `$.http.fetch` may follow redirects (the Authorization header is only ever sent to the fixed endpoint). v0.2.1 changes (toasts, key lookup, model) were **not** re-audited; consider a second read-only audit before the next release.
+13 findings; one high (redaction let Bearer and JSON-quoted secrets reach the Jev API). All fixed with regression tests; see `CHANGELOG.md` 0.2.0. Residual: `$.http.fetch` may follow redirects (the Authorization header is only ever sent to the fixed endpoint). A second read-only audit of v0.2.1 (2026-10-10) found: project `settings.json` could supply the key (fixed, user source only), the pinned model was not required to answer as itself (fixed, `model_mismatch`), internal-error toast had no debug line (fixed). See `docs/PRD.md`, `docs/EPICS.md` for product scope and epics, and `docs/sources.md` for the quicksilver review.
 
 ## Next steps, in order
 

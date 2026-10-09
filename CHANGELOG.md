@@ -1,5 +1,15 @@
 # Changelog
 
+## Version history
+
+| Version | Date | Headline |
+|---|---|---|
+| 0.2.1 | 2026-10-10 | Visible failures (toast + debug log), key from user `settings.json` env, `Jev model` setting, audit fixes |
+| 0.2.0 | 2026-10-10 | Native TypeScript Mod replaces the Python hook; `/jev` commands; `/config` settings; independent audit fixes; cross-platform code path |
+| 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
+
+Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
 ## 0.2.1 (2026-10-10)
 
 Ideas taken from reading fast-jev-compaction's source (MIT, nothing copied; see docs/sources.md).
@@ -7,7 +17,9 @@ Ideas taken from reading fast-jev-compaction's source (MIT, nothing copied; see 
 - New: failures are visible. When pruning or the Jev backend falls back to the original output, a toast says so once per reason per session with a fixed reason code (`http_429`, `missing_key`, ...), plus a debug-log line for every decision (`claude --debug-file f.log`). Previously the reason was only in `/jev status`, so a bad key looked like "nothing happens".
 - New: API key is also read from Claude Code's `settings.json` `env` block (order: environment, plugin setting, settings.env, `JEV_ENV_FILE`).
 - New: `Jev model` setting (default stays the pinned `jev-1.13.0`; `jev-latest` allowed). The response may name any `jev-*` model, and decision records now hold `requested_model` and `actual_model`. Before, any other model in a response was rejected, so a retired model would have turned Jev off silently.
-- Tests: 57 Python + 82 Mod/core tests. Verified live: both this plugin and fast-jev-compaction loaded together without interference.
+- Security (read-only audit of this release, fixed with regression tests): the `settings.json` key is read from the **user** source only, so a cloned repo's `.claude/settings.json` can no longer supply the key; a pinned model must answer as itself (`model_mismatch`), only `jev-latest` may resolve to another name (both cores); an internal error now writes a fixed line to the debug log, as its toast promises.
+- Verified live (once): `jev.py smoke` with a synthetic sentence returned `api_validated`, and `jev-1.13.0` answered under that name. Not run: `backend: jev` pruning in a real session, `bench-logs --live`.
+- Tests: 58 Python + 84 Mod/core tests. Verified live: both this plugin and fast-jev-compaction loaded together without interference.
 
 ## 0.2.0 (2026-10-10)
 

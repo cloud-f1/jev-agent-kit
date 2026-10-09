@@ -153,6 +153,9 @@ def request(body, timeout=3.0):
         obj = json.loads(data)
         if not isinstance(obj, dict) or not (isinstance(obj.get('model'), str) and re.fullmatch(r'jev-[A-Za-z0-9._-]{1,40}', obj['model'])):
             raise JevError('invalid_model')
+        requested = body.get('model')
+        if requested != 'jev-latest' and obj['model'] != requested:
+            raise JevError('model_mismatch')
         usage = obj.get('usage')
         if not isinstance(usage, dict) or any(type(usage.get(k)) not in (int, float) or not float(usage[k]).is_integer() or usage[k] < 0 for k in ('input_tokens', 'output_tokens')):
             raise JevError('invalid_usage')

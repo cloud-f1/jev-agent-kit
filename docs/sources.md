@@ -24,6 +24,15 @@ Taken as ideas (v0.2.1), no code copied: visible fallback toasts and per-decisio
 Deliberately not copied: it puts the first 200 characters of an API error body into messages (we show fixed reason codes only); it does not range-check probabilities or validate usage (we do); whole-session compaction (a different, larger feature; use that project alongside ours).
 Still open: it checks in Claude Code's `claude-code.d.ts` and runs `tsc` over its hook (needs Node for maintainers); we use `any`.
 
+## quicksilver: what we took and what we did not (read 2026-10-10, commit 5d6fe5c, MIT)
+
+[UditAkhourii/quicksilver](https://github.com/UditAkhourii/quicksilver) is a skill plus a Node CLI (`qs filter|classify|rank|find`) that the model chooses to run; it sends files or lines to Jev and returns a shortlist. It has no hook or Mod and never touches Bash output, so it does a different job. No overlap in events; both read the same key variables. Nothing was run, installed or copied.
+
+- Its "-86% tokens" comes from 12 committed tasks with ground truth and a baseline arm (better than ratio-only claims), but each ran once, its side is a scripted run costed at chars/4, four datasets are synthetic, and mean quality fell 94% to 90%. Its runtime "tokens saved" counter is a counterfactual estimate. We do not make that claim.
+- Ideas to adopt later: a receipt line with measured counts only; marking uncertain pruning and keeping it recoverable; collapsing repeated lines that differ only in numbers or ids (check against the Python parity reference); a benchmark layout with ground truth, baseline, control and negative-control tasks; a "where it works and where it doesn't" README section; filename-level secret blocklist as defense in depth.
+- Not copying: the savings counter, the `--no-secrets-guard` bypass, an endpoint override env var (we keep a fixed endpoint), writing the key to a config file, letting the model decide whether to prune, chars/4 estimates presented as measurements.
+- Note for users: its Jev calls send file contents without our redaction, so running both does not make that path safe.
+
 ## Concrete adoption backlog (not done)
 
 1. **Shadow mode** (from claude-jev-plugin): a mode that calls Jev and records what it *would* have done, never rewriting. Our `observe` already records, but only for the local rules decision; extending it to log the Jev decision gives the data to calibrate `keepThreshold`.

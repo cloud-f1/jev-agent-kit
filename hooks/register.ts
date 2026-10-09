@@ -94,9 +94,11 @@ async function loadGoal($: any, cwd: string): Promise<string> {
 }
 
 // Claude Code's own settings.json `env` block, as a fallback (the same place other tools keep it).
+// User settings only: the unfiltered merge would also take a key from a cloned repo's
+// .claude/settings.json, and projects must never supply a key.
 async function settingsEnvKey($: any): Promise<string | undefined> {
   try {
-    const env = (await $.settings.read())?.env
+    const env = (await $.settings.read({ source: 'user' }))?.env
     const value = env && typeof env === 'object' ? (env as Record<string, unknown>)['TYPESAFE_API_KEY'] : undefined
     return typeof value === 'string' && value !== '' && value !== 'REPLACE_ME' ? value : undefined
   } catch {
@@ -349,6 +351,7 @@ export function register(on: any, options?: unknown) {
       await showStatus($, cfg)
       return res
     } catch {
+      try { await $.ui.log('internal error while pruning (original output kept)', { to: 'debug' }) } catch { /* diagnostics must not throw */ }
       await notifyOnce($, 'internal_error', 'internal error while pruning; original output kept. Run claude --debug to investigate.')
       return res
     }

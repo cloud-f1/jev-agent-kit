@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.2.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API path has not been run against a real key.
+> **Status: v0.2.1, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -13,7 +13,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
 | `/jev` command + `/config` settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and settings rows in `/config`. |
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
-| CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `install`, `report`. |
+| CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
 Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
@@ -80,14 +80,14 @@ Precedence: **built-in defaults < plugin settings (`/config`, applies to you eve
 | Minimum output length | `minimumChars` | 8000 | Shorter output is never touched. (Claude Code caps Bash output near 30,000 chars itself.) |
 | Jev keep threshold | `keepThreshold` | 0.8 | Probability a non-error block needs for Jev to keep it. |
 | Keep stored logs (days) | `retentionDays` | 7 | How long originals and records are kept. |
-| Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). Any `jev-*` name is accepted; a project file cannot set it. `/jev status` records the model that actually answered. |
+| Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). A pinned model must answer as itself (otherwise `model_mismatch` and the original output is kept); `jev-latest` may resolve to any `jev-*` name. A project file cannot set it. `/jev status` records the model that actually answered. |
 | (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
 
 Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad `/config` value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
 
 ### The Jev API key
 
-Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it. Lookup order: `TYPESAFE_API_KEY` environment variable, then the plugin's secure setting, then the `env` block of Claude Code's `settings.json`, then a file named by `JEV_ENV_FILE`. `/jev doctor` says which one is in use (never the value).
+Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it. Lookup order: `TYPESAFE_API_KEY` environment variable, then the plugin's secure setting, then the `env` block of your *user* `settings.json` (a project's own `settings.json` is never used), then a file named by `JEV_ENV_FILE`. `/jev doctor` says which one is in use (never the value).
 
 ```bash
 # easiest: enter it when Claude Code asks while you enable the plugin (secure storage).
@@ -211,8 +211,8 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 ## Develop and verify
 
 ```bash
-uv run --no-project python -m unittest discover -s tests   # Python core + hook + release-gate tests (57)
-claude plugin test                         # TypeScript core + Mod tests (82), offline
+uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (58)
+claude plugin test                         # TypeScript core + Mod tests (84), offline
 claude plugin validate --strict .
 uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
 uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)

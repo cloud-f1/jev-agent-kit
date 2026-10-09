@@ -106,10 +106,12 @@ export function validateNouls(obj: unknown, ids: string[]): Record<string, numbe
   return result
 }
 
-export function validateResponse(obj: unknown): { model: string; usage: { input_tokens: number; output_tokens: number } } {
+export function validateResponse(obj: unknown, requested?: string): { model: string; usage: { input_tokens: number; output_tokens: number } } {
   if (typeof obj !== 'object' || obj === null || Array.isArray(obj)) throw new JevError('invalid_model')
   const record = obj as { model?: unknown; usage?: unknown }
   if (!isJevModel(record.model)) throw new JevError('invalid_model')
+  // A pinned model must answer as itself; only the jev-latest alias may resolve to another name.
+  if (requested !== undefined && requested !== 'jev-latest' && record.model !== requested) throw new JevError('model_mismatch')
   const usage = record.usage as { input_tokens?: unknown; output_tokens?: unknown } | null
   const ok = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0
   if (typeof usage !== 'object' || usage === null || !ok(usage.input_tokens) || !ok(usage.output_tokens)) {
@@ -169,7 +171,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
       } else {
         try {
           const obj = await options.transport(body)
-          const { usage, model: actual } = validateResponse(obj)
+          const { usage, model: actual } = validateResponse(obj, options.model ?? MODEL)
           meta.actual_model = actual
           const probabilities = validateNouls(obj, ids)
           for (const i of candidates) {

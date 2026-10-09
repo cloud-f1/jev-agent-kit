@@ -260,7 +260,7 @@ class ModelAcceptanceTests(unittest.TestCase):
             def __enter__(self): return self
             def __exit__(self, *a): return False
             def read(self, n=-1): return json.dumps(self.obj).encode()
-        for model, ok in (('jev-1.13.0', True), ('jev-latest', True), ('jev-1.99.0', True), ('gpt-4', False), ('', False), (None, False), ('jev-', False)):
+        for model, ok in (('jev-1.13.0', True), ('jev-latest', True), ('jev-1.99.0', True), ('gpt-4', False), ('', False), (None, False), ('jev-', False), ('jev-' + 'a' * 41, False), ('jev-x\n', False), (7, False)):
             opener = type('O', (), {'open': lambda self, req, timeout=0, m=model: Resp(respond(m))})()
             with patch.dict(os.environ, {'TYPESAFE_API_KEY': 'k-12345678'}), patch('urllib.request.build_opener', return_value=opener):
                 if ok:
@@ -268,5 +268,17 @@ class ModelAcceptanceTests(unittest.TestCase):
                 else:
                     with self.assertRaises(core.JevError):
                         core.request({'model': 'jev-latest'})
+
+    def test_pinned_model_must_answer_as_itself(self):
+        usage = {'input_tokens': 5, 'output_tokens': 0}
+        class Resp:
+            def __enter__(self): return self
+            def __exit__(self, *a): return False
+            def read(self, n=-1): return json.dumps({'model': 'jev-1.99.0', 'usage': usage}).encode()
+        opener = type('O', (), {'open': lambda self, req, timeout=0: Resp()})()
+        with patch.dict(os.environ, {'TYPESAFE_API_KEY': 'k-12345678'}), patch('urllib.request.build_opener', return_value=opener):
+            with self.assertRaises(core.JevError) as ctx:
+                core.request({'model': 'jev-1.13.0'})
+            self.assertEqual(str(ctx.exception), 'model_mismatch')
 
 if __name__=='__main__': unittest.main()
