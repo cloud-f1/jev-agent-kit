@@ -8,7 +8,6 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from jevkit import core, metrics
-from jevkit.cli import install
 
 def long_log():
     lines = ['progress ' + str(i) + '\n' for i in range(320)]
@@ -53,23 +52,20 @@ class CoreTests(unittest.TestCase):
         with self.assertRaises(core.JevError):
             core.validate_nouls({'answers':{'a':{'type':'noul','noul':float('nan')}}}, ['a'])
 
-    def test_artifact_restore_and_traversal_rejected(self):
+    def test_readback_rejects_bad_ids_and_restores_stored_originals(self):
         with tempfile.TemporaryDirectory() as td:
-            text='中文 "quoted"\nERROR evidence\n'; aid=core.artifact(td, text)
-            self.assertEqual(core.readback(td, aid), text)
-            with self.assertRaises(ValueError): core.readback(td, '../passwords')
+            (Path(td) / 'artifacts').mkdir()
+            (Path(td) / 'artifacts' / ('a' * 32 + '.log')).write_text('original')
+            self.assertEqual(core.readback(td, 'a' * 32), 'original')
+            for bad in ('../x', 'A' * 32, 'a' * 31, '', 'a' * 32 + '/..'):
+                with self.assertRaises(ValueError):
+                    core.readback(td, bad)
 
     def test_transport_fields_cannot_be_project_config(self):
         with tempfile.TemporaryDirectory() as td:
             path=Path(td)/'.claude'; path.mkdir()
             (path/'jev-agent-kit.json').write_text('{"endpoint":"https://other"}')
             with self.assertRaises(ValueError): core.config(td)
-
-    def test_repeat_counts_and_state_changes(self):
-        with tempfile.TemporaryDirectory() as td:
-            self.assertEqual(core.repeated(td, 's', 'cmd', 'error', 'v1')[1], 1)
-            self.assertEqual(core.repeated(td, 's', 'cmd', 'error', 'v1')[1], 2)
-            self.assertEqual(core.repeated(td, 's', 'cmd', 'error', 'v2')[1], 1)
 
     def test_redaction(self):
         self.assertNotIn('secretvalue', core.redact('api_key=secretvalue other data'))
@@ -132,91 +128,6 @@ class MetricTests(unittest.TestCase):
         with self.assertRaises(ValueError): metrics.report(manifest, rows)
         manifest, rows=rows_and_manifest(); rows[-1]['verifier_revision']='changed'
         with self.assertRaises(ValueError): metrics.report(manifest, rows)
-
-class HookTests(unittest.TestCase):
-    def test_installer_preserves_settings_and_is_idempotent(self):
-        with tempfile.TemporaryDirectory() as td, patch('jevkit.cli.emit'):
-            folder=Path(td)/'.claude'; folder.mkdir()
-            original={'model':'sonnet','hooks':{'PostToolUse':[{'matcher':'Edit','hooks':[{'type':'command','command':'echo original'}]}]}}
-            (folder/'settings.json').write_text(json.dumps(original))
-            install(td, 'rules', 'observe'); install(td, 'jev', 'assist')
-            result=json.loads((folder/'settings.json').read_text())
-            self.assertEqual(result['model'], 'sonnet')
-            self.assertEqual(len(result['hooks']['PostToolUse']), 2)
-            self.assertEqual(result['hooks']['PostToolUse'][0], original['hooks']['PostToolUse'][0])
-            self.assertEqual(json.loads((folder/'jev-agent-kit.json').read_text())['mode'], 'observe')
-            self.assertTrue(list(folder.glob('settings.backup-*.json')))
-
-    def test_disabled_does_not_call_pruning(self):
-        from jevkit.cli import hook
-        import io
-        with tempfile.TemporaryDirectory() as td:
-            event={'cwd':td,'tool_name':'Bash','tool_response':{'stdout':long_log()}}
-            fake=type('Input', (), {'buffer':io.BytesIO(json.dumps(event).encode())})()
-            with patch('sys.stdin', fake), patch('jevkit.core.prune') as prune:
-                hook()
-                prune.assert_not_called()
-
-    def run_hook(self, cfg, mode='assist', override=None):
-        with tempfile.TemporaryDirectory() as td:
-            project=Path(td)/'project'; project.mkdir(); (project/'.claude').mkdir()
-            (project/'.claude'/'jev-agent-kit.json').write_text(json.dumps(cfg))
-            payload={'hook_event_name':'PostToolUse', 'cwd':str(project), 'session_id':'test',
-                     'tool_name':'Bash','tool_input':{'command':'npm test'},
-                     'tool_response':{'stdout':long_log(), 'stderr':'WARNING stderr evidence', 'interrupted':False,'isImage':False}}
-            if override: payload['tool_response'].update(override)
-            env=dict(os.environ, JEV_STATE_DIR=str(Path(td)/'state')); env.pop('TYPESAFE_API_KEY', None)
-            completed=subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            self.assertEqual(completed.returncode, 0)
-            return completed.stdout
-
-    def test_assist_rewrite_keeps_stderr(self):
-        out=self.run_hook({'enabled':True,'mode':'assist','backend':'rules','minimumChars':0})
-        response=json.loads(out)['hookSpecificOutput']['updatedToolOutput']
-        self.assertEqual(response['stderr'], 'WARNING stderr evidence')
-        self.assertIn('readback', response['stdout'])
-
-    def test_observe_does_not_rewrite(self):
-        self.assertEqual(self.run_hook({'enabled':True,'mode':'observe','backend':'rules'}), '')
-
-    def test_disabled_no_response(self):
-        self.assertEqual(self.run_hook({'enabled':False}), '')
-
-    def test_interrupted_never_rewritten(self):
-        self.assertEqual(self.run_hook({'enabled':True,'mode':'assist','backend':'rules','minimumChars':0}, override={'interrupted':True}), '')
-
-class ModExclusionTests(unittest.TestCase):
-    """The native Mod writes a per-session marker; the classic hook must then stay out."""
-
-    def run_hook_with_marker(self, marker_session):
-        with tempfile.TemporaryDirectory() as td:
-            project=Path(td)/'project'; project.mkdir(); (project/'.claude').mkdir()
-            (project/'.claude'/'jev-agent-kit.json').write_text(json.dumps({'enabled':True,'mode':'assist','backend':'rules','minimumChars':0}))
-            state=Path(td)/'state'
-            if marker_session is not None:
-                marker=state/'mod-active'/core.digest(marker_session)[:24]
-                marker.parent.mkdir(parents=True); marker.write_text('0.2.0')
-            payload={'hook_event_name':'PostToolUse','cwd':str(project),'session_id':'session-a','tool_name':'Bash',
-                     'tool_input':{'command':'npm test'},
-                     'tool_response':{'stdout':long_log(),'stderr':'','interrupted':False,'isImage':False}}
-            env=dict(os.environ, JEV_STATE_DIR=str(state)); env.pop('TYPESAFE_API_KEY', None)
-            done=subprocess.run([sys.executable,'jev.py','hook'],input=json.dumps(payload),text=True,capture_output=True,env=env)
-            self.assertEqual(done.returncode,0)
-            return done.stdout
-
-    def test_marker_for_this_session_silences_classic_hook(self):
-        self.assertEqual(self.run_hook_with_marker('session-a'), '')
-
-    def test_marker_for_another_session_does_not(self):
-        self.assertIn('updatedToolOutput', self.run_hook_with_marker('session-b'))
-
-    def test_no_marker_classic_hook_runs(self):
-        self.assertIn('updatedToolOutput', self.run_hook_with_marker(None))
-
-    def test_mod_active_rejects_bad_session_ids(self):
-        for value in (None, '', 5, [], {}):
-            self.assertFalse(core.mod_active(value))
-
 
 GOLDEN = json.loads((Path(__file__).parent / 'fixtures' / 'golden.json').read_text(encoding='utf-8'))
 
@@ -295,66 +206,6 @@ class AuditRegressionTests(unittest.TestCase):
             out, _ = core.prune(filler + special + filler, 'rules')
             self.assertNotIn(special, out, repr(special))  # not treated as important
 
-    def test_cleanup_runs_even_when_the_mod_owns_the_session(self):
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'project'; (project / '.claude').mkdir(parents=True)
-            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'retentionDays': 1}))
-            state = Path(td) / 'state'
-            root = state / core.digest(str(project.resolve()))[:24]
-            old = root / 'artifacts' / ('a' * 32 + '.log'); old.parent.mkdir(parents=True); old.write_text('stale')
-            os.utime(old, (1, 1))
-            marker = state / 'mod-active' / core.digest('s1')[:24]; marker.parent.mkdir(parents=True); marker.write_text('x')
-            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's1', 'tool_name': 'Bash',
-                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': False, 'isImage': False}}
-            env = dict(os.environ, JEV_STATE_DIR=str(state))
-            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            self.assertEqual(done.stdout, '')
-            self.assertFalse(old.exists())
-
-
-class HookInvariantTests(HookTests):
-    """Invariant paths of the classic hook that were previously untested."""
-
-    def test_image_result_never_rewritten(self):
-        self.assertEqual(self.run_hook({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}, override={'isImage': True}), '')
-
-    def test_missing_tool_fields_not_rewritten(self):
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
-            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
-            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
-                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': ''}}
-            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
-            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            self.assertEqual(done.stdout, '')
-            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
-            self.assertTrue(any(r.get('reason') == 'missing_tool_fields' for r in rows))
-
-    def test_failure_event_is_observed_never_rewritten(self):
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
-            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
-            payload = {'hook_event_name': 'PostToolUseFailure', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
-                       'tool_input': {'command': 'x'}, 'error': long_log(), 'is_interrupt': False}
-            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
-            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            self.assertEqual(done.stdout, '')
-            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
-            self.assertTrue(any(r.get('feature') == 'loop' for r in rows))
-
-    def test_delivered_chars_equals_input_when_not_rewritten(self):
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'p'; (project / '.claude').mkdir(parents=True)
-            (project / '.claude' / 'jev-agent-kit.json').write_text(json.dumps({'enabled': True, 'mode': 'assist', 'backend': 'rules', 'minimumChars': 0}))
-            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash',
-                       'tool_input': {'command': 'x'}, 'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': True, 'isImage': False}}
-            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'))
-            subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            rows = [json.loads(f.read_text()) for f in (Path(td) / 'state').rglob('decisions/*.json')]
-            prune = [r for r in rows if r.get('reason') == 'ok'][0]
-            self.assertEqual(prune['delivered_chars'], prune['input_chars'])
-
-
 class SettingsLayerTests(unittest.TestCase):
     """Plugin settings (userConfig) reach the classic hook as CLAUDE_PLUGIN_OPTION_* variables."""
 
@@ -397,16 +248,5 @@ class SettingsLayerTests(unittest.TestCase):
         self.assertEqual(core.plugin_key({'CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY': 'k-1'}), 'k-1')
         self.assertIsNone(core.plugin_key({'CLAUDE_PLUGIN_OPTION_TYPESAFE_API_KEY': 'REPLACE_ME'}))
         self.assertIsNone(core.plugin_key({}))
-
-    def test_classic_hook_runs_for_a_project_without_file_when_enabled_everywhere(self):
-        with tempfile.TemporaryDirectory() as td:
-            project = Path(td) / 'p'; project.mkdir()
-            payload = {'hook_event_name': 'PostToolUse', 'cwd': str(project), 'session_id': 's', 'tool_name': 'Bash', 'tool_input': {'command': 'x'},
-                       'tool_response': {'stdout': long_log(), 'stderr': '', 'interrupted': False, 'isImage': False}}
-            env = dict(os.environ, JEV_STATE_DIR=str(Path(td) / 'state'), CLAUDE_PLUGIN_OPTION_ENABLE_ALL_PROJECTS='true',
-                       CLAUDE_PLUGIN_OPTION_MODE='assist', CLAUDE_PLUGIN_OPTION_MINIMUM_CHARS='100')
-            env.pop('TYPESAFE_API_KEY', None)
-            done = subprocess.run([sys.executable, 'jev.py', 'hook'], input=json.dumps(payload), text=True, capture_output=True, env=env)
-            self.assertIn('updatedToolOutput', done.stdout)
 
 if __name__=='__main__': unittest.main()

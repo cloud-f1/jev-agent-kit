@@ -10,10 +10,10 @@ Installed plugins are cached **by version**: users only get a fix after the vers
 ## Procedure (stop at the first failure; never skip a step)
 
 1. **Branch state**: work on a branch, merge to `main` first. Releases are cut from a clean `main`.
-2. **Bump the version in all three places**: `jevkit/core.py` (`VERSION`), `core/contracts.ts` (`VERSION`), `.claude-plugin/plugin.json` (`version`).
+2. **Bump the version in all four places**: `jevkit/core.py` (`VERSION`), `core/contracts.ts` (`VERSION`), `.claude-plugin/plugin.json` (`version`), `pyproject.toml` (`version`). The gate fails if any differ.
 3. **Changelog**: add `## X.Y.Z (YYYY-MM-DD)` at the top of `CHANGELOG.md`, grouped as fixed / changed / new / not done. Distinguish bug fixes from changes to questions, thresholds, models or data sent (those change behavior; say so).
-4. **Regenerate fixtures if pruning/hashing changed**: `python3 scripts/gen_golden.py`, review the diff.
-5. **Gate**: `python3 scripts/release_check.py --release`. It must print `OK to proceed`. A `SKIPPED` line is a failure (a check that could not run proves nothing).
+4. **Regenerate fixtures if pruning/hashing changed**: `uv run --no-project scripts/gen_golden.py`, review the diff.
+5. **Gate**: `uv run --no-project scripts/release_check.py --release`. It must print `OK to proceed`. A `SKIPPED` line is a failure (a check that could not run proves nothing).
 6. **Tag and publish** (ask the user first; this is public):
    `git tag vX.Y.Z && git push origin main --tags && gh release create vX.Y.Z --title vX.Y.Z --notes-file <changelog excerpt>`
 7. **Post-release verification from the real marketplace** in a scratch project:

@@ -257,51 +257,7 @@ def state_base():
 def root_for(project):
     return state_base() / digest(str(Path(project).resolve()))[:24]
 
-def mod_active(session_id):
-    """True when the native Mod announced it owns this session; the classic hook then stays out."""
-    if not isinstance(session_id, str) or not session_id:
-        return False
-    try:
-        return (state_base() / 'mod-active' / digest(session_id)[:24]).exists()
-    except OSError:
-        return False
-
-def artifact(root, text):
-    aid = digest(text)[:32]
-    private_write(Path(root) / 'artifacts' / (aid + '.log'), text)
-    return aid
-
 def readback(root, aid):
     if not re.fullmatch(r'[a-f0-9]{32}', aid):
         raise ValueError('invalid_artifact_id')
     return (Path(root) / 'artifacts' / (aid + '.log')).read_text(encoding='utf-8')
-
-def record(root, obj):
-    directory = Path(root) / 'decisions'
-    mkdir_private(directory)
-    obj = dict(obj, timestamp=time.time())
-    path = directory / (str(time.time_ns()) + '-' + os.urandom(4).hex() + '.json')
-    private_write(path, json.dumps(obj, ensure_ascii=False))
-
-def cleanup(root, days=7):
-    cutoff = time.time() - days * 86400
-    for dirname in ('artifacts', 'decisions', 'fingerprints'):
-        folder = Path(root) / dirname
-        if folder.exists():
-            for p in folder.rglob('*'):
-                if p.is_file() and p.stat().st_mtime < cutoff:
-                    p.unlink()
-
-def repeated(root, session, command, output, repo_state):
-    fp = digest([command, output, repo_state])
-    folder = Path(root) / 'fingerprints' / digest(session)[:24]
-    mkdir_private(folder)
-    # Each call gets its own immutable record; no shared increment can be lost.
-    private_write(folder / (str(time.time_ns()) + '.json'), json.dumps({'fingerprint': fp}))
-    matches = 0
-    for p in folder.glob('*.json'):
-        try:
-            matches += json.loads(p.read_text())['fingerprint'] == fp
-        except (ValueError, KeyError, OSError):
-            pass
-    return fp, matches

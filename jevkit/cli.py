@@ -2,8 +2,6 @@ import argparse
 import json
 import os
 import shutil
-import shlex
-import subprocess
 import sys
 import time
 from pathlib import Path
@@ -11,97 +9,6 @@ from . import core, metrics
 
 def emit(obj):
     print(json.dumps(obj, ensure_ascii=False, indent=2))
-
-def install(project, backend, mode):
-    project = Path(project).resolve()
-    if not project.is_dir():
-        raise ValueError('project_missing')
-    folder = project / '.claude'; folder.mkdir(exist_ok=True)
-    path = folder / 'settings.json'
-    settings = json.loads(path.read_text()) if path.exists() else {}
-    if not isinstance(settings, dict) or not isinstance(settings.get('hooks', {}), dict):
-        raise ValueError('invalid_existing_settings')
-    script = str(Path(__file__).resolve().parents[1] / 'jev.py')
-    command = subprocess.list2cmdline([sys.executable, script, 'hook']) if os.name == 'nt' else ' '.join(shlex.quote(x) for x in [sys.executable, script, 'hook'])
-    for event in ('PostToolUse', 'PostToolUseFailure'):
-        groups = settings.setdefault('hooks', {}).setdefault(event, [])
-        if not isinstance(groups, list):
-            raise ValueError('invalid_existing_hooks')
-        if not any(h.get('command') == command for g in groups for h in g.get('hooks', [])):
-            groups.append({'matcher':'Bash','hooks':[{'type':'command','command':command,'timeout':15}]})
-    if path.exists():
-        core.private_write(folder / ('settings.backup-' + str(time.time_ns()) + '.json'), path.read_text())
-    temp = folder / ('settings.tmp-' + str(time.time_ns()) + '.json')
-    core.private_write(temp, json.dumps(settings, indent=2)); os.replace(temp, path)
-    cfgpath = folder / 'jev-agent-kit.json'
-    if not cfgpath.exists():
-        core.private_write(cfgpath, json.dumps({'schemaVersion':1,'enabled':True,'mode':mode,'backend':backend}, indent=2))
-    emit({'status':'classic_hooks_installed','settings':str(path),'config':str(cfgpath),
-          'note':'Existing project config preserved. Reload/restart Claude. Do not also load the plugin adapter.'})
-
-def goal_file(project):
-    path = Path(project) / '.claude' / 'jev-goal.txt'
-    return core.redact(path.read_text(encoding='utf-8')[:1200]) if path.exists() else 'Diagnose the current test or build failure'
-
-def hook():
-    # Protocol stdout must contain only a valid hook JSON response, or nothing.
-    try:
-        raw = sys.stdin.buffer.read(core.MAX_BYTES + 1)
-        if len(raw) > core.MAX_BYTES:
-            return
-        event = json.loads(raw)
-        if event.get('tool_name') != 'Bash':
-            return
-        project = event.get('cwd', os.getcwd())
-        cfg = core.config(project)
-        if not cfg['enabled']:
-            return
-        root = core.root_for(project)
-        core.cleanup(root, cfg['retentionDays'])
-        if core.mod_active(event.get('session_id')):
-            return  # the native Mod owns this session; never process the same event twice
-        name = event.get('hook_event_name')
-        response = event.get('tool_response')
-        if name == 'PostToolUseFailure':
-            text = str(event.get('error', ''))
-        elif isinstance(response, dict) and isinstance(response.get('stdout'), str):
-            text = response['stdout']
-        else:
-            core.record(root, {'feature': 'compatibility', 'reason': 'unknown_tool_shape'})
-            return
-        # Repo fingerprint is diagnostic only; errors preserve normal execution.
-        state = 'unknown'
-        try:
-            head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=project, capture_output=True, timeout=1)
-            diff = subprocess.run(['git', 'diff', 'HEAD', '--'], cwd=project, capture_output=True, timeout=1)
-            if head.returncode == 0 and diff.returncode == 0:  # not a repo / no commits: state stays unknown
-                state = core.digest([head.stdout.hex(), diff.stdout.hex()])
-        except Exception:
-            pass
-        _, count = core.repeated(root, event.get('session_id', 'unknown'),
-                                 event.get('tool_input', {}).get('command', ''), text, state)
-        core.record(root, {'feature': 'loop', 'repeated_count': count, 'action': 'observe',
-                           'repo_state_known': state != 'unknown', 'mode': cfg['mode']})
-        if name == 'PostToolUseFailure' or len(text) < cfg['minimumChars']:
-            return
-        original_id = core.artifact(root, text)
-        output, meta = core.prune(text, cfg['backend'], goal_file(project), cfg['timeoutSeconds'], cfg['keepThreshold'])
-        if output != text:
-            output += '\n[Jev agent kit: full original available via readback ' + original_id + ']\n'
-        fields_ok = all(k in response for k in ('stderr', 'interrupted', 'isImage'))
-        # Never change failed/interrupted/image tool results or erase stderr.
-        can_rewrite = (cfg['mode'] == 'assist' and output != text and fields_ok
-                       and not response.get('interrupted') and not response.get('isImage'))
-        if cfg['mode'] == 'assist' and output != text and not fields_ok:
-            core.record(root, {'feature': 'compatibility', 'reason': 'missing_tool_fields'})
-        core.record(root, dict(meta, mode=cfg['mode'], artifact_id=original_id,
-                               delivered_chars=len(output) if can_rewrite else len(text)))
-        if can_rewrite:
-            emit({'hookSpecificOutput': {'hookEventName': 'PostToolUse',
-                  'updatedToolOutput': dict(response, stdout=output)}})
-    except Exception:
-        # This is cost optimization, never a security gate; fail to original.
-        return
 
 def mock_call(body, timeout):
     answers = {qid: {'type': 'noul', 'noul': .99 if 'IMPORTANT_BUSINESS_CONTEXT' in next(b['text'] for b in body['state']['blocks'] if b['id'] == qid) else .01} for qid in body['questions']}
@@ -146,13 +53,11 @@ def log_bench(outdir, live=False):
     return 0 if not live or all(r.get('reason') == 'ok' for r in rows if r['arm'] == 'jev') else 3
 
 def main():
-    p = argparse.ArgumentParser(description='Jev agent kit: hook, live smoke, mock demo and paired evaluation')
+    p = argparse.ArgumentParser(description='Jev agent kit CLI: doctor, live smoke, mock demo, status/readback and paired evaluation')
     p.add_argument('--env-file', help='Explicit local dotenv path; key never printed')
     sub = p.add_subparsers(dest='cmd', required=True)
     sub.add_parser('doctor')
     sub.add_parser('smoke')
-    sub.add_parser('hook')
-    i = sub.add_parser('install'); i.add_argument('--project', required=True); i.add_argument('--backend', choices=['rules','jev'], default='rules'); i.add_argument('--mode', choices=['observe','assist'], default='observe')
     b = sub.add_parser('bench-logs'); b.add_argument('--outdir', default='results/logs'); b.add_argument('--live', action='store_true')
     s = sub.add_parser('status'); s.add_argument('--project', default='.')
     r = sub.add_parser('readback'); r.add_argument('artifact_id'); r.add_argument('--project', default='.')
@@ -161,10 +66,6 @@ def main():
     args = p.parse_args()
     try:
         core.load_env(args.env_file or os.environ.get('JEV_ENV_FILE'))
-        if args.cmd == 'hook':
-            hook(); return 0
-        if args.cmd == 'install':
-            install(args.project, args.backend, args.mode); return 0
         if args.cmd == 'doctor':
             emit({'python': sys.version.split()[0], 'claude_cli_available': bool(shutil.which('claude')),
                   'jev_key_present': bool(os.environ.get('TYPESAFE_API_KEY')), 'kit_version': core.VERSION,
@@ -197,6 +98,5 @@ def main():
     except core.JevError as exc:
         emit({'status': 'no_verdict', 'reason': str(exc)}); return 3
     except Exception:
-        if args.cmd != 'hook':
-            emit({'status': 'error', 'reason': 'invalid_input_or_local_io'}); return 2
+        emit({'status': 'error', 'reason': 'invalid_input_or_local_io'}); return 2
     return 0

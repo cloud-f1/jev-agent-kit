@@ -12,7 +12,6 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 |---|---|
 | Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
 | `/jev` command + `/config` settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and settings rows in `/config`. |
-| Classic hook (`jev.py hook`) | Same job for Claude Code older than 2.1.287. Stays out of sessions the Mod owns. |
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `install`, `report`. |
 
@@ -20,7 +19,7 @@ Pruning keeps the head, the tail, and every block containing errors/warnings/tra
 
 ## Install
 
-Requires Claude Code 2.1.287+ for the Mod. Claude Code 2.1.271 to 2.1.286 loads the plugin and falls back to the classic hook, which needs Python 3.10+ (see Cross-platform notes). No Python is needed on 2.1.287+.
+Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node. On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
 
 ```
 /plugin marketplace add cloud-f1/jev-agent-kit
@@ -120,14 +119,24 @@ What you can see and touch today, and what is only a plan.
 
 ## Cross-platform notes
 
-The native Mod is TypeScript and needs no Python, uv or Node. It currently shells out to `sh`, `find` and `pwd` for private file permissions, retention and path resolution, so **Windows is not supported yet** (planned: use the Mod's own file API for path resolution and a Windows branch for cleanup). The Python parts (classic hook for Claude Code older than 2.1.287, and the evaluation CLI) are standard library only. `python3` does not exist on a stock Windows install; `uv` fixes that on every platform:
+The plugin is one TypeScript Mod: no Python, uv or Node is needed to use it.
+
+| Platform | Status |
+|---|---|
+| macOS, Linux | Verified (macOS arm64). Private files via `umask 077` (files `0600`, directories `0700`); retention via `find`. |
+| Windows | **Code path written, never run on Windows.** Uses the Mod's file API for writes (state lives under your user profile), PowerShell for retention, `USERPROFILE` when `HOME` is unset. Covered by stubbed tests only. Please report what you see. |
+
+Project paths are resolved with the Mod's own file API (`realPath`), so symlinked folders map to the same state on every platform.
+
+**Maintainer and evaluation CLI** (`jev.py`, Python 3.10+, standard library only) is optional. `uv` runs it on any platform without installing Python first:
 
 ```bash
-uv run --no-project jev.py doctor          # uv fetches a suitable Python for you
+uv run --no-project jev.py doctor
+uvx --from git+https://github.com/cloud-f1/jev-agent-kit jev doctor   # no checkout needed
 uv run --no-project --python 3.10 python -m unittest discover -s tests
 ```
 
-Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14 (macOS arm64). Because of the `userConfig` options, the plugin needs Claude Code 2.1.271+ to load at all; the Mod needs 2.1.287+.
+Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14. Because of the `/config` pickers the plugin needs Claude Code 2.1.271+ to load at all; the Mod needs 2.1.287+.
 
 ## Full usage
 
@@ -141,18 +150,19 @@ Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14 (macOS arm64). Because of the `
 
 The status line under the prompt shows `jev: N/M long logs pruned · X chars saved` (assist) or `jev (observe): M long logs seen` (observe).
 
-### CLI (`python3 jev.py ...`, from the plugin or a checkout)
+### CLI (`uv run --no-project jev.py ...` from a checkout, or `uvx --from git+https://github.com/cloud-f1/jev-agent-kit jev ...`)
+
+Optional maintainer and evaluation tool; end users do not need it.
 
 | Command | Does | Needs key |
 |---|---|---|
 | `doctor` | Python, Claude CLI, key presence, endpoint, model. | no |
 | `check-config --project DIR` | Validate `.claude/jev-agent-kit.json`. | no |
 | `status --project DIR` | Recent decision records. | no |
-| `readback ID --project DIR` | Print a stored original (classic-hook artifacts). | no |
+| `readback ID --project DIR` | Print a stored original. | no |
 | `bench-logs --outdir DIR` | Offline demo on 5 synthetic logs with a mock Jev. **Not** a quality or billing result. | no |
 | `smoke` | One synthetic request to the real API; exit 3 = no verdict (missing key, 401, 429, timeout...). | yes |
 | `bench-logs --live --outdir DIR` | Same fixtures against the real API (synthetic text only). | yes |
-| `install --project DIR [--backend rules\|jev] [--mode observe\|assist]` | Classic-hook install into `.claude/settings.json` (backs up, idempotent). Only for Claude Code without Mod support; do not combine with the plugin. | no |
 | `report --manifest M --records R --outdir DIR` | Paired agent-task comparison report. | no |
 
 Add `--env-file PATH` before the command to load `TYPESAFE_API_KEY` from a local dotenv file for that run only.
@@ -167,7 +177,7 @@ Shorter output is not the goal; lower **cost per successful task** at equal succ
 
 1. Read [docs/EVALUATION.md](docs/EVALUATION.md). Keep the cheap `log_proxy` numbers (characters saved, evidence kept) separate from `agent_task` results.
 2. Pre-register tasks in a manifest (`evals/agent-manifest.json` shows the shape), run each task under `baseline`, `local` (rules) and `jev`, several repeats, on identical commits and verifiers.
-3. Record one JSON line per run (`evals/agent-record.example.json`), then `python3 jev.py report ...`.
+3. Record one JSON line per run (`evals/agent-record.example.json`), then `uv run --no-project jev.py report ...`.
 4. Compare `jev` against `local`, not only against baseline, so a cheaper-model effect is not credited to Jev. Missing runs, unknown costs or too few tasks give INCOMPLETE / UNKNOWN_COST / INSUFFICIENT_EVIDENCE, never GO. The gate numbers are a product policy you may change, not a proven threshold.
 
 ### Upgrade, rollback, uninstall
@@ -194,20 +204,19 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 | Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
-| Both Mod and classic hook seem to run | Do not also run `jev.py install` in the same project. |
 
 ## Develop and verify
 
 ```bash
-uv run --no-project python -m unittest discover -s tests   # Python core + hook + release-gate tests (78)
-claude plugin test                         # TypeScript core + Mod tests (60), offline
+uv run --no-project python -m unittest discover -s tests   # Python core + hook + release-gate tests (56)
+claude plugin test                         # TypeScript core + Mod tests (69), offline
 claude plugin validate --strict .
-python3 jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
-python3 scripts/release_check.py           # the local release gate (add --release to tag)
+uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
+uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)
 ```
 
 Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `jevkit/` the Python core, `tests/fixtures/golden.*` shared by both cores. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
 
 ## Limits
 
-Not a security control. Not proven to save money. The loop detector only observes. Windows: private file modes (`umask`) are not applied by the Mod. Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.
+Not a security control. Not proven to save money. The loop detector only observes. Windows is untested (see Cross-platform notes). Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.

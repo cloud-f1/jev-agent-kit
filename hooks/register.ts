@@ -17,24 +17,32 @@ const fingerprints = new Map<string, number>()
 
 // Same rule as the Python core: only "~" and "~/..." expand; a result that is not absolute is
 // ignored, so state can never land in a relative path inside a repo.
+// Windows sets OS=Windows_NT; everything else is treated as POSIX (macOS, Linux).
+async function isWindows($: any): Promise<boolean> {
+  return (await $.env.get('OS')) === 'Windows_NT'
+}
+
+const ABSOLUTE = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/ // /posix, C:\win or C:/win, \\unc
+
 async function stateBase($: any): Promise<string> {
-  const home = (await $.env.get('HOME')) ?? ''
+  const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
   const fallback = home + '/.cache/jev-agent-kit'
   let dir: string | undefined = await $.env.get('JEV_STATE_DIR')
   if (!dir) return fallback
   if (dir === '~' || dir.startsWith('~/')) dir = home + dir.slice(1)
-  return dir.startsWith('/') ? dir : fallback
+  return ABSOLUTE.test(dir) ? dir : fallback
 }
 
-// Python hashes Path(project).resolve(); `pwd -P` is the physical path, so symlinked cwds agree.
+// Python hashes Path(project).resolve(); the file API's realPath follows symlinks the same way on
+// every platform (no `pwd -P`), so a symlinked cwd lands in the same project directory.
 const resolved = new Map<string, string>()
 async function physicalCwd($: any, cwd: string): Promise<string> {
   const known = resolved.get(cwd)
   if (known) return known
   let real = cwd
   try {
-    const run = await $.process.run(['pwd', '-P'], { cwd, timeoutMs: 2000 })
-    if (run.exitCode === 0 && run.stdout.trim().startsWith('/')) real = run.stdout.trim()
+    const stat = await $.fs.stat(cwd, { resolve: true })
+    if (typeof stat.realPath === 'string' && stat.realPath !== '') real = stat.realPath
   } catch {
     // Fall back to the reported cwd.
   }
@@ -47,8 +55,14 @@ async function projectRoot($: any, cwd: string): Promise<string> {
   return (await stateBase($)) + '/' + (await digestString(await physicalCwd($, cwd))).slice(0, 24)
 }
 
-// Raw logs may hold secrets: write with umask 077 (files 0600, new directories 0700).
+// Raw logs may hold secrets. POSIX: umask 077 (files 0600, new directories 0700). Windows: the file
+// API (directories are created for us); the default location is inside the user's profile, which
+// Windows already restricts to that user. The Windows path has not been run on Windows yet.
 async function writePrivate($: any, path: string, text: string): Promise<void> {
+  if (await isWindows($)) {
+    await $.fs.write(path, text)
+    return
+  }
   const run = await $.process.run(
     ['sh', '-c', 'umask 077; mkdir -p "$(dirname "$1")" && cat > "$1"', 'sh', path],
     { stdin: text, timeoutMs: 5000 },
@@ -212,21 +226,24 @@ async function readbackText($: any, id: string): Promise<string> {
 export function register(on: any, options?: unknown) {
   pluginOptions = options ?? {}
   on('session.start', async ($: any, e: any, next: any) => {
-    // The marker tells the classic Python hook to skip this session so nothing runs twice.
-    try {
-      const marker = (await digestString(await $.session.id())).slice(0, 24)
-      await writePrivate($, (await stateBase($)) + '/mod-active/' + marker, VERSION)
-    } catch {
-      // Without a marker the classic hook may also run; that is a cost, not a safety issue.
-    }
     // Retention: raw logs may hold secrets, so enforce retentionDays (the classic hook does the same).
     try {
       const cwd = await $.session.cwd()
       const cfg = await loadConfig($, cwd)
       if (cfg.enabled) {
         const root = await projectRoot($, cwd)
-        await $.process.run(['find', root, '-type', 'f', '-mtime', '+' + cfg.retentionDays, '-delete'], { timeoutMs: 10000 })
-        await $.process.run(['find', (await stateBase($)) + '/mod-active', '-type', 'f', '-mtime', '+30', '-delete'], { timeoutMs: 10000 })
+        if (await isWindows($)) {
+          // Arguments are passed as parameters, never spliced into the script text.
+          await $.process.run(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command',
+              '& { param($p, $d) Get-ChildItem -LiteralPath $p -Recurse -File -ErrorAction SilentlyContinue | ' +
+              'Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-[int]$d) } | Remove-Item -Force -ErrorAction SilentlyContinue }',
+              root, String(cfg.retentionDays)],
+            { timeoutMs: 20000 },
+          )
+        } else {
+          await $.process.run(['find', root, '-type', 'f', '-mtime', '+' + cfg.retentionDays, '-delete'], { timeoutMs: 10000 })
+        }
       }
     } catch {
       // No config or nothing to clean yet.

@@ -5,9 +5,9 @@ description: Set up, diagnose and explain Jev Agent Kit in a project. Use when t
 
 # Operate Jev Agent Kit
 
-Jev Agent Kit shortens long Bash output with a local rules engine, optionally assisted by the Jev model (TypeSafe AI System One). It runs as a **native Mod** on Claude Code 2.1.287+ and falls back to a **classic hook** on older versions. Neither is required for you to work; this skill helps you operate them.
+Jev Agent Kit shortens long Bash output with a local rules engine, optionally assisted by the Jev model (TypeSafe AI System One). It runs as a **native Mod** (Claude Code 2.1.287+). On older versions the plugin loads but does nothing: tell the user to update. It is never required for you to work; this skill helps you operate it.
 
-CLI: `python3 "${CLAUDE_PLUGIN_ROOT}/jev.py" <command>`. In-session: `/jev status | doctor | readback <id>` (these cost no model turn; prefer them).
+Optional maintainer/eval CLI: `uv run --no-project "${CLAUDE_PLUGIN_ROOT}/jev.py" <command>` (no Python install needed). In-session: `/jev status | doctor | readback <id>` (these cost no model turn; prefer them).
 
 ## Safety rules (always)
 
@@ -28,10 +28,6 @@ Config fields: `schemaVersion` (1), `enabled`, `mode` (`observe`|`assist`), `bac
 
 Rollout: `rules`+`observe` first, then `jev`+`observe` and inspect `/jev status`, only then `assist`.
 
-## Mod vs classic hook
-
-The plugin ships both. At `session.start` the Mod writes `<state>/mod-active/<hash of session id>`; the classic hook exits at once when that marker exists. If `/jev doctor` works, the Mod is active. Do not also run `jev.py install` in the same project (it adds a second hook registration).
-
 ## Diagnosing
 
 | Symptom | Check |
@@ -44,4 +40,4 @@ The plugin ships both. At `session.start` the Mod writes `<state>/mod-active/<ha
 
 ## Evaluating
 
-Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` separate, always report `jev_vs_local`, and treat incomplete or unknown-cost data as no verdict. Command: `python3 "${CLAUDE_PLUGIN_ROOT}/jev.py" report --manifest ... --records ...`.
+Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` separate, always report `jev_vs_local`, and treat incomplete or unknown-cost data as no verdict. Command: `uv run --no-project "${CLAUDE_PLUGIN_ROOT}/jev.py" report --manifest ... --records ...`.

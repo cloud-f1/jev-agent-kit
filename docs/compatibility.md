@@ -6,10 +6,10 @@ Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude C
 
 | Item | Status | Evidence |
 |---|---|---|
-| Python core, CLI, classic hook, release gate | Passed | 78 tests, `python3 -m unittest discover -s tests` |
+| Python core, CLI, release gate | Passed | 56 tests, `python3 -m unittest discover -s tests` |
 | Python 3.10 to 3.14 | Passed | `uv run --no-project --python 3.10 ... python -m unittest discover -s tests` for 3.10, 3.11, 3.12, 3.13; 3.14.4 is the default interpreter |
 | Plugin settings (`userConfig`) in a real session | Partly | `claude -p "/jev doctor"` shows the defaults filled in and their source; the `/config` screen itself and the sensitive-key prompt are interactive and **not yet seen** |
-| TypeScript core + Mod (stubbed host) | Passed | 60 tests, `claude plugin test` |
+| TypeScript core + Mod (stubbed host) | Passed | 69 tests, `claude plugin test` |
 | TS vs Python parity | Passed | shared golden fixture (14 prune cases incl. CR, Unicode digits, dotless i, emoji; 7 redaction cases; 3 digests); drift test regenerates it from Python |
 | Tests detect regressions | Spot-checked | two deliberate bugs (assist never rewrites; key leaked into a record) each failed the suite |
 | `claude plugin validate --strict` | Passed | manifests, hooks, Mod static analysis |
@@ -22,7 +22,9 @@ Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude C
 | Live Jev API (`smoke`, `bench-logs --live`, `backend: jev`) | **Not run** | needs `TYPESAFE_API_KEY`; all Jev paths are tested against stubs only |
 | Cost or success-rate benefit | **Unproven** | no agent-task benchmark has been run; see `docs/EVALUATION.md` |
 | Interactive session (hot reload, UI status line) | Not run | `$.ui.status` is stubbed in tests |
-| Windows | Not supported | Mod uses `sh`, `find`, `pwd`; `python3` also absent (use uv) |
+| Windows | **Written, never run** | Mod has a Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) covered by stubbed tests on macOS only; the PowerShell script and real path behavior are unverified |
+| uvx entry point | Passed (macOS) | `uvx --from . jev doctor` |
+| Python hook removed | Verified live | `Registered 0 hooks` in the debug log; Mod ran alone; project hash equals Python's |
 | Model routing (`agent.spawn`, `turn.step`) | Not implemented | v0.3 |
 
 ## Behaviors learned the hard way

@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import release_check as rc  # noqa: E402
 
 
-def make_repo(root, py='0.2.0', ts='0.2.0', plugin='0.2.0', changelog='## 0.2.0 (2026-10-10)\n', hooks_modules=('./register.ts',),
+def make_repo(root, py='0.2.0', ts='0.2.0', plugin='0.2.0', pyproject='0.2.0', classic_hooks=False, changelog='## 0.2.0 (2026-10-10)\n', hooks_modules=('./register.ts',),
               plugin_extra=None, market_names=('jev-agent-kit',)):
     root = Path(root)
     (root / 'jevkit').mkdir(); (root / 'core').mkdir(); (root / 'hooks').mkdir(); (root / '.claude-plugin').mkdir()
@@ -17,7 +17,11 @@ def make_repo(root, py='0.2.0', ts='0.2.0', plugin='0.2.0', changelog='## 0.2.0 
     manifest = {'name': 'jev-agent-kit', 'version': plugin, **(plugin_extra or {})}
     (root / '.claude-plugin' / 'plugin.json').write_text(json.dumps(manifest))
     (root / '.claude-plugin' / 'marketplace.json').write_text(json.dumps({'plugins': [{'name': n} for n in market_names]}))
-    (root / 'hooks' / 'hooks.json').write_text(json.dumps({'modules': list(hooks_modules)}))
+    hooks_json = {'modules': list(hooks_modules)}
+    if classic_hooks:
+        hooks_json['hooks'] = {'PostToolUse': [{'matcher': 'Bash', 'hooks': []}]}
+    (root / 'hooks' / 'hooks.json').write_text(json.dumps(hooks_json))
+    (root / 'pyproject.toml').write_text(f'[project]\nname = "x"\nversion = "{pyproject}"\n')
     for module in hooks_modules:
         (root / 'hooks' / module).write_text('export function register() {}\n')
     (root / 'CHANGELOG.md').write_text('# Changelog\n\n' + changelog)
@@ -34,7 +38,7 @@ class VersionTests(unittest.TestCase):
             self.assertEqual(statuses(rc.check_versions(make_repo(td)))['versions agree'], rc.PASS)
 
     def test_each_file_drifting_fails(self):
-        for field in ('py', 'ts', 'plugin'):
+        for field in ('py', 'ts', 'plugin', 'pyproject'):
             with self.subTest(field), tempfile.TemporaryDirectory() as td:
                 root = make_repo(td, **{field: '0.1.0'})
                 self.assertEqual(statuses(rc.check_versions(root))['versions agree'], rc.FAIL)
@@ -75,6 +79,12 @@ class ManifestTests(unittest.TestCase):
             result = rc.check_manifests(root)[0]
             self.assertEqual(result.status, rc.FAIL)
             self.assertIn('defaultEnabled', result.detail)
+
+    def test_reintroduced_classic_hooks_are_rejected(self):
+        with tempfile.TemporaryDirectory() as td:
+            result = rc.check_manifests(make_repo(td, classic_hooks=True))[0]
+            self.assertEqual(result.status, rc.FAIL)
+            self.assertIn('classic hooks', result.detail)
 
     def test_plugin_missing_from_marketplace(self):
         with tempfile.TemporaryDirectory() as td:

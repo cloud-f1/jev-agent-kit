@@ -62,6 +62,11 @@ def ts_version(root: Path) -> str | None:
     return match.group(1) if match else None
 
 
+def pyproject_version(root: Path) -> str | None:
+    match = re.search(r'^version\s*=\s*"([^"]+)"', (root / 'pyproject.toml').read_text(encoding='utf-8'), re.M)
+    return match.group(1) if match else None
+
+
 def changelog_head(root: Path) -> tuple[str | None, str]:
     """First `## <version> [(note)]` heading and its trailing note."""
     for line in (root / 'CHANGELOG.md').read_text(encoding='utf-8').splitlines():
@@ -76,6 +81,7 @@ def check_versions(root: Path, release: bool = False) -> list[Result]:
         'jevkit/core.py': python_version(root),
         'core/contracts.ts': ts_version(root),
         '.claude-plugin/plugin.json': read_json(root / '.claude-plugin' / 'plugin.json').get('version'),
+        'pyproject.toml': pyproject_version(root),
     }
     log_version, note = changelog_head(root)
     found['CHANGELOG.md'] = log_version
@@ -105,6 +111,8 @@ def check_manifests(root: Path) -> list[Result]:
         problems.append('plugin.json sets defaultEnabled:false (a --plugin-dir load then registers no module)')
     if plugin['name'] not in [p.get('name') for p in market.get('plugins', [])]:
         problems.append('plugin name missing from marketplace.json')
+    if hooks.get('hooks'):
+        problems.append('hooks.json declares classic hooks again; the Mod owns Bash output and both would run')
     for module in hooks.get('modules', []):
         if not (root / 'hooks' / module).is_file():
             problems.append(f'hooks module {module} does not exist')

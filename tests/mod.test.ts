@@ -30,12 +30,16 @@ function stubs(on: any, setup: Setup = {}) {
   const written: Record<string, string> = {}
   const commands: string[][] = []
   const scripts: string[] = []
+  const fsWrites: string[] = []
+  const registered: string[] = []
   const status: string[] = []
   const requests: Array<{ url: string; init: any }> = []
   mock.clock(on)
   on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
   on('session.cwd', () => ({ value: CWD }))
   on('session.id', () => ({ value: 'session-golden' }))
+  on('fs.stat', (_: any, e: any) => ({ value: { kind: 'dir', size: 0, mtimeMs: 0, isLink: false, realPath: e.path === CWD ? (setup.realCwd ?? CWD) : e.path } }))
+  on('fs.write', (_: any, e: any) => { written[e.path] = e.text; fsWrites.push(e.path); return { value: undefined } })
   on('fs.exists', (_: any, e: any) => ({ value: e.path in files }))
   on('fs.read', (_: any, e: any) => {
     if (!(e.path in files) && !(e.path in written)) throw new Error('ENOENT')
@@ -46,7 +50,6 @@ function stubs(on: any, setup: Setup = {}) {
   }))
   on('process.run', (_: any, e: any) => {
     commands.push([...e.argv])
-    if (e.argv[0] === 'pwd') return { value: { exitCode: 0, stdout: (setup.realCwd ?? CWD) + '\n', stderr: '' } }
     if (e.argv[0] === 'find') return { value: { exitCode: 0, stdout: '', stderr: '' } }
     if (e.argv[0] === 'git') return { value: { exitCode: setup.gitExit ?? 0, stdout: setup.gitExit ? '' : 'abc123', stderr: '' } }
     if (e.argv[0] === 'sh') {
@@ -62,11 +65,11 @@ function stubs(on: any, setup: Setup = {}) {
     return { value: setup.http ? setup.http(e.url, e.init) : { ok: false, status: 500, headers: {}, text: '' } }
   })
   on('ui.status', (_: any, e: any) => { status.push(e.text); return { value: undefined } })
-  on('command.register', () => ({ value: undefined }))
+  on('command.register', (_: any, e: any) => { registered.push(e.name); return { value: undefined } })
   on('session.start', () => ({ cwd: CWD }))
   const bash = { stdout: longLog(), stderr: 'WARNING stderr evidence', interrupted: false, isImage: false }
   on('tool.call', () => (setup.tool ?? { result: bash, text: 'original' }))
-  return { written, status, requests, bash, files, commands, scripts }
+  return { written, status, requests, bash, files, commands, scripts, fsWrites, registered }
 }
 
 const call = ($: any) => $.tool.call({ tool: 'Bash', command: 'npm test' })
@@ -74,11 +77,11 @@ const artifacts = (written: Record<string, string>) => Object.keys(written).filt
 const decisions = (written: Record<string, string>) =>
   Object.entries(written).filter(([p]) => p.includes('/decisions/')).map(([, v]) => JSON.parse(v))
 
-test('session.start writes the exclusion marker and registers /jev', async ($, on) => {
+test('session.start registers /jev and writes no marker file', async ($, on) => {
   const s = stubs(on)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: CWD })
-  const marker = STATE + '/mod-active/' + (await digestString('session-golden')).slice(0, 24)
-  expect(s.written[marker]).toBeDefined()
+  expect(s.registered).toContain('jev')
+  expect(Object.keys(s.written).filter((p) => p.includes('mod-active'))).toEqual([])
 })
 
 test('a project without config is left alone', async ($, on) => {
@@ -306,12 +309,12 @@ test('JEV_STATE_DIR with a leading ~/ expands against HOME', async ($, on) => {
   for (const path of Object.keys(s.written)) expect(path.startsWith('/home/u/custom-state/')).toBe(true)
 })
 
-test('session.start enforces retentionDays for this project and old markers', async ($, on) => {
+test('session.start enforces retentionDays for this project', async ($, on) => {
   const s = stubs(on, { config: { ...ASSIST, retentionDays: 3 } })
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: CWD })
   const finds = s.commands.filter((c) => c[0] === 'find')
-  expect(finds.some((c) => c.includes('+3') && c.includes('-delete'))).toBe(true)
-  expect(finds.some((c) => c[1].endsWith('/mod-active') && c.includes('+30'))).toBe(true)
+  expect(finds.length).toBe(1)
+  expect(finds[0].includes('+3') && finds[0].includes('-delete')).toBe(true)
 })
 
 test('no retention cleanup for a project that has not opted in', async ($, on) => {
@@ -386,3 +389,43 @@ test('/jev doctor tells an un-opted-in user exactly what to do', async ($, on) =
   expect(out.text).toContain('NOT opted in')
   expect(out.text).toContain('Enable in every project')
 })
+
+// ---- Windows branch: exercised with stubs only; it has NOT been run on Windows.
+test('Windows: private writes use the file API, never sh', async ($, on) => {
+  const s = stubs(on, { config: ASSIST, env: { OS: 'Windows_NT', HOME: '', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: 'C:\\state' } })
+  const out: any = await call($)
+  expect(out.result.stdout).toContain('/jev readback ')
+  expect(s.scripts).toEqual([])
+  expect(s.commands.some((c) => c[0] === 'sh')).toBe(false)
+  expect(s.fsWrites.length).toBeGreaterThan(0)
+  // The host resolves paths against this machine's cwd, so compare with includes.
+  expect(s.fsWrites.every((p) => p.includes('C:\\state/'))).toBe(true)
+})
+
+test('Windows: default state directory comes from USERPROFILE', async ($, on) => {
+  const s = stubs(on, { config: ASSIST, env: { OS: 'Windows_NT', HOME: '', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: '' } })
+  await call($)
+  expect(s.fsWrites.every((p) => p.includes('C:\\Users\\u/.cache/jev-agent-kit/'))).toBe(true)
+})
+
+test('Windows: retention runs PowerShell with parameters, not interpolated text', async ($, on) => {
+  const s = stubs(on, { config: { ...ASSIST, retentionDays: 5 }, env: { OS: 'Windows_NT', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: 'C:\\state' } })
+  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: CWD })
+  const ps = s.commands.find((c) => c[0] === 'powershell')!
+  expect(ps).toBeDefined()
+  expect(ps[ps.length - 1]).toBe('5')
+  expect(ps[ps.length - 2].startsWith('C:\\state/')).toBe(true)
+  expect(ps.slice(0, -2).join(' ')).not.toContain('C:\\state')
+  expect(s.commands.some((c) => c[0] === 'find')).toBe(false)
+})
+
+const dirCases: Array<[string, boolean]> = [['C:/s', true], ['\\\\srv\\share', true], ['/abs', true], ['rel/dir', false], ['~u/x', false], ['D:x', false]]
+for (const [dir, ok] of dirCases) {
+  test('state dir ' + JSON.stringify(dir) + (ok ? ' is used' : ' falls back to the home cache'), async ($, on) => {
+    const s = stubs(on, { config: ASSIST, env: { OS: 'Windows_NT', HOME: '', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: dir } })
+    await call($)
+    const first = s.fsWrites[0]
+    expect(first.includes(dir + '/')).toBe(ok)
+    if (!ok) expect(first.includes('C:\\Users\\u/.cache/jev-agent-kit/')).toBe(true)
+  })
+}
