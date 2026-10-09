@@ -26,7 +26,8 @@ No CI: the local gate is the gate. Python is stdlib-only; do not add dependencie
 - Python `jevkit/core.py` is the reference implementation. TS must match it: `tests/fixtures/golden.{json,ts}` are generated from Python and checked from both sides. Change both cores together and regenerate.
 - The Mod is the only thing that touches Bash output. Do not reintroduce classic `hooks` entries in `hooks/hooks.json` (the gate rejects it): two processors would double the cost and the risk. The old marker mechanism is gone.
 - Plugin must NOT set `defaultEnabled: false` (a `--plugin-dir` load then registers nothing). Projects are opt-in via `.claude/jev-agent-kit.json` (`enabled` default false).
-- Projects must never be able to set endpoint, key, credential paths (config validation rejects unknown fields; keep it that way).
+- Projects must never be able to set endpoint, key, credential paths or model (config validation rejects unknown fields; keep it that way). Read `settings.json` env with `$.settings.read({ source: 'user' })` only: the unfiltered merge includes a cloned repo's `.claude/settings.json`.
+- A pinned model must answer as itself (`model_mismatch`); only `jev-latest` may resolve to another `jev-*` name. Both cores.
 
 ## Safety invariants (tests cover each; do not weaken)
 

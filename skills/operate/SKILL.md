@@ -24,7 +24,7 @@ Optional maintainer/eval CLI: `uv run --no-project "${CLAUDE_PLUGIN_ROOT}/jev.py
 3. `observe`: records the decision and stores the original; output unchanged. `assist`: replaces `stdout` with the pruned text plus a read-back line. `stderr`, interrupted runs, images, failed commands and denied calls are never rewritten.
 4. Any error returns the original output. Look at the record's `reason` (`ok`, `missing_key`, `http_429`, `budget_fallback_original`, ...).
 
-Config fields: `schemaVersion` (1), `enabled`, `mode` (`observe`|`assist`), `backend` (`rules`|`jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set endpoint, key or credential paths.
+Config fields: `schemaVersion` (1), `enabled`, `mode` (`observe`|`assist`), `backend` (`rules`|`jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set endpoint, key, credential paths or model. The key comes from `TYPESAFE_API_KEY`, the plugin's secure setting, the user's `settings.json` env (never a project's), or `JEV_ENV_FILE`. The `Jev model` setting is plugin-level only. Fallback reason codes you may see include `missing_key`, `http_429`, `invalid_model`, `model_mismatch`, `budget_fallback_original`.
 
 Rollout: `rules`+`observe` first, then `jev`+`observe` and inspect `/jev status`, only then `assist`.
 
