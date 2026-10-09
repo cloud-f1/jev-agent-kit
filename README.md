@@ -2,6 +2,15 @@
 
 可執行的 Python 3.10+、零第三方依賴核心，包含 Claude Code **classic hook fallback**、Log 精簡／原文讀回、循環觀察、API smoke、offline/live Log 對照與真實任務配對報告。原生 Mod／模型分流留待目標 Claude Code 版本驗證後實作；不把 classic Hook 當作已完成 Mod。
 
+## 從 marketplace 安裝（repo 推上 GitHub 後才有效）
+
+```
+/plugin marketplace add cloud-f1/jev-agent-kit
+/plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit
+```
+
+Plugin 預設 `defaultEnabled: false`：安裝後要明確啟用（`/plugin` 或 `claude plugin enable jev-agent-kit`），而且每個專案要有 `.claude/jev-agent-kit.json` 且 `enabled: true` 才會處理輸出。本機開發：`claude --plugin-dir /absolute/path/to/jev-agent-kit`。Plugin 與下方 `install` 指令二選一，不可同時用。授權：MIT。
+
 ## 先跑不用 key 的驗證
 
 在解壓後的 `jev-agent-kit` 目錄執行：

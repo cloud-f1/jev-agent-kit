@@ -1,1 +1,12 @@
-{"name":"jev-agent-kit","version":"0.1.0","description":"Measured Jev log pruning and loop observation; classic hook adapter","author":{"name":"Alexhsieh"},"defaultEnabled":false}
+{
+  "name": "jev-agent-kit",
+  "displayName": "Jev Agent Kit",
+  "version": "0.1.0",
+  "description": "Measured Jev log pruning and loop observation for Claude Code; classic hook adapter with original-log read-back",
+  "author": { "name": "cloud-f1" },
+  "homepage": "https://github.com/cloud-f1/jev-agent-kit",
+  "repository": "https://github.com/cloud-f1/jev-agent-kit",
+  "license": "MIT",
+  "keywords": ["jev", "typesafe", "system-one", "cost", "hooks", "log-pruning"],
+  "defaultEnabled": false
+}

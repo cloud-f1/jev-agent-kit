@@ -1,0 +1,14 @@
+{
+  "name": "jev-agent-kit",
+  "description": "Jev Agent Kit: cost-measured Jev log pruning and loop observation for Claude Code.",
+  "owner": {
+    "name": "cloud-f1"
+  },
+  "plugins": [
+    {
+      "name": "jev-agent-kit",
+      "source": "./",
+      "description": "Measured Jev log pruning and loop observation for Claude Code (classic hook adapter, observe mode by default)."
+    }
+  ]
+}
