@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.2.1 (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.3.0 (branch `v0.3.0`, unreleased); last release v0.2.1 (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 
@@ -35,7 +35,7 @@ An unofficial Claude Code plugin (MIT, not affiliated with TypeSafe AI) that sho
 Functional
 - F1. Wrap Bash results; rewrite only `stdout` of successful, non-interrupted, non-image results.
 - F2. `observe` (record only) and `assist` (rewrite) modes; `rules` (local) and `jev` backends.
-- F3. `/jev status | doctor | readback <id>` without a model turn.
+- F3. `/jev status | doctor | readback <id> | on | off | mode | init` without a model turn. A read-back pauses rewriting for the session.
 - F4. Settings in `/config` (mode, backend, minimum length, keep threshold, retention, enable-everywhere, model, sensitive key); project file `.claude/jev-agent-kit.json` for per-project overrides.
 - F5. Failures visible: one toast per fixed reason code per session, a debug-log line per decision.
 - F6. Key lookup: env, plugin secure setting, user `settings.json` env, `JEV_ENV_FILE`. Never from a project.
@@ -53,7 +53,7 @@ Quality
 
 ## Success metrics
 
-Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 58 Python + 84 Mod/core tests pass.
+Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 58 Python + 91 Mod/core tests pass.
 
 Benefit (not measured): total cost per successful agent task, success rate, read-back rate. Defined in [EVALUATION.md](EVALUATION.md). Until that paired benchmark runs the status stays "mechanism works, benefit unproven".
 

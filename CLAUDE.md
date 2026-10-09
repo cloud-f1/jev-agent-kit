@@ -11,7 +11,7 @@ Claude Code plugin that prunes long Bash output (a native TypeScript Mod; Python
 ```bash
 uv run --no-project python -m unittest discover -s tests   # Python tests (no key, no network)
 claude plugin test                      # TS core + Mod tests (offline; needs Claude Code 2.1.287+)
-claude plugin validate --strict .       # manifests + Mod static analysis
+claude plugin validate --strict .       # manifests + Mod static analysis (its one warning, root CLAUDE.md not loaded as plugin context, is expected: this file is the dev guide)
 uv run --no-project scripts/release_check.py   # full local gate; --release for tagging
 uv run --no-project scripts/gen_golden.py      # regenerate shared fixtures after changing pruning/hashing
 ```

@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.2.1, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.3.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -148,7 +148,14 @@ Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14. Because of the `/config` picke
 |---|---|
 | `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
 | `/jev status` | Count and the last 10 decision records for this project. |
-| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output. Only 32 hex chars are accepted. |
+| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output. Only 32 hex chars are accepted. After a read-back, `assist` stops rewriting for the rest of the session (the model needed the original, so pruning cost something). |
+| `/jev on` / `/jev off` | Turn "Enable in every project" on or off (your plugin settings). A project file still overrides. |
+| `/jev mode observe|assist` | Set the mode in your plugin settings. |
+| `/jev init [observe|assist]` | Create `.claude/jev-agent-kit.json` for this project (enabled). Never overwrites an existing file. |
+
+Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 30000 -> 570 chars; full original available via /jev readback <id>]`. These are counted characters, not a token or cost claim.
+
+**Shadow mode:** `mode: observe` with `backend: jev` asks Jev about each long log and records what it would have kept, but never rewrites anything. Note this sends (redacted) log blocks to the Jev API even though nothing is changed.
 
 The status line under the prompt shows `jev: N/M long logs pruned · X chars saved` (assist) or `jev (observe): M long logs seen` (observe).
 
@@ -212,11 +219,13 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 
 ```bash
 uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (58)
-claude plugin test                         # TypeScript core + Mod tests (84), offline
+claude plugin test                         # TypeScript core + Mod tests (91), offline
 claude plugin validate --strict .
 uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
 uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)
 ```
+
+Optional type-check of `hooks/` and `core/` against Claude Code's own type file (needs Node; not part of the gate): `CLAUDE_CODE_TYPES=/path/to/claude-code.d.ts sh scripts/typecheck.sh`. Claude Code writes that file itself (`/plugin-types`); it is not checked in.
 
 Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `jevkit/` the Python core, `tests/fixtures/golden.*` shared by both cores. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
 

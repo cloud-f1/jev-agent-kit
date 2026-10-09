@@ -20,6 +20,7 @@ interface Setup {
   realCwd?: string
   gitExit?: number
   settingsEnv?: Record<string, string>
+  configDeny?: boolean
   projectSettingsEnv?: Record<string, string> // a cloned repo's .claude/settings.json: must never be used
   throwOnWrite?: boolean
   http?: (url: string, init: any) => any
@@ -38,6 +39,7 @@ function stubs(on: any, setup: Setup = {}) {
   const toasts: string[] = []
   const logs: string[] = []
   const status: string[] = []
+  const configSets: Array<{ key: string; value: unknown }> = []
   const requests: Array<{ url: string; init: any }> = []
   mock.clock(on)
   on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
@@ -72,12 +74,13 @@ function stubs(on: any, setup: Setup = {}) {
   on('ui.toast', (_: any, e: any) => { toasts.push(e.text); return { value: undefined } })
   on('ui.log', (_: any, e: any) => { logs.push(e.text); return { value: undefined } })
   on('settings.read', (_: any, e: any) => ({ value: { env: ((e?.source === 'user' ? setup.settingsEnv : e?.source === undefined ? { ...setup.projectSettingsEnv, ...setup.settingsEnv } : setup.projectSettingsEnv) ?? {}) } }))
+  on('config.set', (_: any, e: any) => { configSets.push({ key: e.key, value: e.value }); return setup.configDeny ? { deny: 'locked' } : { value: e.value } })
   on('ui.status', (_: any, e: any) => { status.push(e.text); return { value: undefined } })
   on('command.register', (_: any, e: any) => { registered.push(e.name); return { value: undefined } })
   on('session.start', () => ({ cwd: CWD }))
   const bash = { stdout: longLog(), stderr: 'WARNING stderr evidence', interrupted: false, isImage: false }
   on('tool.call', () => (setup.tool ?? { result: bash, text: 'original' }))
-  return { written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
+  return { configSets, written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
 }
 
 const call = ($: any) => $.tool.call({ tool: 'Bash', command: 'npm test' })
@@ -534,4 +537,67 @@ optsTest('/jev doctor shows the model and where the key comes from', { model: 'j
   expect(out.text).toContain('Jev model: jev-latest (plugin settings)')
   expect(out.text).toContain('Claude Code settings.json env')
   expect(out.text).not.toContain('from-settings-3')
+})
+
+
+// ---- v0.3: /jev on|off|mode|init and the measured receipt line
+test('/jev on, off and mode change only the named plugin rows', async ($, on) => {
+  const s = stubs(on, { config: JEV_ASSIST })
+  const onOut = await $.command.run({ command: 'jev', args: 'on' })
+  expect(onOut.text).toContain('enable_all_projects = true')
+  await $.command.run({ command: 'jev', args: 'off' })
+  await $.command.run({ command: 'jev', args: 'mode assist' })
+  const bad = await $.command.run({ command: 'jev', args: 'mode shell' })
+  expect(bad.text).toContain('Usage')
+  expect(s.configSets).toEqual([
+    { key: 'jev-agent-kit.enable_all_projects', value: true },
+    { key: 'jev-agent-kit.enable_all_projects', value: false },
+    { key: 'jev-agent-kit.mode', value: 'assist' },
+  ])
+})
+
+test('/jev on reports a refused change without claiming success', async ($, on) => {
+  const s = stubs(on, { config: JEV_ASSIST, configDeny: true })
+  const out = await $.command.run({ command: 'jev', args: 'on' })
+  expect(out.text).toContain('Not changed')
+  expect(out.text).not.toContain('Set ')
+  expect(s.configSets.length).toBe(1)
+})
+
+test('/jev init creates the project file once and never overwrites it', async ($, on) => {
+  const s = stubs(on, {})
+  const first = await $.command.run({ command: 'jev', args: 'init assist' })
+  expect(first.text).toContain('Created')
+  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'assist' })
+  expect((await $.command.run({ command: 'jev', args: 'init bogus' })).text).toContain('Usage')
+})
+
+test('/jev init leaves an existing project file alone', async ($, on) => {
+  const t = stubs(on, { config: JEV_ASSIST })
+  expect((await $.command.run({ command: 'jev', args: 'init' })).text).toContain('already exists')
+  expect(t.fsWrites.length).toBe(0)
+})
+
+test('the read-back line reports measured characters in and out', async ($, on) => {
+  stubs(on, { config: ASSIST })
+  const out = await call($)
+  expect(out.result.stdout).toMatch(/\[Jev agent kit: pruned \d+ -> \d+ chars; full original available via \/jev readback [a-f0-9]{32}\]/)
+})
+
+test('after a read-back, assist stops rewriting for the rest of the session', async ($, on) => {
+  stubs(on, { config: ASSIST })
+  const first = await call($)
+  const id = first.result.stdout.match(/readback ([a-f0-9]{32})/)[1]
+  await $.command.run({ command: 'jev', args: 'readback ' + id })
+  const second = await call($)
+  expect(second.result.stdout).not.toContain('/jev readback')
+  expect(second.result.stdout).toBe(longLog())
+})
+
+test('observe with the jev backend asks Jev but never rewrites (shadow mode)', async ($, on) => {
+  const answers = (body: any) => ({ ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'jev-1.13.0', usage: { input_tokens: 5, output_tokens: 1 }, answers: Object.fromEntries(Object.keys(body.questions).map((k) => [k, { type: 'noul', noul: 0.9 }])) }) })
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'fake-key-1234' }, http: (_u: string, init: any) => answers(JSON.parse(init.body)) })
+  const out = await call($)
+  expect(s.requests.length).toBeGreaterThan(0)
+  expect(out.result.stdout).toBe(longLog())
 })

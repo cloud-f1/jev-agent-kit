@@ -4,11 +4,24 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.3.0 | 2026-10-10 | `/jev on|off|mode|init`, measured receipt line, pause after read-back, optional type-check; live synthetic benchmark run |
 | 0.2.1 | 2026-10-10 | Visible failures (toast + debug log), key from user `settings.json` env, `Jev model` setting, audit fixes |
 | 0.2.0 | 2026-10-10 | Native TypeScript Mod replaces the Python hook; `/jev` commands; `/config` settings; independent audit fixes; cross-platform code path |
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.3.0 (2026-10-10)
+
+- New: `/jev on`, `/jev off`, `/jev mode observe|assist` change your plugin settings through `$.config.set` (rows `jev-agent-kit.<field>`; only `enable_all_projects` and `mode` are ever written). A refused change is reported as such.
+- New: `/jev init [observe|assist]` creates `.claude/jev-agent-kit.json` for the project and never overwrites an existing one.
+- Changed: the read-back line now carries measured counts: `pruned <chars in> -> <chars out> chars`. Characters only; no token or dollar estimate.
+- Changed (behavior): after a `/jev readback` in a session, `assist` stops rewriting for the rest of that session (fixed reason `paused_after_readback` in the decision record; the status line says so). Fails toward the original output.
+- Documented and tested: `observe` with `backend: jev` is shadow mode (asks Jev, records, never rewrites). It still sends redacted blocks to the API.
+- New: `scripts/typecheck.sh` (maintainers, needs Node, outside the gate) and a typed `register(on: On, options?: PluginOptions)`; fixed a `Uint8Array` typing error in `core/hash.ts`. Helpers still take `$: any`, so API-call shapes are not yet type-checked.
+- Verified live (once): `jev.py bench-logs --live` on the 5 synthetic fixtures: 5 of 5 decisions valid; Jev kept 100% of the planted evidence at about 71% character reduction, local rules kept 50% at about 80%. Planted-evidence proxy only: not agent-task evidence, no cost or success claim.
+- Not done: collapsing repeated lines (it must not drop error-bearing lines; needs a design and evidence), the paired agent-task benchmark (needs a budget), a Windows run, `/jev savings`, a pane, presets. The interactive effect of `/jev on|off|mode` on a real `/config` screen was not seen (stubbed tests only).
+- Tests: 58 Python + 91 Mod/core tests.
 
 ## 0.2.1 (2026-10-10)
 

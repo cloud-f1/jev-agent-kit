@@ -1,7 +1,7 @@
 // SHA-256 helpers. Pure: no mods API. Matches the Python core's digest() for plain strings.
 
 export async function sha256Hex(text: string): Promise<string> {
-  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
+  const buffer = await crypto.subtle.digest('SHA-256', new Uint8Array(new TextEncoder().encode(text)))
   return Array.from(new Uint8Array(buffer), (b) => b.toString(16).padStart(2, '0')).join('')
 }
 

@@ -2,6 +2,7 @@
 // all decisions live in ../core (pure, testable without a session).
 import { ENDPOINT, JevError, MAX_BYTES, MODEL, VERSION } from '../core/contracts.ts'
 import type { Config, Transport } from '../core/contracts.ts'
+import type { On, PluginOptions } from 'claude-code' // types only; erased at run time
 import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, prune, redact } from '../core/prune.ts'
@@ -12,7 +13,7 @@ const ARTIFACT_ID = /^[a-f0-9]{32}$/
 // Session-local counters for the status line and loop observation. They reset on reload.
 // Plugin settings from /config (userConfig), handed to register(on, options). Reset on reload.
 let pluginOptions: unknown = {}
-const stats = { seen: 0, pruned: 0, savedChars: 0 }
+const stats = { seen: 0, pruned: 0, savedChars: 0, readbacks: 0 }
 const fingerprints = new Map<string, number>()
 // Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
 const toasted = new Set<string>()
@@ -198,7 +199,7 @@ async function notifyOnce($: any, reason: string, message: string): Promise<void
 
 async function showStatus($: any, cfg: Config): Promise<void> {
   const text = cfg.mode === 'assist'
-    ? `jev: ${stats.pruned}/${stats.seen} long logs pruned · ${stats.savedChars} chars saved`
+    ? `jev: ${stats.pruned}/${stats.seen} long logs pruned · ${stats.savedChars} chars saved${stats.readbacks > 0 ? ' · paused after read-back' : ''}`
     : `jev (observe): ${stats.seen} long logs seen, none rewritten`
   await $.ui.status(text)
 }
@@ -242,17 +243,44 @@ async function doctorText($: any): Promise<string> {
   return lines.join('\n')
 }
 
+// Changes one /config row as if the person did it in the menu. Row keys are `<plugin>.<field>`.
+// Only a fixed set of non-secret fields is ever written here; the reply never echoes input.
+async function setOption($: any, field: 'mode' | 'enable_all_projects', value: string | boolean): Promise<string> {
+  try {
+    const res = await $.config.set({ key: 'jev-agent-kit.' + field, value })
+    if (res?.deny !== undefined) return 'Not changed: Claude Code refused it (a locked or managed setting). Use /config.'
+    return 'Set ' + field + ' = ' + String(value) + ' (plugin settings). /jev doctor shows the effective values; a project file still overrides.'
+  } catch {
+    return 'Could not change the setting here. Use /config.'
+  }
+}
+
+// Creates the project opt-in file; never overwrites one that exists.
+async function initProject($: any, mode: string): Promise<string> {
+  if (mode !== 'observe' && mode !== 'assist') return 'Usage: /jev init [observe|assist]'
+  try {
+    const path = (await $.session.cwd()) + '/.claude/jev-agent-kit.json'
+    if (await $.fs.exists(path)) return 'Project file already exists; not changed. Edit .claude/jev-agent-kit.json yourself.'
+    await $.fs.write(path, JSON.stringify({ schemaVersion: 1, enabled: true, mode }, null, 2) + '\n')
+    return 'Created .claude/jev-agent-kit.json (enabled, mode=' + mode + '). Takes effect on the next Bash call. /jev doctor shows the result.'
+  } catch {
+    return 'Could not create the project file. Create .claude/jev-agent-kit.json by hand (see README).'
+  }
+}
+
 async function readbackText($: any, id: string): Promise<string> {
   if (!ARTIFACT_ID.test(id)) return 'Usage: /jev readback <32-hex artifact id>'
   const root = await projectRoot($, await $.session.cwd())
   try {
-    return await $.fs.read(root + '/artifacts/' + id + '.log')
+    const original = await $.fs.read(root + '/artifacts/' + id + '.log')
+    stats.readbacks += 1 // the model needed the original: stop rewriting for the rest of this session
+    return original
   } catch {
     return 'No artifact ' + id + ' for this project.'
   }
 }
 
-export function register(on: any, options?: unknown) {
+export function register(on: On, options?: PluginOptions) {
   pluginOptions = options ?? {}
   on('session.start', async ($: any, e: any, next: any) => {
     // Retention: raw logs may hold secrets, so enforce retentionDays (the classic hook does the same).
@@ -278,7 +306,7 @@ export function register(on: any, options?: unknown) {
       // No config or nothing to clean yet.
     }
     try {
-      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | readback <id>', argumentHint: 'status|doctor|readback <id>' })
+      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | readback <id> | on | off | mode <m> | init [m]', argumentHint: 'status|doctor|readback <id>|on|off|mode observe|assist|init [observe|assist]' })
     } catch {
       // A taken command name must not stop the session from starting.
     }
@@ -290,7 +318,11 @@ export function register(on: any, options?: unknown) {
     if (sub === 'status') return { text: await statusText($) }
     if (sub === 'doctor') return { text: await doctorText($) }
     if (sub === 'readback') return { text: await readbackText($, arg ?? '') }
-    return { text: 'Usage: /jev status | doctor | readback <artifact id>' }
+    if (sub === 'on') return { text: await setOption($, 'enable_all_projects', true) }
+    if (sub === 'off') return { text: await setOption($, 'enable_all_projects', false) }
+    if (sub === 'mode') return { text: arg === 'observe' || arg === 'assist' ? await setOption($, 'mode', arg) : 'Usage: /jev mode observe|assist' }
+    if (sub === 'init') return { text: await initProject($, arg ?? 'observe') }
+    return { text: 'Usage: /jev status | doctor | readback <artifact id> | on | off | mode observe|assist | init [observe|assist]' }
   })
 
   on('tool.call', { tool: 'Bash' }, async ($: any, e: any, next: any) => {
@@ -317,6 +349,12 @@ export function register(on: any, options?: unknown) {
       stats.seen += 1
       const artifactId = (await sha256Hex(JSON.stringify(out.stdout))).slice(0, 32)
       await writePrivate($, root + '/artifacts/' + artifactId + '.log', out.stdout)
+      if (stats.readbacks > 0 && cfg.mode === 'assist') {
+        // A read-back means pruning cost the model something; keep the originals from here on.
+        await recordDecision($, root, { feature: 'readback_pause', reason: 'paused_after_readback' })
+        await showStatus($, cfg)
+        return res
+      }
       const transport = cfg.backend === 'jev' ? makeTransport($, await apiKey($), cfg.timeoutSeconds * 1000) : undefined
       const { output, meta } = await prune(out.stdout, {
         backend: cfg.backend, goal: await loadGoal($, cwd), threshold: cfg.keepThreshold, transport,
@@ -332,7 +370,7 @@ export function register(on: any, options?: unknown) {
       const fieldsOk = 'stderr' in out && 'interrupted' in out && 'isImage' in out
       // Never change failed/interrupted/image tool results or erase stderr.
       const canRewrite = cfg.mode === 'assist' && output !== out.stdout && fieldsOk && !out.interrupted && !out.isImage
-      const stdout = canRewrite ? output + '\n[Jev agent kit: full original available via /jev readback ' + artifactId + ']\n' : out.stdout
+      const stdout = canRewrite ? output + '\n[Jev agent kit: pruned ' + charLength(out.stdout) + ' -> ' + charLength(output) + ' chars; full original available via /jev readback ' + artifactId + ']\n' : out.stdout
       if (cfg.mode === 'assist' && output !== out.stdout && !fieldsOk) {
         await recordDecision($, root, { feature: 'compatibility', reason: 'missing_tool_fields' })
       }

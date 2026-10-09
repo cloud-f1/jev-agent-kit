@@ -9,8 +9,8 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E3 (JEV-3) | Settings and `/jev` commands | 0.2.0 | Done; interactive `/config` screen not seen |
 | E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
-| E6 (JEV-6) | Live Jev validation | next | Smoke passed once; session and bench runs not done |
-| E7 (JEV-7) | Usability (v0.3) | planned | Not started |
+| E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
+| E7 (JEV-7) | Usability (v0.3) | 0.3.0 | Commands, receipt built (unreleased); `/jev savings`, pane, presets open |
 | E8 (JEV-8) | Evidence of benefit | planned | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | planned | Not started |
 
@@ -38,17 +38,18 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 ## E6 (JEV-6) Live Jev validation (next)
 - S6.1 (JEV-10) Done 2026-10-10: `jev.py smoke` returned `api_validated`.
 - S6.2 (JEV-11) Done: the pinned model answered as `jev-1.13.0`.
-- S6.3 (JEV-12) Optional `bench-logs --live` on synthetic logs.
+- S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
 ## E7 (JEV-7) Usability (planned, v0.3)
-- `/jev on|off|mode` via `$.config.set`; `/jev init`; `/jev savings` (what `assist` would have saved, from `observe` data); optional pane; presets.
+- Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
+- Open: `/jev savings` (what `assist` would have saved, from `observe` data); optional pane; presets.
 
 ## E8 (JEV-8) Evidence of benefit (planned)
 - Paired agent-task benchmark (10 to 20 smoke tasks, then 100+) per EVALUATION.md, with ground truth, baseline arm and negative control (layout idea from quicksilver).
-- Shadow mode for the Jev decision; evidence-survival check; stop pruning after a read-back (sources.md backlog).
-- Receipt line with measured counts only; no "tokens saved" counter.
+- (JEV-15, built in 0.3.0) Shadow mode = `observe` + `jev` (documented, tested); stop pruning after a read-back. Evidence-survival check: error blocks are pinned by construction and tested.
+- (JEV-16, built in 0.3.0) Receipt line with measured counts only; no "tokens saved" counter.
 
 ## E9 (JEV-9) Platform and maintainability (planned)
 - Test the Mod on a real Windows machine and fix what breaks.
-- Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
+- (JEV-18, built in 0.3.0: script + typed `register`; `$: any` helpers remain) Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
 - Collapse repeated lines that differ only in numbers or ids (change both cores, regenerate golden).
