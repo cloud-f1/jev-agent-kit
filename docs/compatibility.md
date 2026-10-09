@@ -18,7 +18,7 @@ Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude C
 | Native Mod in a real session | Passed | `claude -p` + `--model haiku` in a scratch project: module loaded, marker written, classic hook skipped, 30,000 to 570 chars, model quoted the pruned text and the `/jev readback <id>` line |
 | `/jev doctor`, `/jev status` | Passed live | `claude -p "/jev doctor"` |
 | `/jev readback <id>` | Tested with stubs only | not run live |
-| Install from the GitHub marketplace | Passed for v0.1.0 | `marketplace add`, `install`, `enable` in a scratch project. v0.2.0 is not yet pushed/installed |
+| Install v0.2.0 from the GitHub marketplace | Passed | `marketplace add`, `install` in a clean scratch project; version 0.2.0; `claude -p "/jev doctor"` ran from the installed copy. Install prints `7 userConfig options not yet set` (all optional) |
 | Live Jev API (`smoke`, `bench-logs --live`, `backend: jev`) | **Not run** | needs `TYPESAFE_API_KEY`; all Jev paths are tested against stubs only |
 | Cost or success-rate benefit | **Unproven** | no agent-task benchmark has been run; see `docs/EVALUATION.md` |
 | Interactive session (hot reload, UI status line) | Not run | `$.ui.status` is stubbed in tests |

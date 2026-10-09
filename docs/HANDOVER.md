@@ -13,16 +13,17 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). Claude Code plugin that shortens lon
 - Plugin settings (`userConfig`) in `/config`; precedence defaults < plugin settings < project file; key in secure storage.
 - Tests: 56 Python (`uv run --no-project python -m unittest discover -s tests`, verified on 3.10 to 3.14) + 69 Mod/core (`claude plugin test`). No CI (no quota); the gate is local.
 
-## Git state when this was written
+## Git state
 
-- `main` and tag-less `origin/main` hold **v0.1.0 only** (public). All v0.2.0 work is on local branch `v0.2-mod`, **committed locally but NOT pushed, NOT merged, NOT released**. Next session: review, merge to `main`, run `python3 scripts/release_check.py --release`, then follow `.claude/skills/release/SKILL.md`. Ask the user before pushing: the repo is public.
-- Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history).
+**v0.2.0 is released**: merged to `main` (fast-forward), tagged `v0.2.0`, GitHub release published (https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0). The local branch `v0.2-mod` is merged and can be deleted. Installing from the real marketplace was verified (`marketplace add`, `install`, version 0.2.0, `/jev doctor` from the installed copy).
+
+Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history). Ask the user before any further push: the repo is public.
 
 ## Verified, and what is NOT
 
 Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project): module loads alone (`Registered 0 hooks`; the Python hook no longer exists), 30,000 → 570 chars, model received the pruned text and the readback line, `/jev doctor` and `/jev status` work, state files `0600` / dirs `0700`, project hash equals Python's.
 
-**Not verified:** the interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), the live Jev API (no key was ever used; every Jev path is stub-tested), `/jev readback` live, interactive-session UI (status line, hot reload), Windows, installing **v0.2.0** from the marketplace (only v0.1.0 was installed), and above all **any cost or success-rate benefit**. Do not claim savings; the paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
+**Not verified:** the interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), the live Jev API (no key was ever used; every Jev path is stub-tested), `/jev readback` live, interactive-session UI (status line, hot reload), Windows Windows on a real Windows machine, and above all **any cost or success-rate benefit**. Do not claim savings; the paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
 
 ## Decisions the user made
 
@@ -48,7 +49,7 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 
 ## Next steps, in order
 
-1. Merge `v0.2-mod`, run the release gate with `--release`, tag `v0.2.0`, publish, then install **v0.2.0** from the real marketplace in a scratch project and run `/jev doctor` (release skill step 7).
+1. ~~Release v0.2.0~~ done. Next release: follow `.claude/skills/release/SKILL.md`.
 2. With a user-provided key (in a local `.env.local`, never in chat): `python3 jev.py --env-file .env.local smoke`, then `bench-logs --live`. Report exit code 3 honestly.
 3. v0.3 usability: `/jev on|off|mode` via `$.config.set`, `/jev init`, `/jev savings`, optional `/jev` pane (tabs + Select), presets. Settings screen and key storage already shipped in 0.2.0.
 3b. **Done in this branch:** classic hook retired; Mod made cross-platform (`realPath`, `USERPROFILE`, Windows branch). **Still needed:** run the Mod on a real Windows machine and fix whatever breaks (the PowerShell retention script and Windows path handling are only stub-tested).
