@@ -13,10 +13,11 @@ Not done in any version: Jev pruning in a real session, `bench-logs --live`, and
 
 ## 0.3.0 (2026-10-10)
 
+- Audit (read-only, fresh agent): nothing high; `/jev on` now says it applies to ALL projects, and the read-back pause is per project. Not verified: the real `$.config.set` / `$.fs.write` behavior.
 - New: `/jev on`, `/jev off`, `/jev mode observe|assist` change your plugin settings through `$.config.set` (rows `jev-agent-kit.<field>`; only `enable_all_projects` and `mode` are ever written). A refused change is reported as such.
 - New: `/jev init [observe|assist]` creates `.claude/jev-agent-kit.json` for the project and never overwrites an existing one.
 - Changed: the read-back line now carries measured counts: `pruned <chars in> -> <chars out> chars`. Characters only; no token or dollar estimate.
-- Changed (behavior): after a `/jev readback` in a session, `assist` stops rewriting for the rest of that session (fixed reason `paused_after_readback` in the decision record; the status line says so). Fails toward the original output.
+- Changed (behavior): after a `/jev readback` in a session, `assist` stops rewriting for the rest of that session (in that project only; fixed reason `paused_after_readback` in the decision record; the status line says so). Fails toward the original output.
 - Documented and tested: `observe` with `backend: jev` is shadow mode (asks Jev, records, never rewrites). It still sends redacted blocks to the API.
 - New: `scripts/typecheck.sh` (maintainers, needs Node, outside the gate) and a typed `register(on: On, options?: PluginOptions)`; fixed a `Uint8Array` typing error in `core/hash.ts`. Helpers still take `$: any`, so API-call shapes are not yet type-checked.
 - Verified live (once): `jev.py bench-logs --live` on the 5 synthetic fixtures: 5 of 5 decisions valid; Jev kept 100% of the planted evidence at about 71% character reduction, local rules kept 50% at about 80%. Planted-evidence proxy only: not agent-task evidence, no cost or success claim.

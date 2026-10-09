@@ -545,6 +545,7 @@ test('/jev on, off and mode change only the named plugin rows', async ($, on) =>
   const s = stubs(on, { config: JEV_ASSIST })
   const onOut = await $.command.run({ command: 'jev', args: 'on' })
   expect(onOut.text).toContain('enable_all_projects = true')
+  expect(onOut.text).toContain('ALL projects')
   await $.command.run({ command: 'jev', args: 'off' })
   await $.command.run({ command: 'jev', args: 'mode assist' })
   const bad = await $.command.run({ command: 'jev', args: 'mode shell' })

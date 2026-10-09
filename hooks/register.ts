@@ -14,6 +14,7 @@ const ARTIFACT_ID = /^[a-f0-9]{32}$/
 // Plugin settings from /config (userConfig), handed to register(on, options). Reset on reload.
 let pluginOptions: unknown = {}
 const stats = { seen: 0, pruned: 0, savedChars: 0, readbacks: 0 }
+const pausedRoots = new Set<string>() // projects where a read-back happened this session
 const fingerprints = new Map<string, number>()
 // Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
 const toasted = new Set<string>()
@@ -249,7 +250,8 @@ async function setOption($: any, field: 'mode' | 'enable_all_projects', value: s
   try {
     const res = await $.config.set({ key: 'jev-agent-kit.' + field, value })
     if (res?.deny !== undefined) return 'Not changed: Claude Code refused it (a locked or managed setting). Use /config.'
-    return 'Set ' + field + ' = ' + String(value) + ' (plugin settings). /jev doctor shows the effective values; a project file still overrides.'
+    const scope = field === 'enable_all_projects' && value === true ? 'Pruning is now ON for ALL projects without their own project file. ' : ''
+    return scope + 'Set ' + field + ' = ' + String(value) + ' (your plugin settings, every project). /jev doctor shows the effective values; a project file still overrides.'
   } catch {
     return 'Could not change the setting here. Use /config.'
   }
@@ -273,7 +275,8 @@ async function readbackText($: any, id: string): Promise<string> {
   const root = await projectRoot($, await $.session.cwd())
   try {
     const original = await $.fs.read(root + '/artifacts/' + id + '.log')
-    stats.readbacks += 1 // the model needed the original: stop rewriting for the rest of this session
+    stats.readbacks += 1 // the model needed the original: stop rewriting in this project for the rest of the session
+    pausedRoots.add(root)
     return original
   } catch {
     return 'No artifact ' + id + ' for this project.'
@@ -349,7 +352,7 @@ export function register(on: On, options?: PluginOptions) {
       stats.seen += 1
       const artifactId = (await sha256Hex(JSON.stringify(out.stdout))).slice(0, 32)
       await writePrivate($, root + '/artifacts/' + artifactId + '.log', out.stdout)
-      if (stats.readbacks > 0 && cfg.mode === 'assist') {
+      if (pausedRoots.has(root) && cfg.mode === 'assist') {
         // A read-back means pruning cost the model something; keep the originals from here on.
         await recordDecision($, root, { feature: 'readback_pause', reason: 'paused_after_readback' })
         await showStatus($, cfg)
