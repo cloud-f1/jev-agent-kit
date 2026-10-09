@@ -1,0 +1,1 @@
+{"schemaVersion":1,"enabled":true,"mode":"observe","backend":"jev","minimumChars":8000,"timeoutSeconds":3.0,"keepThreshold":0.8,"retentionDays":7}
