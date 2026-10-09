@@ -10,8 +10,8 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
-| E7 (JEV-7) | Usability (v0.3) | 0.3.0 | Commands, receipt built (unreleased); `/jev savings`, pane, presets open |
-| E8 (JEV-8) | Evidence of benefit | planned | Needs budget decision |
+| E7 (JEV-7) | Usability (v0.3) | 0.3.0 | Commands, receipt released; `/jev savings`, pane, presets open |
+| E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | planned | Not started |
 
 ## E1 (JEV-1) Core pruning with read-back (done)

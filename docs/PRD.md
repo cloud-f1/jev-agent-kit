@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.3.0 (branch `v0.3.0`, unreleased); last release v0.2.1 (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.3.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 
