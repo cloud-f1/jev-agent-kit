@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.4.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.5.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 
@@ -8,7 +8,7 @@ Long Bash output (test runs, builds, logs) fills an agent's context. Most of it 
 
 ## Product
 
-An unofficial Claude Code plugin (MIT, not affiliated with TypeSafe AI) that shortens long Bash output before the model sees it, always keeping the untouched original recoverable. One native TypeScript Mod; Python is only the optional maintainer/evaluation CLI and the parity reference.
+An unofficial Claude Code plugin (MIT, not affiliated with TypeSafe AI) that shortens long Bash output before the model sees it, always keeping the untouched original recoverable. One native TypeScript Mod; the maintainer and evaluation CLI is Node + TypeScript as well, and they share one pure core.
 
 ## Users
 
@@ -48,12 +48,12 @@ Safety (each has tests; do not weaken)
 - S5. A pinned model must answer as itself, else the original is kept.
 
 Quality
-- Q1. TypeScript and Python cores agree on a shared golden fixture.
-- Q2. Local release gate (`scripts/release_check.py`) must pass; there is no CI.
+- Q1. The pure core's behavior is pinned by a frozen golden fixture (originally generated from the retired Python reference core).
+- Q2. Local release gate (`node scripts/release-check.ts`) must pass; there is no CI.
 
 ## Success metrics
 
-Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 60 Python + 96 Mod/core tests pass.
+Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 96 Mod/core + 34 Node tests pass.
 
 Benefit (not measured): total cost per successful agent task, success rate, read-back rate. Defined in [EVALUATION.md](EVALUATION.md). Until that paired benchmark runs the status stays "mechanism works, benefit unproven".
 

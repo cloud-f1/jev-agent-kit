@@ -1,4 +1,4 @@
-# Handover: jev-agent-kit (updated 2026-10-10, after v0.3.0 was released)
+# Handover: jev-agent-kit (updated 2026-10-10, after v0.5.0 was released)
 
 For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this file (state), `docs/compatibility.md` (what is verified and what is not), `docs/sources.md` (what we may reuse from other repos). The v0.1 research background is `docs/REPO_HANDOVER.md`.
 
@@ -7,7 +7,7 @@ For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this 
 | Item | State |
 |---|---|
 | v0.2.0 | **Released.** `main` + tag `v0.2.0` + GitHub release: https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0. Installing it from the real marketplace was verified. |
-| v0.2.1 / v0.3.0 | **Released** (tags `v0.2.1`, `v0.3.0`, `v0.4.0`; v0.4.0 adds `/jev preset`, `/jev savings`, repeated-warning collapse and corrects `/jev on|off|mode`, which do not work headless). v0.3.0: `/jev on|off|mode|init`, measured receipt, pause after read-back, `scripts/typecheck.sh`. Open Jira tickets: JEV-14 (needs budget), JEV-17 (needs Windows), JEV-20 (interactive verification and pane). |
+| v0.2.1 / v0.3.0 | **Released** (tags `v0.2.1` to `v0.5.0`; v0.5.0 = Node + TypeScript only; v0.4.0 adds `/jev preset`, `/jev savings`, repeated-warning collapse and corrects `/jev on|off|mode`, which do not work headless). v0.3.0: `/jev on|off|mode|init`, measured receipt, pause after read-back, `scripts/typecheck.sh`. Open Jira tickets: JEV-14 (needs budget), JEV-17 (needs Windows), JEV-20 (interactive verification and pane). |
 | Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Post-release check done: v0.2.1 installed from the real marketplace in a scratch project and `/jev doctor` reported 0.2.1. `claude plugin list` also shows a stale 0.2.0 local-scope entry that was not cleaned up. |
 | Public claim status | Mechanism works; **cost or success benefit is unproven.** Do not claim savings anywhere. |
 
@@ -17,13 +17,13 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens l
 
 - **One native Mod**: `hooks/register.ts` (TypeScript, loaded directly, no build) + pure core `core/*.ts`. `hooks/hooks.json` contains only `"modules"`. The release gate rejects classic `hooks` entries.
 - **Requires Claude Code 2.1.287+.** On 2.1.271 to 2.1.286 the plugin loads but does nothing (it needs 2.1.271 only because `/config` pickers use `options`).
-- **Python is not part of the runtime.** `jevkit/`, `jev.py`, `pyproject.toml` are the optional maintainer/evaluation CLI (run with `uv`) and the **reference implementation** the TS core must match (golden fixtures).
+- **Everything is Node + TypeScript (0.5.0).** `cli/jev.ts` (maintainer/eval CLI, imports the same `core/*.ts`), `scripts/release-check.ts`, `scripts/gen-golden.ts` (checks the frozen `tests/fixtures/golden.ts`; `--write` only after an intentional behavior change). Python was removed after a 178-comparison differential found 0 differences; the last Python version is tag `v0.4.0`. Node 22.18+ runs `.ts` directly; Node will not strip types inside `node_modules`, so the CLI runs from a checkout.
 - Commands in a session: `/jev status | doctor | readback <id>` (no model turn).
 - Settings screen: `userConfig` in `.claude-plugin/plugin.json` shows in `/config` (mode, backend, minimum length, keep threshold, retention days, enable-in-every-project, model) plus a sensitive API key in secure storage. Precedence: **defaults < plugin settings < project file `.claude/jev-agent-kit.json`**. A project cannot set the endpoint, key, credentials or model.
 - Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
 - Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
-- Local release gate: `uv run --no-project scripts/release_check.py [--release]`. No CI exists (no quota).
-- Tests: **60 Python** (`uv run --no-project python -m unittest discover -s tests`; verified on Python 3.10 to 3.14) and **96 Mod/core** (`claude plugin test`, offline).
+- Local release gate: `node scripts/release-check.ts [--release]`. No CI exists (no quota).
+- Tests: **34 Node** (`node --test cli/tests/*.spec.ts`) and **96 Mod/core** (`claude plugin test`, offline).
 
 ### What v0.2.1 adds (on the unreleased branch)
 
@@ -41,10 +41,9 @@ Also verified: that plugin and ours load together in one real session without in
 hooks/register.ts                              ONLY file that calls the mods API ($)
 hooks/hooks.json                               {"modules": ["./register.ts"]}
 core/*.ts                                      pure: contracts, config (+settings layer), hash, prune
-jevkit/, jev.py, pyproject.toml                Python reference core + optional CLI (doctor, smoke, bench-logs, status, readback, check-config, report)
-scripts/release_check.py                       local release gate
-scripts/gen_golden.py                          regenerates tests/fixtures/golden.{json,ts} from the Python core
-tests/*.test.ts, tests/test_*.py               TS (claude plugin test) and Python suites
+cli/jev.ts, cli/io.ts, cli/metrics.ts          maintainer CLI (doctor, smoke, bench-logs, status, readback, check-config, report); imports core/*.ts
+scripts/release-check.ts, gen-golden.ts        local release gate; golden-fixture check (--write to regenerate)
+tests/*.test.ts (claude plugin test), cli/tests/*.spec.ts (node --test)
 skills/operate/SKILL.md                        shipped skill      .claude/skills/release/SKILL.md   maintainer skill
 docs/                                          compatibility.md, sources.md, EVALUATION.md, REPO_HANDOVER.md (v0.1 research), README.v0.1.zh-TW.md, this file
 ```
@@ -63,8 +62,8 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 ## Decisions the user made
 
 - Repo `cloud-f1/jev-agent-kit`, public, MIT.
-- **Core ported to TypeScript** (not a bridge to Python); Python stays as reference and eval CLI.
-- **Python classic hook retired** (2026-10-10); plugin is Mod-only; Python tooling runs through `uv`.
+- **Core ported to TypeScript**; Python was the reference until 0.5.0, then retired (user decision 2026-10-10: all Node + TypeScript).
+- **Python classic hook retired** (2026-10-10); plugin is Mod-only.
 - Make the Mod cross-platform (done in code, unrun on Windows).
 - Release skill is project-only; GitHub Actions removed (no quota).
 - Adopt from the reference repo: visible failures, `settings.env` key, model setting (all three built). Coexistence with fast-jev-compaction: test only (done at load level). Whole-session compaction: not building.
@@ -74,15 +73,15 @@ Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project):
 
 - `defaultEnabled: false` in `plugin.json` makes a `--plugin-dir` load register no module and no hooks. The gate rejects it.
 - An installed copy and a `--plugin-dir` copy share the name `jev-agent-kit`; disable the installed one before scratch tests (`claude plugin disable jev-agent-kit --scope local`).
-- `claude plugin test` cannot import `.json`; fixtures are mirrored to `.ts` by `gen_golden.py`. A Python test fails if they drift.
+- `claude plugin test` runs every `*.test.ts` under the folder, so Node-only tests are named `*.spec.ts` under `cli/tests/`. The golden fixture is `.ts` only (it cannot import `.json`).
 - The test host normalizes `fs.write` paths against the macOS cwd, so Windows-path assertions use `includes`, not `startsWith`.
 - `$.fs` has no chmod, delete or mkdir; the POSIX path writes via `sh -c 'umask 077; ...'` with stdin, retention via `find`.
 - Claude Code caps Bash output near 30,000 characters before any hook sees it.
-- `-I` on a script's Python invocation drops the script directory from `sys.path`; do not use it for `jev.py`.
+- Python regex flags matter when comparing implementations (`re.A`); the Python core is gone, the differential harness lived in the session scratchpad.
 - macOS has no `timeout` command; give long `claude -p` runs a tool timeout instead.
 - zsh treats a bare `=====` as a command; quote separators in shell one-liners.
-- The release gate's secret scan once silently skipped everything because an edit deleted `return files`; a test covers it. Secret-shaped fakes are allowed only under `tests/` and `scripts/gen_golden.py`. The scanner also flags code shaped like `KEY : value` (e.g. a ternary after `.TYPESAFE_API_KEY`); reshape the code (`['TYPESAFE_API_KEY']`) rather than weakening the gate.
-- Installed plugins are cached by version: a fix reaches users only after bumping the version in **four** places (`jevkit/core.py`, `core/contracts.ts`, `.claude-plugin/plugin.json`, `pyproject.toml`) plus `CHANGELOG.md`. The gate checks they agree.
+- The release gate's secret scan once silently skipped everything because an edit deleted `return files`; a test covers it. Secret-shaped fakes are allowed only under `tests/`, `cli/tests/` and `scripts/gen-golden.ts`. The scanner also flags code shaped like `KEY : value` (e.g. a ternary after `.TYPESAFE_API_KEY`); reshape the code (`['TYPESAFE_API_KEY']`) rather than weakening the gate.
+- Installed plugins are cached by version: a fix reaches users only after bumping the version in **three** places (`core/contracts.ts`, `.claude-plugin/plugin.json`, `package.json`) plus `CHANGELOG.md`. The gate checks they agree.
 - Live-test recipe: scratch project outside this repo, `--model haiku`, throwaway `JEV_STATE_DIR`, `--debug-file`, grep the log for `hooks module jev-agent-kit`.
 - Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history).
 
@@ -96,8 +95,8 @@ Project `JEV` on cloud-f1.atlassian.net mirrors `docs/EPICS.md` (JEV-1..9 epics,
 
 ## Next steps, in order
 
-1. Ask the user the two pending questions above. If yes to release: merge `v0.2.1` to `main` (fast-forward), run `uv run --no-project scripts/release_check.py --release`, follow `.claude/skills/release/SKILL.md` (tag, `gh release create`, then install from the real marketplace in a scratch project and run `/jev doctor`).
-2. If yes to the live smoke test: `TYPESAFE_API_KEY` is already in the environment; run `uv run --no-project jev.py smoke` (synthetic sentence only), then optionally `bench-logs --live`. Report exit code 3 honestly; never paste or log the key.
+1. Ask the user the two pending questions above. If yes to release: merge `v0.2.1` to `main` (fast-forward), run `node scripts/release-check.ts --release`, follow `.claude/skills/release/SKILL.md` (tag, `gh release create`, then install from the real marketplace in a scratch project and run `/jev doctor`).
+2. If yes to the live smoke test: `TYPESAFE_API_KEY` is already in the environment; run `node cli/jev.ts smoke` (synthetic sentence only), then optionally `bench-logs --live`. Report exit code 3 honestly; never paste or log the key.
 3. v0.3 usability: `/jev on|off|mode` via `$.config.set`, `/jev init`, `/jev savings` (what `assist` would have saved, from `observe` data), optional `/jev` pane (tabs + Select), presets.
 4. Test the Mod on a real Windows machine and fix what breaks.
 5. Optional maintainer type-check: check in Claude Code's `claude-code.d.ts` and run `tsc` over `hooks/` (the reference repo does; needs Node; keep it out of the release gate).

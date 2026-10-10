@@ -1,3 +1,5 @@
+> Historical (v0.1). The Python tooling these commands use was removed in 0.5.0; use `node cli/jev.ts` and `node scripts/release-check.ts` instead. See README.md.
+
 # 貼到 Claude session 的執行上下文
 
 請在目前 repo 讀取此套件 README.md、docs/REPO_HANDOVER.md、docs/EVALUATION.md。先讀 repo AGENTS.md／CLAUDE.md，保留未提交內容。

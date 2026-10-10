@@ -12,11 +12,12 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
 | E7 (JEV-7) | Usability | 0.4.0 | Presets, savings, init, receipt released; interactive `/jev on|off|mode` and pane open (JEV-20) |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
-| E9 (JEV-9) | Platform and maintainability | planned | Not started |
+| E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |
+| E10 | Node + TypeScript alignment | 0.5.0 | Done; see docs/PLAN-node-ts.md |
 
 ## E1 (JEV-1) Core pruning with read-back (done)
 - Head/tail/error-block pruning with neighbours; originals stored `0600`, readback pointer.
-- Python reference core; TS core matches via golden fixtures.
+- Pure TypeScript core pinned by a frozen golden fixture (generated from the Python reference core, retired in 0.5.0).
 
 ## E2 (JEV-2) Native TypeScript Mod (done)
 - `hooks/register.ts` is the only file that calls the mods API; classic hooks retired and rejected by the gate.
@@ -36,7 +37,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 - Not tested: a real compaction with fast-jev-compaction active.
 
 ## E6 (JEV-6) Live Jev validation (next)
-- S6.1 (JEV-10) Done 2026-10-10: `jev.py smoke` returned `api_validated`.
+- S6.1 (JEV-10) Done 2026-10-10: `smoke` returned `api_validated` (Python CLI in 0.3.x; re-verified through the TypeScript CLI in 0.5.0).
 - S6.2 (JEV-11) Done: the pinned model answered as `jev-1.13.0`.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
@@ -55,3 +56,8 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 - Test the Mod on a real Windows machine and fix what breaks.
 - (JEV-18, built in 0.3.0: script + typed `register`; `$: any` helpers remain) Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
 - (JEV-19, built in 0.4.0) Collapse repeated warning-only lines differing in digits; error-class lines never collapsed; both cores, golden regenerated.
+
+## E10 Node + TypeScript alignment (done in 0.5.0)
+- Port the maintainer CLI, release gate, golden check and tests from Python to Node + TypeScript; one pure core shared by the Mod and the CLI.
+- Differential check before deleting Python: 178 comparisons, 0 differences after ignoring float noise.
+- Open follow-ups: replace `$: any` helpers with real types and add `typescript` as an optional dev-only dependency; a built JS bundle if an `npx` install is ever wanted.

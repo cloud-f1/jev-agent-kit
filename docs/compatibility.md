@@ -2,16 +2,16 @@
 
 Updated 2026-10-10 (v0.2.0). Records what was actually run and what was not. No CI exists; every row below was run locally.
 
-Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude Code 2.1.295.
+Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 
 | Item | Status | Evidence |
 |---|---|---|
-| Python core, CLI, release gate | Passed | 57 tests, `python3 -m unittest discover -s tests` |
+| Node CLI, state, metrics, release gate | Passed | 34 tests, `node --test cli/tests/*.spec.ts` |
 | Coexistence with fast-jev-compaction (MIT, other mod) | Passed at load + tool.call | `claude -p` with both `--plugin-dir`: both modules loaded, none skipped, our pruning ran. A real compaction with both active was **not** tested |
-| Python 3.10 to 3.14 | Passed | `uv run --no-project --python 3.10 ... python -m unittest discover -s tests` for 3.10, 3.11, 3.12, 3.13; 3.14.4 is the default interpreter |
 | Plugin settings (`userConfig`) in a real session | Partly | `claude -p "/jev doctor"` shows the defaults filled in and their source; the `/config` screen itself and the sensitive-key prompt are interactive and **not yet seen** |
 | TypeScript core + Mod (stubbed host) | Passed | 96 tests, `claude plugin test` |
-| TS vs Python parity | Passed | shared golden fixture (14 prune cases incl. CR, Unicode digits, dotless i, emoji; 7 redaction cases; 3 digests); drift test regenerates it from Python |
+| Core vs frozen golden fixture | Passed | 14+5 prune cases, 7 redaction cases, 3 digests, 10 settings merges (generated from the retired Python core); `node scripts/gen-golden.ts` fails on drift |
+| Python vs TypeScript CLI differential (0.5.0, one time) | Passed | 178 comparisons, 0 differences after ignoring float noise; Python removed afterwards |
 | Tests detect regressions | Spot-checked | two deliberate bugs (assist never rewrites; key leaked into a record) each failed the suite |
 | `claude plugin validate --strict` | Passed | manifests, hooks, Mod static analysis |
 | Classic hook in a real session | Passed (v0.1.0) | debug log: `Hook PostToolUse ... replaced tool output` |
@@ -21,14 +21,13 @@ Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude C
 | `/jev readback <id>` | Tested with stubs only | not run live |
 | Install v0.2.0 from the GitHub marketplace | Passed | `marketplace add`, `install` in a clean scratch project; version 0.2.0; `claude -p "/jev doctor"` ran from the installed copy. Install prints `7 userConfig options not yet set` (all optional) |
 | `/jev preset`, `/jev init`, `/jev savings` in `claude -p` | Passed (2026-10-10) | project file created and read back by `/jev doctor` |
-| `/jev on|off|mode` | **Does not work headless** | `$.config.set` finds no /config row for this plugin; interactive behavior unseen |
+| `/jev on|off|mode` | Works interactively, not headless | interactive (expect-driven, 2026-10-10): "Set mode=assist" and hooks reloaded; headless `claude -p`: no /config row for this plugin |
 | Live Jev API `smoke` | Passed once (2026-10-10) | one synthetic sentence; `api_validated`, model `jev-1.13.0` answered as itself |
 | Live Jev API `bench-logs --live` and `backend: jev` in a real session | **Not run** | the pruning path with Jev is tested against stubs only |
 | Cost or success-rate benefit | **Unproven** | no agent-task benchmark has been run; see `docs/EVALUATION.md` |
 | Interactive session (hot reload, UI status line) | Not run | `$.ui.status` is stubbed in tests |
 | Windows | **Written, never run** | Mod has a Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) covered by stubbed tests on macOS only; the PowerShell script and real path behavior are unverified |
-| uvx entry point | Passed (macOS) | `uvx --from . jev doctor` |
-| Python hook removed | Verified live | `Registered 0 hooks` in the debug log; Mod ran alone; project hash equals Python's |
+| Python hook removed | Verified live | `Registered 0 hooks` in the debug log; Mod ran alone |
 | Model routing (`agent.spawn`, `turn.step`) | Not implemented | v0.3 |
 
 ## Behaviors learned the hard way

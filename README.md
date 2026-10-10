@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.4.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.5.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -13,13 +13,13 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
 | `/jev` command + `/config` settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and settings rows in `/config`. |
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
-| CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
+| CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
 Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
 ## Install
 
-Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node. On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
+Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node; only the optional maintainer CLI needs Node 22.18+. On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
 
 ```
 /plugin marketplace add cloud-f1/jev-agent-kit
@@ -95,7 +95,7 @@ Get early-access credentials at [console.typesafe.ai](https://console.typesafe.a
 # or, from a shell:
 cp .env.example .env.local        # edit TYPESAFE_API_KEY=... (gitignored)
 export JEV_ENV_FILE=/absolute/path/to/.env.local   # before starting claude
-uv run --no-project jev.py --env-file .env.local smoke   # synthetic text only; exit 3 = no verdict
+node cli/jev.ts --env-file .env.local smoke   # synthetic text only; exit 3 = no verdict
 ```
 
 ### Where things live
@@ -121,7 +121,7 @@ What you can see and touch today, and what is only a plan.
 
 ## Cross-platform notes
 
-The plugin is one TypeScript Mod: no Python, uv or Node is needed to use it.
+The plugin is one TypeScript Mod: nothing but Claude Code is needed to use it.
 
 | Platform | Status |
 |---|---|
@@ -130,15 +130,14 @@ The plugin is one TypeScript Mod: no Python, uv or Node is needed to use it.
 
 Project paths are resolved with the Mod's own file API (`realPath`), so symlinked folders map to the same state on every platform.
 
-**Maintainer and evaluation CLI** (`jev.py`, Python 3.10+, standard library only) is optional. `uv` runs it on any platform without installing Python first:
+**Maintainer and evaluation CLI** (`cli/jev.ts`) is optional and written in TypeScript. Node 22.18 or later runs it directly (type stripping, no build and no dependencies), on macOS, Linux and Windows:
 
 ```bash
-uv run --no-project jev.py doctor
-uvx --from git+https://github.com/cloud-f1/jev-agent-kit jev doctor   # no checkout needed
-uv run --no-project --python 3.10 python -m unittest discover -s tests
+node cli/jev.ts doctor
+node --test cli/tests/*.spec.ts
 ```
 
-Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14. Because of the `/config` pickers the plugin needs Claude Code 2.1.271+ to load at all; the Mod needs 2.1.287+.
+Node refuses to strip types inside `node_modules`, so the CLI runs from a checkout (an `npx` install would need a build step; not provided). Because of the `/config` pickers the plugin needs Claude Code 2.1.271+ to load at all; the Mod needs 2.1.287+.
 
 ## Full usage
 
@@ -160,13 +159,13 @@ Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 30000 -
 
 The status line under the prompt shows `jev: N/M long logs pruned · X chars saved` (assist) or `jev (observe): M long logs seen` (observe).
 
-### CLI (`uv run --no-project jev.py ...` from a checkout, or `uvx --from git+https://github.com/cloud-f1/jev-agent-kit jev ...`)
+### CLI (`node cli/jev.ts ...` from a checkout; Node 22.18+)
 
 Optional maintainer and evaluation tool; end users do not need it.
 
 | Command | Does | Needs key |
 |---|---|---|
-| `doctor` | Python, Claude CLI, key presence, endpoint, model. | no |
+| `doctor` | Node version, Claude CLI, key presence, endpoint, model. | no |
 | `check-config --project DIR` | Validate `.claude/jev-agent-kit.json`. | no |
 | `status --project DIR` | Recent decision records. | no |
 | `readback ID --project DIR` | Print a stored original. | no |
@@ -187,7 +186,7 @@ Shorter output is not the goal; lower **cost per successful task** at equal succ
 
 1. Read [docs/EVALUATION.md](docs/EVALUATION.md). Keep the cheap `log_proxy` numbers (characters saved, evidence kept) separate from `agent_task` results.
 2. Pre-register tasks in a manifest (`evals/agent-manifest.json` shows the shape), run each task under `baseline`, `local` (rules) and `jev`, several repeats, on identical commits and verifiers.
-3. Record one JSON line per run (`evals/agent-record.example.json`), then `uv run --no-project jev.py report ...`.
+3. Record one JSON line per run (`evals/agent-record.example.json`), then `node cli/jev.ts report --manifest M --records R`. The bootstrap uses a seeded generator, so its confidence intervals are deterministic but not numerically comparable with reports made by v0.4.x and earlier.
 4. Compare `jev` against `local`, not only against baseline, so a cheaper-model effect is not credited to Jev. Missing runs, unknown costs or too few tasks give INCOMPLETE / UNKNOWN_COST / INSUFFICIENT_EVIDENCE, never GO. The gate numbers are a product policy you may change, not a proven threshold.
 
 ### Upgrade, rollback, uninstall
@@ -219,16 +218,16 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 ## Develop and verify
 
 ```bash
-uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (60)
-claude plugin test                         # TypeScript core + Mod tests (96), offline
+node --test cli/tests/*.spec.ts            # CLI, state, metrics and release-gate tests (Node 22.18+)
+claude plugin test                         # TypeScript core + Mod tests, offline
 claude plugin validate --strict .
-uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
-uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)
+node cli/jev.ts bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
+node scripts/release-check.ts              # the local release gate (add --release to tag)
 ```
 
-Optional type-check of `hooks/` and `core/` against Claude Code's own type file (needs Node; not part of the gate): `CLAUDE_CODE_TYPES=/path/to/claude-code.d.ts sh scripts/typecheck.sh`. Claude Code writes that file itself (`/plugin-types`); it is not checked in.
+Optional type-check of `hooks/` and `core/` against Claude Code's own type file (needs `typescript`; not part of the gate): Claude Code writes `.claude-plugin/types/` and a `tsconfig.json` itself when a mod loads interactively, then `CLAUDE_CODE_TYPES=.claude-plugin/types/claude-code.d.ts sh scripts/typecheck.sh`.
 
-Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `jevkit/` the Python core, `tests/fixtures/golden.*` shared by both cores. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
+Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `cli/` the Node maintainer CLI (it imports the same core), `tests/fixtures/golden.ts` the frozen behavior contract. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
 
 ## Using it with other Jev mods
 

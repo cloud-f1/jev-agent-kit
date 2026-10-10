@@ -8,13 +8,13 @@ import golden from './fixtures/golden.ts'
 const usage = { input_tokens: 100, output_tokens: 0 }
 const lines = (n: number) => Array.from({ length: n }, (_, i) => `progress item ${i}\n`)
 
-test('digests match the Python core (golden)', async () => {
+test('digests match the frozen golden fixture', async () => {
   for (const [value, expected] of Object.entries(golden.digests)) {
     expect((await digestString(value)).slice(0, 24)).toBe(expected)
   }
 })
 
-test('rules pruning matches the Python core on every golden case', async () => {
+test('rules pruning matches the golden fixture on every case', async () => {
   for (const c of golden.cases) {
     const { output, meta } = await prune(c.input, { backend: 'rules', goal: '', threshold: 0.8 })
     expect(output).toBe(c.expected_output)
@@ -23,7 +23,7 @@ test('rules pruning matches the Python core on every golden case', async () => {
   }
 })
 
-test('splitLines keeps terminators and splits like Python splitlines', () => {
+test('splitLines keeps terminators and splits on the same separators as the golden fixtures', () => {
   expect(splitLines('a\r\nb\nc')).toEqual(['a\r\n', 'b\n', 'c'])
   expect(splitLines('a b\x0bc')).toEqual(['a ', 'b\x0b', 'c'])
   expect(splitLines('')).toEqual([])
@@ -37,7 +37,7 @@ test('redact removes keys and tokens but keeps ordinary text', () => {
   expect(out).toContain('ok')
 })
 
-test('redaction matches the Python core and catches bearer, JSON and quoted secrets', () => {
+test('redaction matches the golden fixture and catches bearer, JSON and quoted secrets', () => {
   for (const r of golden.redactions) expect(redact(r.input)).toBe(r.expected)
   const leaks: Array<[string, string]> = [
     ['Authorization: Bearer abcdefSECRET123', 'abcdefSECRET123'],
@@ -51,7 +51,7 @@ test('redaction matches the Python core and catches bearer, JSON and quoted secr
   expect(redact('tokenizer is fine')).toBe('tokenizer is fine')
 })
 
-test('character counts use code points like Python', async () => {
+test('character counts use code points', async () => {
   const text = Array.from({ length: 120 }, (_, i) => `\u{1F600} line ${i}\n`).join('')
   const { meta } = await prune(text, { backend: 'rules', goal: '', threshold: 0.8 })
   expect(meta.input_chars).toBe(Array.from(text).length)
@@ -189,7 +189,7 @@ test('settings layer: opting in everywhere is a user-level choice a project can 
   expect(mergeConfig({}, undefined).config.enabled).toBe(false)
 })
 
-test('settings layer matches the Python core on every golden merge case', () => {
+test('settings layer matches every golden merge case', () => {
   for (const c of golden.merges) {
     if ('error' in c.expected) {
       expect(() => mergeConfig(c.options, c.project ?? undefined)).toThrow()

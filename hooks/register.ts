@@ -19,7 +19,7 @@ const fingerprints = new Map<string, number>()
 // Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
 const toasted = new Set<string>()
 
-// Same rule as the Python core: only "~" and "~/..." expand; a result that is not absolute is
+// Same rule as the CLI (cli/io.ts): only "~" and "~/..." expand; a result that is not absolute is
 // ignored, so state can never land in a relative path inside a repo.
 // Windows sets OS=Windows_NT; everything else is treated as POSIX (macOS, Linux).
 async function isWindows($: any): Promise<boolean> {
@@ -37,7 +37,7 @@ async function stateBase($: any): Promise<string> {
   return ABSOLUTE.test(dir) ? dir : fallback
 }
 
-// Python hashes Path(project).resolve(); the file API's realPath follows symlinks the same way on
+// The CLI hashes the resolved project path; the file API's realPath follows symlinks the same way on
 // every platform (no `pwd -P`), so a symlinked cwd lands in the same project directory.
 const resolved = new Map<string, string>()
 async function physicalCwd($: any, cwd: string): Promise<string> {
@@ -54,7 +54,7 @@ async function physicalCwd($: any, cwd: string): Promise<string> {
   return real
 }
 
-// Same layout as the Python core: <base>/<sha256("<resolved cwd>")[:24]>/{artifacts,decisions}
+// Same layout as the CLI: <base>/<sha256("<resolved cwd>")[:24]>/{artifacts,decisions}
 async function projectRoot($: any, cwd: string): Promise<string> {
   return (await stateBase($)) + '/' + (await digestString(await physicalCwd($, cwd))).slice(0, 24)
 }

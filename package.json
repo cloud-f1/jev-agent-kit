@@ -1,0 +1,17 @@
+{
+  "name": "jev-agent-kit",
+  "version": "0.5.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code plugin that prunes long Bash output (maintainer tooling; the plugin itself needs no Node dependencies).",
+  "license": "MIT",
+  "engines": { "node": ">=22.18" },
+  "scripts": {
+    "test": "node --test cli/tests/*.spec.ts && claude plugin test",
+    "gate": "node scripts/release-check.ts",
+    "gate:release": "node scripts/release-check.ts --release",
+    "golden": "node scripts/gen-golden.ts",
+    "jev": "node cli/jev.ts",
+    "typecheck": "sh scripts/typecheck.sh"
+  }
+}

@@ -1,12 +1,12 @@
 // Log pruning: deterministic skeleton (errors, head, tail) plus optional Jev relevance scoring.
-// Pure: the transport and clock are passed in. Behavior mirrors the Python core.prune().
+// Pure: the transport and clock are passed in. Behavior is pinned by tests/fixtures/golden.ts (frozen when the Python reference core was retired in 0.5.0).
 import {
   isJevModel, JEV_PRICE_PER_INPUT_TOKEN_USD, JevError, MAX_BYTES, MODEL, QUESTION_VERSION, VERSION,
 } from './contracts.ts'
 import type { Backend, Block, PruneMeta, Transport } from './contracts.ts'
 
-// Same semantics as the Python core: ASCII-only classes spelled out, no multiline flag (so
-// `^` anchors only at the start of a block). tests/fixtures/golden.* keep both in sync.
+// ASCII-only classes spelled out, no multiline flag (so `^` anchors only at the start of a block).
+// tests/fixtures/golden.ts pins the exact behavior.
 const WS = '[ \\t\\n\\r\\f\\v]'
 const IMPORTANT = new RegExp('error|fail|exception|traceback|assert|warning|warn\\b|expected|actual|timeout|denied|not found|at [^\\n]+[:(][0-9]|^' + WS + '*File ', 'i')
 // Repeated warning lines are collapsed (first 2, a count marker, last 1). Lines with any error-class
@@ -49,7 +49,7 @@ const OMITTED = '[omitted original lines; use readback for the full log]\n'
 const MAX_BLOCKS_PER_REQUEST = 96
 const MAX_REQUEST_BYTES = 60_000
 
-// Characters as Python counts them (code points), not UTF-16 units.
+// Characters counted as code points, not UTF-16 units.
 export function charLength(text: string): number {
   let n = 0
   for (const _ of text) n += 1
@@ -60,7 +60,7 @@ export function redact(text: string): string {
   return text.replace(SECRET, '[REDACTED]')
 }
 
-// Python str.splitlines(keepends=True) breaks on more than \n; keep the same set.
+// Splits on more than \n (like Python's str.splitlines, which the fixtures were generated with).
 const LINE_BREAK = /\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]/y
 
 export function splitLines(text: string): string[] {

@@ -1,3 +1,5 @@
+> Historical (v0.1). The Python tooling these commands use was removed in 0.5.0; use `node cli/jev.ts` and `node scripts/release-check.ts` instead. See README.md.
+
 # Validation — 2026-10-09
 
 - Python 3.12.14；最低建議 Python 3.10。

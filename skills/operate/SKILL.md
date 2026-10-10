@@ -7,7 +7,7 @@ description: Set up, diagnose and explain Jev Agent Kit in a project. Use when t
 
 Jev Agent Kit shortens long Bash output with a local rules engine, optionally assisted by the Jev model (TypeSafe AI System One). It runs as a **native Mod** (Claude Code 2.1.287+). On older versions the plugin loads but does nothing: tell the user to update. It is never required for you to work; this skill helps you operate it.
 
-Optional maintainer/eval CLI: `uv run --no-project "${CLAUDE_PLUGIN_ROOT}/jev.py" <command>` (no Python install needed). In-session: `/jev status | doctor | readback <id>` (these cost no model turn; prefer them).
+Optional maintainer/eval CLI: `node "${CLAUDE_PLUGIN_ROOT}/cli/jev.ts" <command>` (Node 22.18+; it runs the TypeScript directly, no build). In-session: `/jev status | doctor | readback <id>` (these cost no model turn; prefer them).
 
 ## Safety rules (always)
 
@@ -40,4 +40,4 @@ Rollout: `rules`+`observe` first, then `jev`+`observe` and inspect `/jev status`
 
 ## Evaluating
 
-Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` separate, always report `jev_vs_local`, and treat incomplete or unknown-cost data as no verdict. Command: `uv run --no-project "${CLAUDE_PLUGIN_ROOT}/jev.py" report --manifest ... --records ...`.
+Read `docs/EVALUATION.md`. Keep `log_proxy` and `agent_task` separate, always report `jev_vs_local`, and treat incomplete or unknown-cost data as no verdict. Command: `node "${CLAUDE_PLUGIN_ROOT}/cli/jev.ts" report --manifest ... --records ...`.

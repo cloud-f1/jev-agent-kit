@@ -24,7 +24,7 @@ export function defaultConfig(): Config {
   return { ...DEFAULTS }
 }
 
-// Mirrors the Python core.config(): unknown fields, wrong types and out-of-range values throw.
+// Unknown fields, wrong types and out-of-range values throw.
 export function validateConfig(raw: unknown): Config {
   const result: Record<string, unknown> = { ...DEFAULTS }
   if (raw !== undefined) {
