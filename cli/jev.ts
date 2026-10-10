@@ -66,7 +66,7 @@ export async function verifyKey(key: string | undefined, transport: (key: string
     return 'valid'
   } catch (error) {
     if (error instanceof JevError) return error.reason === 'http_401' || error.reason === 'http_403' ? `invalid (${error.reason.slice(5)})` : `error (${error.reason})`
-    return 'error (invalid_input_or_local_io)'
+    return 'error (transport)'
   }
 }
 

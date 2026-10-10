@@ -207,7 +207,7 @@ What leaves your machine depends on `backend`, not on `mode`:
 |---|---|---|---|
 | `rules` | `observe` | **Nothing.** | No (records only). |
 | `rules` | `assist` | **Nothing.** | Yes, pruned locally. |
-| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output. | No (records what Jev would keep). |
+| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output that reaches Jev (not below `minimumChars`, not at the host cap, not over the 96-block / 60 KB budget, not without a key). | No (records what Jev would keep). |
 | `jev` | `assist` | **Yes**, same as above. | Yes, pruned with Jev relevance; falls back to the original on any failure. |
 
 For `jev`, redacted log blocks (secrets pattern-masked, best effort), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.

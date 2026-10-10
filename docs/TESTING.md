@@ -1,4 +1,4 @@
-# 測試清單（v0.6.2，繁體中文）
+# 測試清單（v0.6.4，繁體中文）
 
 目的：用最安全的設定（只記錄、不傳資料）把 plugin 從安裝走到壓縮、讀回、側欄，確認每一步的結果。整份約 20 分鐘，不需要 Jev 金鑰。英文總覽見 [README](../README.md)，已驗證與未驗證的項目見 [compatibility.md](compatibility.md)。
 
@@ -16,7 +16,7 @@
 | # | 做什麼 | 應該看到 | 通過 |
 |---|---|---|---|
 | 1 | 安裝：`/plugin marketplace add cloud-f1/jev-agent-kit`，再 `/plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit`。終端機版：`claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`。然後重啟 Claude Code | 安裝成功；會提示 `8 userConfig options not yet set`（全部選填，可忽略） | ☐ |
-| 2 | `/jev doctor`（尚未啟用） | 第一行 `Jev Agent Kit 0.6.1`；有一行 `This project is NOT opted in` | ☐ |
+| 2 | `/jev doctor`（尚未啟用） | 第一行 `Jev Agent Kit 0.6.4`；有一行 `This project is NOT opted in` | ☐ |
 | 3 | `/jev preset observe-local` | `Created .claude/jev-agent-kit.json. Read back: enabled=true, mode=observe, backend=rules. Nothing leaves this machine`。再打一次 → `already exists; not changed (it says …)`，並說明怎麼切換 | ☐ |
 | 4 | `/jev doctor` | `enabled=true (project file)`、`mode=observe`、`backend=rules` | ☐ |
 | 5 | 請 Claude 執行：`node -e "for(let i=0;i<1500;i++){console.log('progress item '+i); if(i===700)console.log('ERROR demo: expected 1 got 2')}"`（約 27,000 字元） | 輸出**完整、沒有被改**（observe 只記錄） | ☐ |

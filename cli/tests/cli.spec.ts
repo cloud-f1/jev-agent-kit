@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import golden from '../../tests/fixtures/golden.ts'
 import { build } from '../../scripts/gen-golden.ts'
 import { spawnSync } from 'node:child_process'
+import { chmodSync } from 'node:fs'
 import { JevError } from '../../core/contracts.ts'
 import { HELP, loadProjectConfig, loadProjectEffective, logBench, main, optionsFromEnv, verifyKey } from '../jev.ts'
 
@@ -175,7 +176,7 @@ test('verifyKey maps outcomes to fixed words and never echoes the key', async ()
   assert.equal(await verifyKey('fake-key-123456789', fail('http_401')), 'invalid (401)')
   assert.equal(await verifyKey('fake-key-123456789', fail('http_403')), 'invalid (403)')
   assert.equal(await verifyKey('fake-key-123456789', fail('http_429')), 'error (http_429)')
-  assert.equal(await verifyKey('fake-key-123456789', () => async () => { throw new Error('secret fake-key-123456789 in text') }), 'error (invalid_input_or_local_io)')
+  assert.equal(await verifyKey('fake-key-123456789', () => async () => { throw new Error('secret fake-key-123456789 in text') }), 'error (transport)')
 })
 
 test('doctor --verify with no key reports missing and exits 3 without any network call', async () => {
@@ -190,4 +191,32 @@ test('scripts/jev.sh runs the CLI and passes its arguments through', { skip: pro
   assert.equal(help.stdout, HELP)
   const version = spawnSync('sh', ['scripts/jev.sh', '--version'], { encoding: 'utf8' })
   assert.match(version.stdout, /^\d+\.\d+\.\d+\n$/)
+})
+
+test('--help as an --env-file value or after a command still prints help and reads nothing', async () => {
+  for (const argv of [['--env-file', '--help', 'doctor'], ['readback', '--help']]) {
+    const { code, text } = await run(argv)
+    assert.equal(code, 0, argv.join(' '))
+    assert.equal(text, HELP)
+  }
+})
+
+test('scripts/jev.sh adds --experimental-strip-types only on Node 22.6 to 22.17 and 23.0 to 23.5, and rejects Node below 22.6', { skip: process.platform === 'win32' }, () => {
+  const bin = tmp()
+  const fake = join(bin, 'node')
+  const cases: Array<[string, string]> = [['22.6.0', 'flag'], ['22.17.0', 'flag'], ['22.18.0', 'plain'], ['23.5.0', 'flag'], ['23.6.0', 'plain'], ['24.1.0', 'plain'], ['20.11.0', 'reject'], ['22.5.9', 'reject']]
+  for (const [version, expected] of cases) {
+    // A stub node: prints the version for `node -p`, otherwise echoes its own arguments.
+    writeFileSync(fake, `#!/bin/sh\nif [ "$1" = "-p" ]; then echo ${version}; else echo "ARGS: $*"; fi\n`)
+    chmodSync(fake, 0o755)
+    const result = spawnSync('/bin/sh', ['scripts/jev.sh', 'doctor'], { encoding: 'utf8', env: { PATH: bin + ':/usr/bin:/bin' } })
+    if (expected === 'reject') {
+      assert.equal(result.status, 2, version)
+      assert.match(result.stderr, /Node 22\.6 or later/)
+    } else {
+      assert.equal(result.status, 0, version + ' ' + result.stderr)
+      assert.equal(result.stdout.includes('--experimental-strip-types'), expected === 'flag', version + ': ' + result.stdout)
+      assert.match(result.stdout, /cli\/jev\.ts doctor/)
+    }
+  }
 })

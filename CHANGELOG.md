@@ -34,7 +34,7 @@ From two maintainer-filed tickets: JEV-30 (CLI help and Node 22 invocation) and 
 - Messages in `hooks/register.ts` only (the two commands above); no pruning, threshold, model, request or data-sent change. `core/` differs from 0.6.3 only in the version string.
 
 ### Verified
-- 47 Node tests and 111 Mod tests pass; the release gate is green.
+- 49 Node tests and 111 Mod tests pass; the release gate is green.
 - Live, with the real key: `doctor --verify` gave `valid`; a deliberately fake key gave `invalid (401)` (one request with a fake key, no real data). In a real headless `claude -p` session `/jev preset shadow-jev` printed the read-back and the data-sent note, and a second preset printed the current values and the switch hint without overwriting the file.
 
 ### Not done
