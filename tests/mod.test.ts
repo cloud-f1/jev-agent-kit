@@ -449,6 +449,47 @@ test('/jev doctor tells an un-opted-in user exactly what to do', async ($, on) =
   expect(out.text).toContain('Enable in every project')
 })
 
+const VERIFY_OK = (_u: string, init: any) => {
+  const body = JSON.parse(init.body)
+  return { ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'jev-1.13.0', usage: { input_tokens: 281, output_tokens: 20 }, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.96 }])) }) }
+}
+
+test('/jev doctor --verify sends one synthetic sentence and reports valid, never the key', async ($, on) => {
+  const s = stubs(on, { env: { TYPESAFE_API_KEY: 'verify-key-111' }, http: VERIFY_OK })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('API key (from environment): valid')
+  expect(s.requests.length).toBe(1)
+  expect(s.requests[0]!.url).toBe('https://api.typesafe.ai/v1/systemone')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer verify-key-111')
+  expect(JSON.parse(s.requests[0]!.init.body).state).toBe('A unit test failed.')
+  expect(out).not.toContain('verify-key-111')
+  expect(JSON.stringify(s.written)).not.toContain('verify-key-111')
+})
+
+test('/jev doctor --verify says invalid (401) for a rejected key and shows no response text', async ($, on) => {
+  const http = () => ({ ok: false, status: 401, headers: {}, text: 'unauthorized: Bearer verify-key-111 body' })
+  stubs(on, { env: { TYPESAFE_API_KEY: 'verify-key-111' }, http })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('invalid (401)')
+  expect(out).not.toContain('verify-key-111')
+  expect(out).not.toContain('unauthorized')
+})
+
+test('/jev doctor --verify with no key says missing and makes no request', async ($, on) => {
+  const s = stubs(on, { http: VERIFY_OK })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('API key: missing')
+  expect(s.requests.length).toBe(0)
+})
+
+test('plain /jev doctor never makes a request and points at --verify; a bad argument prints usage', async ($, on) => {
+  const s = stubs(on, { env: { TYPESAFE_API_KEY: 'verify-key-111' }, http: VERIFY_OK })
+  const out = (await jev($, 'doctor')).text
+  expect(out).toContain('present in environment (not validated; run /jev doctor --verify')
+  expect((await jev($, 'doctor --bogus')).text).toBe('Usage: /jev doctor [--verify]')
+  expect(s.requests.length).toBe(0)
+})
+
 test('/jev doctor says how updates work: Claude Code does them, auto-update is opt-in, the plugin never checks the network', async ($, on) => {
   const s = stubs(on)
   const out = await jev($, 'doctor')

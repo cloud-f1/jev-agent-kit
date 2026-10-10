@@ -4,7 +4,7 @@ A [Claude Code](https://claude.com/claude-code) plugin that shortens long `Bash`
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.6. The mechanism works; the benefit is unproven.** In tests, long synthetic logs shrink a lot and error lines are kept. Whether it lowers your total cost per *successful* task has **not** been measured. Treat it as an experiment and see [Is it worth it?](#is-it-worth-it).
+> **Status: v0.7.0. The mechanism works; the benefit is unproven.** In tests, long synthetic logs shrink a lot and error lines are kept. Whether it lowers your total cost per *successful* task has **not** been measured. Treat it as an experiment and see [Is it worth it?](#is-it-worth-it).
 
 ## How it works
 
@@ -58,12 +58,12 @@ Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 
 1. Get a key at [console.typesafe.ai](https://console.typesafe.ai). Never paste it into a chat or commit it.
 2. Save it: `claude plugin configure jev-agent-kit` (kept in secure storage), or set `TYPESAFE_API_KEY`.
-3. Check it works: `node cli/jev.ts doctor --verify` from a checkout of this repo (sends one synthetic sentence; prints `valid`, `invalid (401)` or `missing`).
+3. Check it works: run `/jev doctor --verify` (sends one synthetic sentence, nothing from your project; prints `valid`, `invalid (401)` or `missing`). Plain `/jev doctor` only says a key is present, it does not check it. The key can come from your shell, your user `settings.json` `env` block (Claude Code applies it to its own environment, so it shows as "environment") or the plugin's secure setting.
 4. Start with `/jev preset shadow-jev`: it asks Jev and records what it would keep, but never changes your output.
 
 Limits worth knowing:
 - Jev only sees logs of roughly 8,000 to 14,000 characters (up to 96 blocks / 60 KB per request). Longer logs are **not sent** and come back unchanged.
-- A log where every block contains an error or warning word is never sent either. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
+- A log where every block contains an error or warning word is never sent either. To see Jev answer in a real session, the log needs ordinary lines as well as error lines, and must stay under the limit above. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
 
 ## Is it worth it?
 
@@ -79,7 +79,7 @@ Shorter output is not the goal. Lower cost per successful task at the same succe
 
 | Command | Does |
 |---|---|
-| `/jev doctor` | Version, effective settings and where each came from, key present or not, what to do next. |
+| `/jev doctor [--verify]` | Version, effective settings and where each came from, key present or not, what to do next. `--verify` also checks the key with one synthetic sentence. |
 | `/jev status` | Record count, the last 10 decisions, failed-command repeats. |
 | `/jev savings` | Counted characters removed (or that `assist` would remove), and how many logs Jev really answered. Not a token or cost claim. |
 | `/jev pane` / `/jev pane close` | A side pane with savings and recent decisions. |

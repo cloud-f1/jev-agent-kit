@@ -1,6 +1,6 @@
 {
   "name": "jev-agent-kit",
-  "version": "0.6.6",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Claude Code plugin that prunes long Bash output (maintainer tooling; the plugin itself needs no Node dependencies).",

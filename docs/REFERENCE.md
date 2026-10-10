@@ -51,7 +51,7 @@ What you can see and touch today.
 | Settings form | **Available** | The settings above, drawn by Claude Code from the plugin manifest (pickers, numbers, a switch): `/plugin` → Installed → Jev Agent Kit → Configure. |
 | Failure toast | **Available** | If Jev (or pruning) falls back to the original output, a toast says so once per reason per session, with a fixed reason code such as `http_429` or `missing_key`. Nothing from the response is ever shown. |
 | Key prompt | **Available** | Asked when you enable the plugin; stored in secure storage. |
-| `/jev doctor` | **Available** | Effective config with the source of every value, key presence (never the key), next step. |
+| `/jev doctor [--verify]` | **Available** | Effective config with the source of every value, key presence (never the key), next step. `--verify` sends one synthetic sentence and prints `valid`, `invalid (401)`, `missing` or `error (<reason>)`. |
 | `/jev status` | **Available** | Record count, the last 10 real decisions, and one line summarizing failed-command repeats. |
 | `/jev readback <id>` | **Available** | Prints the untouched original. |
 | Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
@@ -85,7 +85,8 @@ Node refuses to strip types inside `node_modules`, so the CLI runs from a checko
 
 | Command | Does |
 |---|---|
-| `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
+| `/jev doctor` | Version, effective config for this project, whether a key is present (never the key); offline. |
+| `/jev doctor --verify` | The same, plus one synthetic request to `api.typesafe.ai` that checks the key (`valid`, `invalid (401)`, `missing`, `error (<reason>)`). The only in-session command that makes a network call besides the Jev pruning itself, and only when you type it. |
 | `/jev status` | Count and the last 10 decision records for this project. |
 | `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output (the same text is in the file named there). Only 32 hex chars are accepted. After a read-back (this command, or any Bash command that mentions the stored artifacts folder), `assist` stops rewriting in that project for the rest of the session (the model needed the original, so pruning cost something). |
 | `/jev on` / `/jev off` / `/jev mode observe\|assist` | Try to change your plugin settings through Claude Code. **Work in an interactive session** (seen working in 0.5.0). In headless `claude -p` Claude Code exposes no settings row for this plugin, so they report that and point you to `/plugin` → Installed → Jev Agent Kit → Configure or `claude plugin configure jev-agent-kit`. |

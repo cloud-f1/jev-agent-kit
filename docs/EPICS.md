@@ -43,7 +43,7 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
 ## E7 (JEV-7) Usability (Done in Jira; 0.6.5)
-- (JEV-32, 0.6.1 to 0.6.6) Patch releases: tester checklist and link check (0.6.1), skills and Jev size-limit docs (0.6.2), settings-path messages (0.6.3), JEV-30/31 (0.6.4), `/jev status` repeat summary and `jev_asked` honesty in status/savings (0.6.5), shorter README + `docs/REFERENCE.md` and the update hint in `/jev doctor` (0.6.6).
+- (JEV-33, 0.7.0) Bug: `/jev doctor --verify` was CLI-only and silently ignored in the Mod; now implemented via `core/verify.ts` and live-checked. (JEV-32, 0.6.1 to 0.6.6) Patch releases: tester checklist and link check (0.6.1), skills and Jev size-limit docs (0.6.2), settings-path messages (0.6.3), JEV-30/31 (0.6.4), `/jev status` repeat summary and `jev_asked` honesty in status/savings (0.6.5), shorter README + `docs/REFERENCE.md` and the update hint in `/jev doctor` (0.6.6).
 - (JEV-31, built and live-checked in 0.6.4) DX: `check-config` shows the source of every value, `doctor --verify` validates the key (`valid` / `invalid (401)` / `missing`), `/jev init` and `/jev preset` read back what they wrote and say how to switch when the file exists, README backend x mode data-flow table.
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
 - Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.

@@ -6,6 +6,7 @@ import type { EngineInterface as Engine, On, PluginOptions, RenderElement } from
 import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, jevNotAsked, prune, redact } from '../core/prune.ts'
+import { verifyKey } from '../core/verify.ts'
 
 const DEFAULT_GOAL = 'Diagnose the current test or build failure'
 const ARTIFACT_ID = /^[a-f0-9]{32}$/
@@ -241,7 +242,7 @@ async function statusText($: Engine): Promise<string> {
   return `Jev Agent Kit ${VERSION}: ${names.length} records for this project\n` + (shown.join('\n') || '(none yet)')
 }
 
-async function doctorText($: Engine): Promise<string> {
+async function doctorText($: Engine, verify = false): Promise<string> {
   const cwd = await $.session.cwd()
   const lines = [`Jev Agent Kit ${VERSION} (native Mod), model ${MODEL}`]
   try {
@@ -255,7 +256,14 @@ async function doctorText($: Engine): Promise<string> {
   const direct = await $.env.get('TYPESAFE_API_KEY')
   const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
-  lines.push('API key: ' + (where ? `present in ${where} (not validated)` : 'missing (only needed for the jev backend)'))
+  if (verify) {
+    // Explicit request only: one synthetic sentence to the fixed endpoint; the reply is reduced to a fixed word.
+    const key = await apiKey($)
+    const result = await verifyKey(key, key ? makeTransport($, key, 5000) : undefined, pluginModel(pluginOptions) ?? MODEL)
+    lines.push('API key' + (where ? ` (from ${where})` : '') + ': ' + result + (result === 'missing' ? ' (only needed for the jev backend)' : '; checked with one synthetic sentence sent to api.typesafe.ai'))
+  } else {
+    lines.push('API key: ' + (where ? `present in ${where} (not validated; run /jev doctor --verify to check, it sends one synthetic sentence)` : 'missing (only needed for the jev backend)'))
+  }
   lines.push('Change settings in /plugin → Installed → Jev Agent Kit → Configure (or: claude plugin configure jev-agent-kit) or in the project file.')
   lines.push('Updates: Claude Code does them. Per its docs, auto-update is off by default for third-party marketplaces: /plugin → Marketplaces → jev-agent-kit → Enable auto-update, or run: claude plugin update jev-agent-kit@jev-agent-kit (then /reload-plugins or restart).')
   return lines.join('\n')
@@ -441,7 +449,7 @@ export function register(on: On, options?: PluginOptions) {
   on('command.run', { command: 'jev' }, async ($, e) => {
     const [sub, arg] = String(e.args ?? '').trim().split(/\s+/)
     if (sub === 'status') return { text: await statusText($) }
-    if (sub === 'doctor') return { text: await doctorText($) }
+    if (sub === 'doctor') return { text: arg === undefined ? await doctorText($) : arg === '--verify' ? await doctorText($, true) : 'Usage: /jev doctor [--verify]' }
     if (sub === 'readback') return { text: await readbackText($, arg ?? '') }
     if (sub === 'on') return { text: await setOption($, 'enable_all_projects', true) }
     if (sub === 'off') return { text: await setOption($, 'enable_all_projects', false) }

@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.7.0 | 2026-10-10 | `/jev doctor --verify` works in a session (it was CLI-only and silently ignored; JEV-33); shared `core/verify.ts` |
 | 0.6.6 | 2026-10-10 | README rewritten shorter (detail moved to `docs/REFERENCE.md`); `/jev doctor` says how updates work and how to turn on auto-update |
 | 0.6.5 | 2026-10-10 | `/jev status` no longer prints empty `loop · observe ·  →  chars` rows (repeats are one summary line); records now say when Jev was never asked |
 | 0.6.4 | 2026-10-10 | CLI `--help`, `doctor --verify`, config sources, read-back after `/jev init` and `/jev preset`, backend data-flow table, Node wrapper (JEV-30, JEV-31) |
@@ -19,6 +20,25 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
+
+## 0.7.0 (2026-10-10)
+
+Found by a user in a real interactive session on 0.6.5 (Jira JEV-33).
+
+### Fixed
+- Typing `/jev doctor --verify` printed the plain doctor text ("API key: present in environment (not validated)"), so it looked as if the key had been checked. `--verify` existed only in the CLI; the in-session command ignored every argument. Now `/jev doctor --verify` sends one synthetic sentence ("A unit test failed.") to the fixed endpoint and prints `API key (from <where>): valid | invalid (401) | invalid (403) | missing | error (<reason>)`. Plain `/jev doctor` stays offline and says to run `--verify`; any other argument prints `Usage: /jev doctor [--verify]`.
+
+### Changed (behavior: a new network path)
+- The Mod can now make a request that is not a pruning decision, but only when you type `--verify`: same fixed endpoint, same key lookup, same transport and fixed reason codes, one synthetic sentence, nothing from your project. Pruning behavior, thresholds, models and what pruning sends are unchanged.
+- The check is shared pure code, `core/verify.ts`, used by both the CLI and the Mod (the CLI's `doctor --verify` and `verifyKey` keep their behavior). A pinned model must answer as itself (`error (model_mismatch)` otherwise).
+
+### Verified
+- 123 Mod tests and 49 Node tests pass; the new Mod tests fail if `--verify` is routed to the plain doctor. Gate green.
+- Live, headless `claude -p` with the real key: `valid`. With a deliberately fake key set through `--settings`: `invalid (401)`. Plain doctor made no request.
+- Claude Code applies the `env` block of your user `settings.json` to its own environment, so a key exported in the shell does not override one defined there; that is why a shell-prefixed fake key still reported `valid` during testing. The Mod reports it as "environment".
+
+### Not verified
+- Interactive `/jev doctor --verify` (checked headless and with stubs only). A real upgrade keeping settings, Windows, the masking of the sensitive key field.
 
 ## 0.6.6 (2026-10-10)
 

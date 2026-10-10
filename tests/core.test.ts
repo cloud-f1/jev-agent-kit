@@ -2,6 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
+import { smokeBody, verifyKey } from '../core/verify.ts'
 import { collapseRepeats, jevNotAsked, prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
@@ -292,4 +293,25 @@ test('jevNotAsked recognizes new and older records, and nothing else', () => {
   expect(jevNotAsked({ backend: 'jev', reason: 'http_429', jev_asked: false })).toBe(false)
   expect(jevNotAsked({ backend: 'rules', reason: 'ok', jev_asked: false })).toBe(false)
   for (const odd of [null, undefined, 'x', 7, [], {}]) expect(jevNotAsked(odd)).toBe(false)
+})
+
+test('verifyKey (shared by the CLI and the Mod) returns only fixed words and never touches the network without a key', async () => {
+  const good = async () => ({ model: MODEL, usage, answers: { failed: { type: 'noul', noul: 0.96 } } })
+  let calls = 0
+  const counted = async () => { calls += 1; return good() }
+  expect(await verifyKey(undefined, counted)).toBe('missing')
+  expect(await verifyKey('REPLACE_ME', counted)).toBe('missing')
+  expect(await verifyKey('fake-key-123456789', undefined)).toBe('missing')
+  expect(calls).toBe(0)
+  expect(await verifyKey('fake-key-123456789', counted)).toBe('valid')
+  expect(calls).toBe(1)
+  const fail = (reason: string) => async () => { throw new JevError(reason) }
+  expect(await verifyKey('fake-key-123456789', fail('http_401'))).toBe('invalid (401)')
+  expect(await verifyKey('fake-key-123456789', fail('http_403'))).toBe('invalid (403)')
+  expect(await verifyKey('fake-key-123456789', fail('timeout'))).toBe('error (timeout)')
+  const leak = await verifyKey('fake-key-123456789', async () => { throw new Error('boom fake-key-123456789') })
+  expect(leak).toBe('error (transport)')
+  // A pinned model must answer as itself.
+  expect(await verifyKey('fake-key-123456789', async () => ({ model: 'jev-9.9.9', usage, answers: { failed: { type: 'noul', noul: 0.9 } } }))).toBe('error (model_mismatch)')
+  expect(smokeBody().state).toBe('A unit test failed.')
 })

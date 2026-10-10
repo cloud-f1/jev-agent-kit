@@ -10,6 +10,7 @@ import { mergeConfig } from '../core/config.ts'
 import { ENDPOINT, JevError, MODEL, VERSION } from '../core/contracts.ts'
 import type { Transport } from '../core/contracts.ts'
 import { prune, validateNouls, validateResponse } from '../core/prune.ts'
+import { smokeBody, verifyKey as coreVerifyKey } from '../core/verify.ts'
 import { httpTransport, loadEnv, privateWrite, readback, rootFor } from './io.ts'
 import { markdown, report } from './metrics.ts'
 
@@ -56,18 +57,9 @@ export function loadProjectConfig(project: string, env: Record<string, string | 
   return loadProjectEffective(project, env).config
 }
 
-const SMOKE_BODY = { model: MODEL, state: 'A unit test failed.', questions: { failed: { type: 'noul', instructions: 'Does the state say that a unit test failed?' } } }
-
-// One synthetic request that says whether the key is accepted. Reason codes only, never a body.
+// One synthetic request that says whether the key is accepted (shared with the Mod: core/verify.ts).
 export async function verifyKey(key: string | undefined, transport: (key: string | undefined) => Transport = httpTransport): Promise<string> {
-  if (!key || key === 'REPLACE_ME') return 'missing'
-  try {
-    validateResponse(await transport(key)(SMOKE_BODY), MODEL)
-    return 'valid'
-  } catch (error) {
-    if (error instanceof JevError) return error.reason === 'http_401' || error.reason === 'http_403' ? `invalid (${error.reason.slice(5)})` : `error (${error.reason})`
-    return 'error (transport)'
-  }
+  return coreVerifyKey(key, key ? transport(key) : undefined)
 }
 
 export const HELP = `jev-agent-kit CLI ${VERSION}: maintainer and evaluation tool (the plugin itself is hooks/register.ts)
@@ -180,7 +172,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
       })
       if (keyCheck !== undefined && keyCheck !== 'valid') return 3
     } else if (cmd === 'smoke') {
-      const obj = await httpTransport(env.TYPESAFE_API_KEY)(SMOKE_BODY)
+      const obj = await httpTransport(env.TYPESAFE_API_KEY)(smokeBody())
       const { usage, model } = validateResponse(obj, MODEL)
       emit({ status: 'api_validated', answers: validateNouls(obj, ['failed']), model, usage })
     } else if (cmd === 'bench-logs') {
