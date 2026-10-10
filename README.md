@@ -70,7 +70,7 @@ The project file always wins over `/config` settings, including `"enabled": fals
 
 ### Settings reference
 
-Precedence: **built-in defaults < plugin settings (`/config`, applies to you everywhere) < project file (`.claude/jev-agent-kit.json`)**. Claude Code fills untouched `/config` rows with their defaults, so `/jev doctor` labels those `plugin settings` too.
+Precedence: **built-in defaults < plugin settings (the Configure form, applies to you everywhere) < project file (`.claude/jev-agent-kit.json`)**. Claude Code fills untouched settings with their defaults, so `/jev doctor` labels those `plugin settings` too.
 
 | `/config` row | Project-file field | Default | Meaning |
 |---|---|---|---|
@@ -83,7 +83,7 @@ Precedence: **built-in defaults < plugin settings (`/config`, applies to you eve
 | Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). A pinned model must answer as itself (otherwise `model_mismatch` and the original output is kept); `jev-latest` may resolve to any `jev-*` name. A project file cannot set it. `/jev status` records the model that actually answered. |
 | (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
 
-Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad `/config` value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
+Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad plugin-setting value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
 
 ### The Jev API key
 
@@ -117,7 +117,7 @@ What you can see and touch today, and what is only a plan.
 | Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
 | `/jev init`, `/jev on`, `/jev off`, `/jev mode` | Shipped (v0.3/v0.4) | Change settings from the prompt via `$.config.set`; interactive sessions only. |
 | `/jev pane` / `/jev pane close` | Open or close a side pane with the same counted characters and recent decisions as `/jev savings` and `/jev status` (refreshes at most every 3 s). On a narrow terminal it waits until the terminal widens. Seen working in a real interactive session. |
-| `/jev savings` | Planned (v0.3) | From `observe` data, what `assist` would have saved, so you decide with numbers. |
+| `/jev savings` | Shipped (v0.4.0) | From `observe` data, what `assist` would have saved, so you decide with numbers. |
 
 ## Cross-platform notes
 
@@ -214,7 +214,7 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
 | `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in the Configure form. |
 | `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
-| `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and `/config`; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
+| `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and the Configure form; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
 
 ## Develop and verify

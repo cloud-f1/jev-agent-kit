@@ -41,7 +41,7 @@ Optional maintainer CLI: `node "${CLAUDE_PLUGIN_ROOT}/cli/jev.ts" <command>` (No
 
 ## Settings and precedence
 
-Defaults < plugin settings (`/config`, user-wide) < project file `.claude/jev-agent-kit.json`. **A field present in the project file wins over `/jev mode`, `/jev on` and `/config`.** To change a project's mode, edit the file, or delete it and run `/jev preset <name>`. `/jev doctor` labels every value `project file` or `plugin settings`.
+Defaults < plugin settings (`/config`, user-wide) < project file `.claude/jev-agent-kit.json`. **A field present in the project file wins over `/jev mode`, `/jev on` and the Configure form.** To change a project's mode, edit the file, or delete it and run `/jev preset <name>`. `/jev doctor` labels every value `project file` or `plugin settings`.
 
 Config fields: `schemaVersion` (1), `enabled`, `mode`, `backend` (`rules`|`jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set the endpoint, key, credential paths or model. The key comes from `TYPESAFE_API_KEY`, the plugin's secure setting, the user's `settings.json` env (never a project's), or `JEV_ENV_FILE`. The `Jev model` setting is plugin-level only; a pinned model must answer as itself (else `model_mismatch`), `jev-latest` may resolve to another `jev-*` name.
 

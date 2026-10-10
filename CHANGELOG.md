@@ -15,7 +15,7 @@
 | 0.2.0 | 2026-10-10 | Native TypeScript Mod replaces the Python hook; `/jev` commands; `/config` settings; independent audit fixes; cross-platform code path |
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
-Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
 
 ## 0.6.3 (2026-10-10)
 
