@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.7.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). How to try it: [TESTING.md](TESTING.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.7.1 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). How to try it: [TESTING.md](TESTING.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 

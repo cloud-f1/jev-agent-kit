@@ -6,7 +6,7 @@ For the next Claude Code session. Read in this order: [`CLAUDE.md`](../CLAUDE.md
 
 | Item | State |
 |---|---|
-| Latest release | **v0.7.0** (`/jev doctor --verify` works in a session via shared `core/verify.ts`, JEV-33, on top of 0.6.6's shorter README and update hint; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.6.6` all exist; the changelog has a version-history table. |
+| Latest release | **v0.7.1** (privacy fix: stronger redaction before the Jev call, JEV-34; on top of 0.7.0's in-session `/jev doctor --verify`; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.7.0` all exist; the changelog has a version-history table. |
 | Release approval | The user gave a standing approval for releases (see `.claude/skills/release/SKILL.md`): fresh read-only audit with no unfixed high finding + green `node scripts/release-check.ts --release`. Still ask for: deleting or moving a tag, sending real (non-synthetic) project data to a third party, benefit claims, a failing gate or audit. |
 | Open work | Jira **JEV-14** (the real paired benchmark: needs a budget decision from the user), **JEV-17** (a run on real Windows: needs a Windows machine) and **JEV-29** (the Jev backend sends nothing for logs above 96 candidate blocks, about 14 KB of short lines: needs a decision on splitting into several requests). Everything else in `EPICS.md` is done. |
 | Installs on this machine | None: the stale 0.2.0 entry and the test install of 0.6.0 were uninstalled (2026-10-10). Old version folders remain in `~/.claude/plugins/cache/jev-agent-kit/`; they are inert (no install references them) and Claude Code has no command to prune them. |
@@ -70,6 +70,8 @@ docs/                                          PRD, EPICS, TESTING, PLAN-node-ts
 - Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history).
 
 ## Jira
+
+**Ticket rule (user, 2026-10-10): every JEV ticket is assigned to alex hsieh** (never Unassigned), has its parent epic, default priority Medium (High for privacy/safety bugs), is written in English with reproduction steps, one ticket per finding. Details in the `release` skill, step 11.
 
 Project `JEV` on cloud-f1.atlassian.net mirrors [`EPICS.md`](EPICS.md): epics JEV-1 to JEV-9 and JEV-21, stories JEV-10 to JEV-20 and JEV-22 to JEV-28. Credentials live in `../symphony-workflow/.env` (never read or printed; use `uv run --env-file .env symphony-workflow call ...`). symphony-workflow cannot create projects, only issues and transitions. After a release, move the matching issues and update `EPICS.md`.
 

@@ -522,6 +522,23 @@ test('plain /jev doctor never makes a request and points at --verify; a bad argu
   expect(s.requests.length).toBe(0)
 })
 
+test('the request the Mod sends to Jev holds no bare token, JWT, URL password or PEM key from the log', async ($, on) => {
+  const noisy = Array.from({ length: 120 }, (_, i) => `step ${i} ok\n`)
+  noisy[10] = 'token leaked ATATT3xFAKEFAKEFAKEFAKE0000 end\n'
+  noisy[30] = 'jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlIn0.FAKESIGNATURE0000\n'
+  noisy[50] = 'db postgres://admin:S3cretPass@10.0.0.5:5432/db\n'
+  noisy[70] = '-----BEGIN PRIVATE KEY-----\n'
+  noisy[71] = 'FAKEBODYLINEAAAAAAAAAAAA\n'
+  noisy[72] = '-----END PRIVATE KEY-----\n'
+  noisy[90] = 'sk_live_FAKEFAKEFAKEFAKE1234\n'
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: VERIFY_OK, tool: { result: { stdout: noisy.join(''), stderr: '', interrupted: false, isImage: false }, text: 'kept' } })
+  await call($)
+  expect(s.requests.length).toBe(1)
+  const body: string = s.requests[0]!.init.body
+  for (const secret of ['FAKEFAKEFAKEFAKE0000', 'FAKESIGNATURE0000', 'S3cretPass', 'FAKEBODYLINE', 'FAKEFAKEFAKEFAKE1234']) expect(body).not.toContain(secret)
+  expect(body).toContain('[REDACTED]')
+})
+
 test('/jev doctor says how updates work: Claude Code does them, auto-update is opt-in, the plugin never checks the network', async ($, on) => {
   const s = stubs(on)
   const out = await jev($, 'doctor')

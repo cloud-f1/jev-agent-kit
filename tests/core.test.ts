@@ -3,7 +3,7 @@ import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userD
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
 import { smokeBody, verifyKey } from '../core/verify.ts'
-import { collapseRepeats, jevNotAsked, prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
+import { collapseRepeats, jevNotAsked, makeBlocks, prune, redact, redactBlocks, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
 const usage = { input_tokens: 100, output_tokens: 0 }
@@ -314,4 +314,110 @@ test('verifyKey (shared by the CLI and the Mod) returns only fixed words and nev
   // A pinned model must answer as itself.
   expect(await verifyKey('fake-key-123456789', async () => ({ model: 'jev-9.9.9', usage, answers: { failed: { type: 'noul', noul: 0.9 } } }))).toBe('error (model_mismatch)')
   expect(smokeBody().state).toBe('A unit test failed.')
+})
+
+// ---- JEV-34: redaction before the Jev call. Every value below is an obvious fake.
+const FAKE_SECRETS: Array<[string, string]> = [
+  ['api_key=FAKEVALUE1234567890', 'FAKEVALUE1234567890'],
+  ['"apiToken": "ATATT3xFAKEFAKEFAKEFAKE0000"', 'FAKEFAKEFAKEFAKE0000'],
+  ['password: hunter2-fake', 'hunter2-fake'],
+  ['Authorization: Bearer abcdefghijklmnop.fake', 'abcdefghijklmnop'],
+  ['token leaked in url ATATT3xFAKEFAKEFAKEFAKE0000 end', 'FAKEFAKEFAKEFAKE0000'],
+  ['key sk-FAKEFAKEFAKEFAKE1234 here', 'FAKEFAKEFAKEFAKE1234'],
+  ['ghp_FAKEFAKEFAKE12345', 'FAKEFAKEFAKE12345'],
+  ['AKIAFAKEFAKEFAKE1234', 'FAKEFAKEFAKE1234'],
+  ['sk_live_FAKEFAKEFAKEFAKE1234', 'FAKEFAKEFAKEFAKE1234'],
+  ['rk_test_FAKEFAKEFAKEFAKE1234', 'FAKEFAKEFAKEFAKE1234'],
+  ['AIzaFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE000', 'FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE000'],
+  ['xoxb-1111-2222-FAKEFAKEFAKE', 'FAKEFAKEFAKE'],
+  ['github_pat_FAKEFAKEFAKEFAKEFAKE12345', 'FAKEFAKEFAKEFAKEFAKE12345'],
+  ['eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJmYWtlIn0.FAKESIGNATURE0000', 'FAKESIGNATURE0000'],
+  ['postgres://admin:S3cretPass@10.0.0.5:5432/db', 'S3cretPass'],
+  ['-----BEGIN PRIVATE KEY-----', 'BEGIN PRIVATE KEY'],
+  ['-----BEGIN RSA PRIVATE KEY-----', 'BEGIN RSA PRIVATE KEY'],
+  ['密碼：fake-pass-123', 'fake-pass-123'],
+  ['密钥: fake-key-456', 'fake-key-456'],
+]
+
+test('redact masks the common credential formats (bare tokens, JWT, URL passwords, PEM, Chinese labels)', () => {
+  for (const [input, secret] of FAKE_SECRETS) {
+    expect(redact(input)).not.toContain(secret)
+    expect(redact(input)).not.toBe(input)
+  }
+  // The host and user of a URL stay readable; only the password goes.
+  expect(redact('postgres://admin:S3cretPass@10.0.0.5:5432/db')).toBe('postgres://admin:[REDACTED]@10.0.0.5:5432/db')
+})
+
+test('redact does not claim personal data: an email and an ID number pass through (documented as not covered)', () => {
+  expect(redact('contact alexhsieh@example.com for access')).toBe('contact alexhsieh@example.com for access')
+  expect(redact('A123456789')).toBe('A123456789')
+})
+
+test('redact leaves ordinary log text alone (no false positives on near-misses)', () => {
+  for (const line of [
+    'skip_live_tests is a flag', 'prefix sk_live_ only', 'eyJ alone is a prefix', 'AIza is short', 'xoxb is a prefix', 'ATATT3x short',
+    'GET http://example.com:8080/path 200', 'ftp://host:21/file', 'https://user@host/path', 'mailto:someone', 'tokenizer is fine',
+    'github_pat_ is a prefix', 'retry in 3 seconds', '步驟 3 ok',
+  ]) expect(redact(line)).toBe(line)
+})
+
+test('a PEM private key is masked line by line, so line counts stay the same', () => {
+  const pem = '-----BEGIN PRIVATE KEY-----\nFAKEBODYLINE1AAAAAAAA\nFAKEBODYLINE2BBBBBBBB\n-----END PRIVATE KEY-----\nafter\n'
+  const out = redact('before\n' + pem)
+  expect(out).not.toContain('FAKEBODYLINE')
+  expect(out).toContain('before\n')
+  expect(out).toContain('after\n')
+  expect(out.split('\n').length).toBe(('before\n' + pem).split('\n').length)
+  // No END line (a block cut short): masked to the end of the text.
+  expect(redact('x\n-----BEGIN PRIVATE KEY-----\nFAKEBODYLINE3CCCCCCCC\n')).not.toContain('FAKEBODYLINE3')
+})
+
+test('a PEM key that starts in one block and continues into the next is masked in every request block', async () => {
+  const lines = Array.from({ length: 40 }, (_, i) => `step ${i} ok\n`)
+  lines[6] = '-----BEGIN PRIVATE KEY-----\n'
+  for (let i = 7; i < 20; i++) lines[i] = `FAKEBODYLINE${i}ZZZZZZZZZZZZ\n`
+  lines[20] = '-----END PRIVATE KEY-----\n'
+  const text = lines.join('')
+  const { parts } = makeBlocks(text)
+  const blocks = redactBlocks(parts)
+  expect(blocks.length).toBe(parts.length)
+  expect(blocks.join('')).not.toContain('FAKEBODYLINE')
+  expect(blocks.join('').split('\n').length).toBe(text.split('\n').length)
+  let sent = ''
+  const transport = async (body: Record<string, any>) => {
+    sent = JSON.stringify(body)
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  await prune(text, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(sent.length).toBeGreaterThan(0)
+  expect(sent).not.toContain('FAKEBODYLINE')
+})
+
+test('nothing in the Jev request body carries any fake secret from a log or from the goal', async () => {
+  const lines = Array.from({ length: 80 }, (_, i) => `step ${i} ok\n`)
+  FAKE_SECRETS.forEach(([input], i) => { lines[5 + i * 3] = input + '\n' })
+  let sent = ''
+  const transport = async (body: Record<string, any>) => {
+    sent = JSON.stringify(body)
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  await prune(lines.join(''), { backend: 'jev', goal: 'look at password: hunter2-goal and ATATT3xFAKEGOALFAKEGOALFAKE0', threshold: 0.8, transport })
+  expect(sent.length).toBeGreaterThan(0)
+  for (const [, secret] of FAKE_SECRETS) {
+    // Short labels such as 'BEGIN PRIVATE KEY' are markers, not secrets; check the actual secret values.
+    if (secret.startsWith('BEGIN')) continue
+    expect(sent).not.toContain(secret)
+  }
+  expect(sent).not.toContain('hunter2-goal')
+  expect(sent).not.toContain('FAKEGOALFAKEGOAL')
+})
+
+test('redaction stays fast on hostile 60 KB inputs (no catastrophic backtracking)', () => {
+  const n = 60000
+  const inputs = ['a'.repeat(n), 'http://'.repeat(10000), 'x://' + 'u:'.repeat(n / 2), 'ATATT3x' + 'A'.repeat(n), 'eyJ' + 'a'.repeat(n),
+    '-----BEGIN PRIVATE KEY-----\n' + 'A'.repeat(n), '-----BEGIN PRIVATE KEY-----\n'.repeat(2000), 'token=' + ' '.repeat(n), '密碼'.repeat(10000), 'sk_live_'.repeat(n / 8)]
+  const started = Date.now()
+  for (const input of inputs) redact(input)
+  // The real total is a few milliseconds; the bound only has to catch an exponential or quadratic regression.
+  expect(Date.now() - started).toBeLessThan(1500)
 })

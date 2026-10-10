@@ -4,7 +4,7 @@ A [Claude Code](https://claude.com/claude-code) plugin that shortens long `Bash`
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.7.0. The mechanism works; the benefit is unproven.** In tests, long synthetic logs shrink a lot and error lines are kept. Whether it lowers your total cost per *successful* task has **not** been measured. Treat it as an experiment and see [Is it worth it?](#is-it-worth-it).
+> **Status: v0.7.1. The mechanism works; the benefit is unproven.** In tests, long synthetic logs shrink a lot and error lines are kept. Whether it lowers your total cost per *successful* task has **not** been measured. Treat it as an experiment and see [Is it worth it?](#is-it-worth-it).
 
 ## How it works
 
@@ -50,7 +50,7 @@ Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 | `backend` | Sent to TypeSafe's API? |
 |---|---|
 | `rules` (default) | **Nothing.** Everything is local. |
-| `jev` | **Yes.** Redacted log blocks, a short goal line and your API key go to `https://api.typesafe.ai`, in both `observe` and `assist`. |
+| `jev` | **Yes.** Redacted log blocks, a short goal line and your API key go to `https://api.typesafe.ai`, in both `observe` and `assist`. Redaction is best effort: see [what is masked](#what-is-masked-before-anything-is-sent). |
 
 `mode` only decides whether the output you see is changed: `observe` records only, `assist` rewrites.
 
@@ -116,9 +116,22 @@ Everything else (all settings in detail, the key lookup order, storage, the CLI,
 | A reason other than `ok` in `/jev status` | That is why the original was used (`missing_key`, `http_429`, `timeout`...). It also appears once as a notice. |
 | Stop it | One project: set `"enabled": false`. Everywhere: `claude plugin disable jev-agent-kit`. |
 
+## What is masked before anything is sent
+
+With `backend: jev`, each block and the goal text are passed through a redaction step before they leave your machine. It is **best effort, not a guarantee**: it masks by pattern, so it only catches what it recognizes.
+
+| Masked | Examples (all fake) |
+|---|---|
+| Labeled secrets, English and Chinese labels, ASCII or full-width colon | `api_key=...`, `"token": "..."`, `password: ...`, `secret=...`, `Authorization: Bearer ...`, `密碼：...`, `密钥: ...` |
+| Well-known token shapes, even with no label | OpenAI-style `sk-...`, GitHub `ghp_...` and `github_pat_...`, AWS `AKIA...`, Atlassian `ATATT3x...`, Stripe `sk_live_` / `rk_` / `pk_` (live and test), Google `AIza...`, Slack `xoxb-...` and other `xox*`, JWTs (`eyJ....eyJ....sig`) |
+| A password inside a URL | `postgres://user:PASSWORD@host/db` becomes `postgres://user:[REDACTED]@host/db` |
+| PEM private keys, line by line, even when the key continues into the next block | `-----BEGIN ... PRIVATE KEY-----` through `-----END ...-----` |
+
+**Not masked:** email addresses, ID numbers, names and other personal data; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
+
 ## Limits
 
-Not a security control, and secret redaction is best effort. Raw originals may contain secrets and are stored `0600` in `~/.cache/jev-agent-kit/`. Windows has never been run. Jev is early access and English-first. A small 4-task smoke test passed in both arms at about the same cost; that is not evidence of a benefit.
+Not a security control, and secret redaction is best effort (see above). Raw originals may contain secrets and are stored `0600` in `~/.cache/jev-agent-kit/`. Windows has never been run. Jev is early access and English-first. A small 4-task smoke test passed in both arms at about the same cost; that is not evidence of a benefit.
 
 ## More
 

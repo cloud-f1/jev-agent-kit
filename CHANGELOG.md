@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.7.1 | 2026-10-10 | Privacy fix: redaction before the Jev API call now masks bare Atlassian/Stripe/Google/Slack/GitHub-PAT tokens, JWTs, URL passwords, PEM keys and Chinese labels (JEV-34) |
 | 0.7.0 | 2026-10-10 | `/jev doctor --verify` works in a session (it was CLI-only and silently ignored; JEV-33); shared `core/verify.ts` |
 | 0.6.6 | 2026-10-10 | README rewritten shorter (detail moved to `docs/REFERENCE.md`); `/jev doctor` says how updates work and how to turn on auto-update |
 | 0.6.5 | 2026-10-10 | `/jev status` no longer prints empty `loop · observe ·  →  chars` rows (repeats are one summary line); records now say when Jev was never asked |
@@ -20,6 +21,26 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
+
+## 0.7.1 (2026-10-10)
+
+A privacy fix, released on its own and promptly under the release cadence policy (a data-handling bug). Reported with a reproduction in Jira JEV-34 and confirmed here.
+
+### Fixed
+- With `backend: jev`, blocks are redacted before they are sent to `api.typesafe.ai`, but the redaction only masked `key=value`-style secrets and three token prefixes. These passed through unchanged (verified with fake values on 0.7.0): a bare Atlassian token (`ATATT3x...`), Stripe `sk_live_`/`rk_`/`pk_`, Google `AIza...`, Slack `xox*`, GitHub `github_pat_...`, a JWT, a password inside a URL (`scheme://user:password@host`), a PEM private key, and Chinese labels (`密碼：`). All are masked now.
+- A PEM key is masked line by line, and the whole log is redacted once before it is split into blocks, so a key that begins in one block and continues in the next is masked in every block. Line counts and block ids are unchanged.
+- A password inside a URL is replaced in place (`postgres://user:[REDACTED]@host/db`); the host stays readable.
+
+### Not covered (stated in the README)
+- Email addresses, ID numbers, names and other personal data (a product decision; the ticket suggests an optional setting), and any secret with no label and no known shape. Redaction stays best effort. The stored originals are not redacted (`0600`).
+- Not built: refusing to send a request when a block still looks secret-like after redaction (the ticket's design question). Worth doing next.
+
+### Behavior
+- What is sent changes only in that more secret-shaped text is replaced by `[REDACTED]`. Pruning behavior, thresholds, models and the golden fixture are unchanged (the existing redaction fixture still matches).
+
+### Verified
+- 135 Mod tests and 49 Node tests pass. Six new tests fail against the old redaction and pass now: every fake sample, PEM spanning blocks, line counts, no false positives on near-misses, and the actual request body built by core and by the Mod.
+- Live (real API, synthetic text only): a log with a bare Atlassian token, a JWT, a URL password, a PEM key, a Stripe key and a Chinese-labeled password was accepted (`reason: ok`, `jev-1.13.0`); the request body, captured before sending, held 0 of the fake secrets and 7 redaction markers.
 
 ## 0.7.0 (2026-10-10)
 
