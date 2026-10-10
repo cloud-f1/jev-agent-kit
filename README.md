@@ -58,7 +58,7 @@ Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 
 1. Get a key at [console.typesafe.ai](https://console.typesafe.ai). Never paste it into a chat or commit it.
 2. Save it: `claude plugin configure jev-agent-kit` (kept in secure storage), or set `TYPESAFE_API_KEY`.
-3. Check it works: run `/jev doctor --verify` (sends one synthetic sentence, nothing from your project; prints `valid`, `invalid (401)` or `missing`). Plain `/jev doctor` only says a key is present, it does not check it. The key can come from your shell, your user `settings.json` `env` block (Claude Code applies it to its own environment, so it shows as "environment") or the plugin's secure setting.
+3. Check it works: run `/jev doctor --verify` (sends one synthetic sentence, nothing from your project; prints `valid`, `invalid (401)` or `missing`). Plain `/jev doctor` only says a key is present, it does not check it. The key can come from your shell, your user `settings.json` `env` block (in our testing Claude Code applied it to its own environment, so it showed as "environment"; not documented behavior) or the plugin's secure setting.
 4. Start with `/jev preset shadow-jev`: it asks Jev and records what it would keep, but never changes your output.
 
 Limits worth knowing:

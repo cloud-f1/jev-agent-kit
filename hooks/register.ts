@@ -254,12 +254,17 @@ async function doctorText($: Engine, verify = false): Promise<string> {
     lines.push('config: INVALID (' + (error instanceof Error ? error.message : 'unknown') + '); output is left untouched')
   }
   const direct = await $.env.get('TYPESAFE_API_KEY')
-  const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
+  const where = direct && direct !== 'REPLACE_ME' ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   if (verify) {
     // Explicit request only: one synthetic sentence to the fixed endpoint; the reply is reduced to a fixed word.
-    const key = await apiKey($)
-    const result = await verifyKey(key, key ? makeTransport($, key, 5000) : undefined, pluginModel(pluginOptions) ?? MODEL)
+    let result: string
+    try {
+      const key = await apiKey($)
+      result = await verifyKey(key, key ? makeTransport($, key, 5000) : undefined, pluginModel(pluginOptions) ?? MODEL)
+    } catch {
+      result = 'error (transport)' // never let the check throw out of the command
+    }
     lines.push('API key' + (where ? ` (from ${where})` : '') + ': ' + result + (result === 'missing' ? ' (only needed for the jev backend)' : '; checked with one synthetic sentence sent to api.typesafe.ai'))
   } else {
     lines.push('API key: ' + (where ? `present in ${where} (not validated; run /jev doctor --verify to check, it sends one synthetic sentence)` : 'missing (only needed for the jev backend)'))

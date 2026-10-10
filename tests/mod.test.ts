@@ -482,6 +482,38 @@ test('/jev doctor --verify with no key says missing and makes no request', async
   expect(s.requests.length).toBe(0)
 })
 
+test('/jev doctor --verify: a REPLACE_ME placeholder is missing, not an environment key, and sends nothing', async ($, on) => {
+  const s = stubs(on, { env: { TYPESAFE_API_KEY: 'REPLACE_ME' }, http: VERIFY_OK })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('API key: missing')
+  expect(out).not.toContain('from environment')
+  expect(s.requests.length).toBe(0)
+})
+
+test('/jev doctor --verify uses the key from Claude Code settings.json env and reports 403 as invalid', async ($, on) => {
+  const s = stubs(on, { settingsEnv: { TYPESAFE_API_KEY: 'settings-key-333' }, http: () => ({ ok: false, status: 403, headers: {}, text: 'forbidden settings-key-333' }) })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('API key (from Claude Code settings.json env): invalid (403)')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer settings-key-333')
+  expect(out).not.toContain('settings-key-333')
+  expect(out).not.toContain('forbidden')
+})
+
+optsTest('/jev doctor --verify uses the key from the plugin secure setting', { typesafe_api_key: 'plugin-key-222' }, async ($: any, on: any) => {
+  const s = stubs(on, { http: VERIFY_OK })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('API key (from plugin settings (secure storage)): valid')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer plugin-key-222')
+  expect(out).not.toContain('plugin-key-222')
+})
+
+test('/jev doctor --verify: a server error and a transport failure give fixed words only', async ($, on) => {
+  stubs(on, { env: { TYPESAFE_API_KEY: 'verify-key-111' }, http: () => ({ ok: false, status: 500, headers: {}, text: 'internal verify-key-111' }) })
+  const out = (await jev($, 'doctor --verify')).text
+  expect(out).toContain('error (http_500)')
+  expect(out).not.toContain('internal')
+})
+
 test('plain /jev doctor never makes a request and points at --verify; a bad argument prints usage', async ($, on) => {
   const s = stubs(on, { env: { TYPESAFE_API_KEY: 'verify-key-111' }, http: VERIFY_OK })
   const out = (await jev($, 'doctor')).text

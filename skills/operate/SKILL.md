@@ -11,7 +11,7 @@ Jev Agent Kit shortens long Bash output with a local rules engine, optionally as
 
 | Command | Does |
 |---|---|
-| `/jev doctor [--verify]` | Version, each effective setting and where it comes from, whether a key exists (never the key). `--verify` checks the key with one synthetic sentence (`valid` / `invalid (401)` / `missing`); only run it when the user asks. Plain doctor does not validate the key |
+| `/jev doctor [--verify]` | Version, each effective setting and where it comes from, whether a key exists (never the key). `--verify` checks the key with one synthetic sentence (`valid` / `invalid (401|403)` / `missing` / `error (<reason>)`); only run it when the user asks. Plain doctor does not validate the key |
 | `/jev status` | Count and last 10 decision records for this project |
 | `/jev savings` | Counted characters: what `assist` removed, and what it would have removed in `observe`. Not tokens, cost or success |
 | `/jev pane` / `/jev pane close` | Side pane with the same numbers |

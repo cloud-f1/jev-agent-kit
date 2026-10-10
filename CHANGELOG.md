@@ -33,9 +33,9 @@ Found by a user in a real interactive session on 0.6.5 (Jira JEV-33).
 - The check is shared pure code, `core/verify.ts`, used by both the CLI and the Mod (the CLI's `doctor --verify` and `verifyKey` keep their behavior). A pinned model must answer as itself (`error (model_mismatch)` otherwise).
 
 ### Verified
-- 123 Mod tests and 49 Node tests pass; the new Mod tests fail if `--verify` is routed to the plain doctor. Gate green.
+- 127 Mod tests and 49 Node tests pass (key from the environment, plugin secure setting and `settings.json` env; 401, 403, 500, a `REPLACE_ME` placeholder); the new Mod tests fail if `--verify` is routed to the plain doctor. Gate green.
 - Live, headless `claude -p` with the real key: `valid`. With a deliberately fake key set through `--settings`: `invalid (401)`. Plain doctor made no request.
-- Claude Code applies the `env` block of your user `settings.json` to its own environment, so a key exported in the shell does not override one defined there; that is why a shell-prefixed fake key still reported `valid` during testing. The Mod reports it as "environment".
+- Observed in this live test (not documented behavior): Claude Code applied the `env` block of the user `settings.json` over a key exported in the shell, which is why a shell-prefixed fake key still reported `valid`. The Mod reported that key as "environment".
 
 ### Not verified
 - Interactive `/jev doctor --verify` (checked headless and with stubs only). A real upgrade keeping settings, Windows, the masking of the sensitive key field.
