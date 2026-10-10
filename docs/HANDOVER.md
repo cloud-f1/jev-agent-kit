@@ -23,7 +23,7 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens l
 - Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
 - Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
 - Local release gate: `uv run --no-project scripts/release_check.py [--release]`. No CI exists (no quota).
-- Tests: **60 Python** (`uv run --no-project python -m unittest discover -s tests`; verified on Python 3.10 to 3.14) and **95 Mod/core** (`claude plugin test`, offline).
+- Tests: **60 Python** (`uv run --no-project python -m unittest discover -s tests`; verified on Python 3.10 to 3.14) and **96 Mod/core** (`claude plugin test`, offline).
 
 ### What v0.2.1 adds (on the unreleased branch)
 

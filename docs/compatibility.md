@@ -10,7 +10,7 @@ Environment: macOS arm64, Python 3.14.4, Node (bundled in Claude Code), Claude C
 | Coexistence with fast-jev-compaction (MIT, other mod) | Passed at load + tool.call | `claude -p` with both `--plugin-dir`: both modules loaded, none skipped, our pruning ran. A real compaction with both active was **not** tested |
 | Python 3.10 to 3.14 | Passed | `uv run --no-project --python 3.10 ... python -m unittest discover -s tests` for 3.10, 3.11, 3.12, 3.13; 3.14.4 is the default interpreter |
 | Plugin settings (`userConfig`) in a real session | Partly | `claude -p "/jev doctor"` shows the defaults filled in and their source; the `/config` screen itself and the sensitive-key prompt are interactive and **not yet seen** |
-| TypeScript core + Mod (stubbed host) | Passed | 95 tests, `claude plugin test` |
+| TypeScript core + Mod (stubbed host) | Passed | 96 tests, `claude plugin test` |
 | TS vs Python parity | Passed | shared golden fixture (14 prune cases incl. CR, Unicode digits, dotless i, emoji; 7 redaction cases; 3 digests); drift test regenerates it from Python |
 | Tests detect regressions | Spot-checked | two deliberate bugs (assist never rewrites; key leaked into a record) each failed the suite |
 | `claude plugin validate --strict` | Passed | manifests, hooks, Mod static analysis |

@@ -19,7 +19,8 @@ Not done in any version: Jev pruning in a real session, `bench-logs --live`, and
 - New: `/jev savings` reports counted characters from this project's records (what assist removed; what it would have removed in observe; fallbacks). No token, cost or success claim.
 - Changed (behavior, both cores, golden regenerated; existing cases byte-identical): runs of 6 or more consecutive warning-only lines that differ only in digits are collapsed to the first 2, a count marker and the last 1. Lines with an error-class word, a stack frame or a `File` line are never collapsed. A run of warnings with any such word is untouched. Any non-ok result still returns the exact original. Example on a synthetic log: 9,710 -> 763 characters.
 - Not done: a pane (needs an interactive session to verify), paired agent-task benchmark (budget), Windows run.
-- Tests: 60 Python + 95 Mod/core tests.
+- Audit (read-only, fresh agent): no safety or parity break; a 3,000-input fuzz found 0 differences between the cores and 0 lost error-class lines. Its findings on `/jev savings` are fixed: only rows that were really rewritten count, the total is net of the receipt line, non-finite values are ignored, and the header counts record files scanned.
+- Tests: 60 Python + 96 Mod/core tests.
 
 ## 0.3.0 (2026-10-10)
 

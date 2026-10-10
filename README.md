@@ -220,7 +220,7 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 
 ```bash
 uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (60)
-claude plugin test                         # TypeScript core + Mod tests (95), offline
+claude plugin test                         # TypeScript core + Mod tests (96), offline
 claude plugin validate --strict .
 uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
 uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)

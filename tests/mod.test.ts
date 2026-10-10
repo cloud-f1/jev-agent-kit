@@ -627,7 +627,21 @@ test('/jev savings counts what assist actually removed', async ($, on) => {
   stubs(on, { config: ASSIST })
   const rewritten = await call($)
   await $.command.run({ command: 'jev', args: 'savings' }).then((out: any) => {
-    expect(out.text).toMatch(/assist: 1 logs rewritten, [1-9]\d* chars removed/)
+    expect(out.text).toMatch(/assist: 1 logs rewritten, [1-9]\d* chars removed net/)
   })
   expect(rewritten.result.stdout).toContain('pruned ')
+})
+
+test('/jev savings does not count unrewritten assist rows or non-finite numbers', async ($, on) => {
+  const row = (o: object) => JSON.stringify({ artifact_id: 'a'.repeat(32), reason: 'ok', mode: 'assist', ...o })
+  const s = stubs(on, { config: ASSIST })
+  await call($) // writes one real rewritten record
+  const first = Object.keys(s.written).find((p) => p.includes('/decisions/'))!
+  const dir = first.slice(0, first.lastIndexOf('/') + 1)
+  s.written[dir + '1-aaaa.json'] = row({ input_chars: 500, delivered_chars: 500 })
+  s.written[dir + '2-bbbb.json'] = row({ input_chars: 1e999, delivered_chars: 1 })
+  s.written[dir + '3-cccc.json'] = '{not json'
+  const out = await $.command.run({ command: 'jev', args: 'savings' })
+  expect(out.text).toMatch(/assist: 1 logs rewritten/)
+  expect(out.text).not.toContain('Infinity')
 })

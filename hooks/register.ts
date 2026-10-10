@@ -254,7 +254,7 @@ async function setOption($: any, field: 'mode' | 'enable_all_projects', value: s
     return scope + 'Set ' + field + ' = ' + String(value) + ' (your plugin settings, every project). /jev doctor shows the effective values; a project file still overrides.'
   } catch {
     // Seen live (headless claude -p): Claude Code exposes no /config row for this plugin there.
-    return 'Could not change the setting from here (Claude Code did not expose a /config row for this plugin). Use /config, or run: claude plugin configure jev-agent-kit'
+    return 'Could not change the setting from here (Claude Code refused or has no matching /config row; headless runs have none). Use /config, or see and save options with: claude plugin configure jev-agent-kit'
   }
 }
 
@@ -302,15 +302,18 @@ async function savingsText($: any): Promise<string> {
     // No decisions directory yet.
   }
   const total = { observe: { logs: 0, chars: 0 }, assist: { logs: 0, chars: 0 }, fellBack: 0 }
+  const count = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0
   for (const name of names) {
     try {
       const row = JSON.parse(await $.fs.read(root + '/decisions/' + name))
-      if (typeof row.artifact_id !== 'string' || typeof row.input_chars !== 'number') continue
+      if (typeof row.artifact_id !== 'string' || !count(row.input_chars)) continue
       if (row.reason !== 'ok') { total.fellBack += 1; continue }
-      if (row.mode === 'assist' && typeof row.delivered_chars === 'number') {
-        total.assist.logs += 1
-        total.assist.chars += Math.max(0, row.input_chars - row.delivered_chars)
-      } else if (typeof row.output_chars === 'number') {
+      if (row.mode === 'assist' && count(row.delivered_chars)) {
+        if (row.delivered_chars !== row.input_chars) {
+          total.assist.logs += 1 // only rows that were actually rewritten
+          total.assist.chars += row.input_chars - row.delivered_chars // net, includes the receipt line; may be negative
+        }
+      } else if (count(row.output_chars)) {
         total.observe.logs += 1
         total.observe.chars += Math.max(0, row.input_chars - row.output_chars)
       }
@@ -319,8 +322,8 @@ async function savingsText($: any): Promise<string> {
     }
   }
   return [
-    `Jev Agent Kit ${VERSION}: characters, from the last ${names.length} records of this project`,
-    `assist: ${total.assist.logs} logs rewritten, ${total.assist.chars} chars removed`,
+    `Jev Agent Kit ${VERSION}: characters, from the last ${names.length} record files scanned for this project`,
+    `assist: ${total.assist.logs} logs rewritten, ${total.assist.chars} chars removed net (after the receipt line)`,
     `observe: ${total.observe.logs} logs, ${total.observe.chars} chars assist would have removed`,
     `fell back to the original: ${total.fellBack}`,
     'Counted characters only. This is not a token, cost or success measurement; see docs/EVALUATION.md.',
