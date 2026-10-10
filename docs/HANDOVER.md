@@ -79,20 +79,19 @@ One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high 
 
 ## Unreleased backlog (the next batch; do not tag until the policy says so)
 
-Next planned version: **0.8.0** (a minor: new capability and a behavior change in what records hold). Work on a branch named `v0.8.0`; keep `## 0.8.0 (unreleased)` at the top of the changelog.
+Next planned version: **0.8.0** (a minor: behavior change in the goal sent to Jev, output marker text, record fields). Work is on branch `v0.8.0` (not tagged); the changelog heading is `## 0.8.0 (unreleased)`.
 
-| Item | Kind | Why |
-|---|---|---|
-| `latency_ms` is always 0 in session records (the Mod passes `now: () => 0` to the core); time the call in the Mod instead | fix | Found in a user's real shadow-mode run; bench measured 200 to 365 ms, records say 0 |
-| Per-record block counts: total, pinned, asked of Jev, kept by Jev (numbers only) | improvement | In `observe` you cannot see what Jev kept; counts show how selective it is |
-| JEV-29: split long logs into several Jev requests (above 96 candidate blocks it falls back to the original) | **capability** | Jev currently only sees 8,000 to 14,000 characters |
-| A real upgrade keeps saved settings (test with the batch's release) | verification | Undocumented by Claude Code, untested here |
+Built on the branch: broad default goal (held-out test: 0.0 to 5.0 of 12 quiet cues kept, reduction 95% to 74%), omitted-lines count in the marker (golden regenerated), measured `latency_ms`, block counts in records and in `/jev status`, goal line in `/jev doctor`, `scripts/quiet-cues-experiment.ts`, README/REFERENCE/operate-skill risk text.
 
-Release the batch when JEV-29 is done, or when at least three of the user-visible items are done and 3 days have passed since 0.7.0 (2026-10-10). Anything found meanwhile that is a safety, privacy or data-handling bug is released alone and promptly.
+Not built, on purpose: JEV-29 (split long logs). Reason in the changelog. Jira JEV-34 tracks the batch.
+
+Still to do before tagging 0.8.0: one independent audit of the cumulative diff, a live check of the Mod on a real session (a mixed log, observe and assist), a real upgrade-keeps-settings check, and the policy conditions below.
+
+Release the batch when the policy says: it has a behavior change (yes) and at least 3 days have passed since 0.7.0 (2026-10-10), i.e. not before 2026-10-13. A safety, privacy or data-handling bug found meanwhile is released alone and promptly.
 
 ## Next steps
 
-1. Decide JEV-29 with the user (split long logs into several requests, or accept the limit). Any change needs a live synthetic test, tests and an audit.
+1. JEV-29 (split long logs): deferred, see the changelog. Quiet-line retention first.
 2. If the user supplies a budget: run the real paired benchmark ([`EVALUATION.md`](EVALUATION.md), JEV-14): many tasks, real repositories, several repeats, the Jev arm. Until then the honest status is "mechanism works, benefit unproven".
 3. Run the Mod on a real Windows machine and fix what breaks (JEV-17).
 4. Not yet seen: the sensitive-key prompt on enabling the plugin, `backend: jev` in an interactive session (headless is verified under the 96-block limit), a narrow terminal for the pane, a real compaction with fast-jev-compaction active.

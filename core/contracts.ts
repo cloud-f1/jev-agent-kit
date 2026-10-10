@@ -1,6 +1,6 @@
 // Shared constants and types for the Jev Agent Kit TypeScript core. Pure: no mods API.
 
-export const VERSION = '0.7.0'
+export const VERSION = '0.8.0'
 export const QUESTION_VERSION = 'log-keep-v1'
 export const ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 export const MODEL = 'jev-1.13.0' // default request model: pinned so decisions stay calibrated
@@ -48,6 +48,10 @@ export interface PruneMeta {
   requested_model?: string
   actual_model?: string | null
   jev_asked?: boolean // jev backend only: true once a request was actually sent to the API
+  blocks_total?: number // 8-line blocks in the log
+  blocks_pinned?: number // kept locally (error/warning words, first and last, and neighbours)
+  jev_blocks_asked?: number // blocks put to Jev (jev backend, request answered)
+  jev_blocks_kept?: number // of those, how many Jev rated at or above the keep threshold
   latency_ms?: number
 }
 

@@ -52,7 +52,7 @@ What you can see and touch today.
 | Failure toast | **Available** | If Jev (or pruning) falls back to the original output, a toast says so once per reason per session, with a fixed reason code such as `http_429` or `missing_key`. Nothing from the response is ever shown. |
 | Key prompt | **Available** | Asked when you enable the plugin; stored in secure storage. |
 | `/jev doctor [--verify]` | **Available** | Effective config with the source of every value, key presence (never the key), next step. `--verify` sends one synthetic sentence and prints `valid`, `invalid (401)`, `missing` or `error (<reason>)`. |
-| `/jev status` | **Available** | Record count, the last 10 real decisions, and one line summarizing failed-command repeats. |
+| `/jev status` | **Available** | Record count, the last 10 real decisions (with latency and how many blocks Jev kept), and one line summarizing failed-command repeats. |
 | `/jev readback <id>` | **Available** | Prints the untouched original. |
 | Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
 | `/jev init`, `/jev preset`, `/jev on`, `/jev off`, `/jev mode` | **Available** | Change settings from the prompt via `$.config.set`; interactive sessions only. |
@@ -188,3 +188,31 @@ Works alongside [fast-jev-compaction](https://github.com/tamaratran/fast-jev-com
 ## Limits
 
 Not a security control. Not proven to save money (a 4-task smoke eval passed 32/32 in both arms at about $0.0031 vs $0.0040 per run; that is not evidence of a benefit). The loop detector only observes. Output that Claude Code itself cut at 30,000 characters is left alone. Windows is untested (see Cross-platform notes). Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.
+
+## What pruning can lose: quiet lines
+
+**The fact.** Error, warning and traceback lines are pinned locally and never dropped. A line with no such word (a changed setting, mode, version, target, fallback, a skipped step, an empty result) is only kept if the local rules happen to keep its neighbours, or Jev rates its block at or above `keepThreshold`. In a held-out test Jev usually did not.
+
+**The test** (`node scripts/quiet-cues-experiment.ts`, needs a key, synthetic text only, about 40 small requests): a 31 KB log of 620 uniform INFO lines with 12 quiet cues hidden in separate blocks (locale fallback, time zone mismatch, deprecated endpoint, dry-run flag, stale cache, proxy, read-only mount, empty query result, overridden base URL, skipped plugins, detached HEAD, old Node version). None of the cues is named in any goal text. Three shuffled logs per row, real API, `jev-1.13.0`.
+
+| Goal | Cues kept (of 12) | Output reduction |
+|---|---|---|
+| Old default: "Diagnose the current test or build failure" | 0.0 | 95% |
+| New default (broad: any quiet line about a setting, mode, version, fallback or environment) | 5.0 | 74% |
+| A wide user goal (environment, version, target, configuration, feature flag, skipped step, fallback) | 6.7 | 68% |
+| Local rules only, no Jev | 0 | 95% |
+
+| Goal | `keepThreshold` | Cues kept (of 12) | Output reduction |
+|---|---|---|---|
+| Old default | 0.8 / 0.5 / 0.3 / 0.1 | 0.0 / 0.7 / 5.3 / 12.0 | 95% / 93% / 73% / 0% |
+| New default | 0.8 / 0.5 / 0.3 / 0.1 | 4.7 / 8.3 / 9.0 / 12.0 | 76% / 60% / 57% / 0% |
+
+**Reading it.** Retention and reduction trade against each other steeply: at a threshold of 0.1 everything is kept and nothing is saved. The new default (0.8.0) is the broad goal because the old one made Jev nearly useless for quiet evidence; it keeps more and shrinks less. That is a behavior change in the goal text sent. Lowering `keepThreshold` keeps more at the cost of reduction (an existing setting).
+
+**Limits of this evidence.** One log shape (uniform noise, single-line cues), three seeds, one model version. A real log's quiet evidence may need several lines of context, which this does not test. Earlier ad-hoc runs by hand, where the goal file was written after seeing which cues were lost, over-stated how well a wide goal works; treat only the held-out numbers above as the check.
+
+**Goal file.** `.claude/jev-goal.txt` (first 1,200 characters, redacted before sending) replaces the built-in goal for that project. `/jev doctor` prints which one is in effect. Name the kinds of quiet evidence you care about; a wider goal keeps more and shrinks less.
+
+**What the model sees.** Each dropped span is one line, `[omitted N lines; use readback for the full log]`, with the exact number of lines left out. The model can read the original file named in the receipt.
+
+**Records.** A decision record now also holds `latency_ms` (measured in the Mod; it was always 0 before 0.8.0) and block counts: `blocks_total`, `blocks_pinned` (kept locally), and for the Jev backend `jev_blocks_asked` and `jev_blocks_kept`. `/jev status` prints `Jev kept K of A blocks it was asked about` and the latency, so even in `observe` you can see how selective Jev is. Numbers only, never content.

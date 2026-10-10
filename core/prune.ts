@@ -45,7 +45,7 @@ const SECRET = new RegExp(
   `|\\b(?:sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{10,}|AKIA[A-Z0-9]{16})\\b`,
   'gi',
 )
-const OMITTED = '[omitted original lines; use readback for the full log]\n'
+const omittedMarker = (lines: number) => `[omitted ${lines} line${lines === 1 ? '' : 's'}; use readback for the full log]\n`
 const MAX_BLOCKS_PER_REQUEST = 96
 const MAX_REQUEST_BYTES = 60_000
 
@@ -104,17 +104,17 @@ export function makeBlocks(text: string, linesPerBlock = 8): { parts: Block[]; p
 
 export function render(parts: Block[], selected: Set<number>): string {
   const out: string[] = []
-  let omitted = false
+  let omittedLines = 0 // lines in the current run of omitted blocks
   parts.forEach((part, i) => {
     if (selected.has(i)) {
-      if (omitted) out.push(OMITTED)
+      if (omittedLines > 0) out.push(omittedMarker(omittedLines))
       out.push(part.text)
-      omitted = false
+      omittedLines = 0
     } else {
-      omitted = true
+      omittedLines += part.end - part.start + 1
     }
   })
-  if (omitted) out.push(OMITTED)
+  if (omittedLines > 0) out.push(omittedMarker(omittedLines))
   return out.join('')
 }
 
@@ -178,6 +178,8 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
   }
   const { parts, pinned } = makeBlocks(collapseRepeats(text))
   let keep = new Set(pinned)
+  meta.blocks_total = parts.length
+  meta.blocks_pinned = pinned.size
   if (options.backend === 'jev') {
     // Errors are never subject to Jev's decision; it only adds relevant non-error blocks.
     const candidates = parts.map((_, i) => i).filter((i) => !pinned.has(i))
@@ -204,11 +206,15 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
           const { usage, model: actual } = validateResponse(obj, options.model ?? MODEL)
           meta.actual_model = actual
           const probabilities = validateNouls(obj, ids)
+          let kept = 0
           for (const i of candidates) {
             if ((probabilities[parts[i]!.id] ?? 0) >= options.threshold) {
+              kept += 1
               for (const j of [i - 1, i, i + 1]) if (j >= 0 && j < parts.length) keep.add(j)
             }
           }
+          meta.jev_blocks_asked = candidates.length
+          meta.jev_blocks_kept = kept
           meta.api_input_tokens = usage.input_tokens
           meta.api_output_tokens = usage.output_tokens
           meta.jev_cost_usd_estimate = usage.input_tokens * JEV_PRICE_PER_INPUT_TOKEN_USD

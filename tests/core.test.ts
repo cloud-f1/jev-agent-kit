@@ -315,3 +315,33 @@ test('verifyKey (shared by the CLI and the Mod) returns only fixed words and nev
   expect(await verifyKey('fake-key-123456789', async () => ({ model: 'jev-9.9.9', usage, answers: { failed: { type: 'noul', noul: 0.9 } } }))).toBe('error (model_mismatch)')
   expect(smokeBody().state).toBe('A unit test failed.')
 })
+
+test('the omitted marker states how many lines were left out, and the counts add up', async () => {
+  const text = longLog() // 320 lines, one ERROR line, one IMPORTANT_BUSINESS_CONTEXT line
+  const total = text.split('\n').length - 1
+  const { output } = await prune(text, { backend: 'rules', goal: '', threshold: 0.8 })
+  const markers = [...output.matchAll(/\[omitted (\d+) lines?; use readback for the full log\]\n/g)]
+  expect(markers.length).toBeGreaterThan(0)
+  const omitted = markers.reduce((sum, m) => sum + Number(m[1]), 0)
+  const keptLines = output.replace(/\[omitted \d+ lines?; use readback for the full log\]\n/g, '').split('\n').length - 1
+  expect(omitted + keptLines).toBe(total)
+  expect(output).toContain('ERROR build')
+  expect('[omitted 8 lines; use readback for the full log]').not.toMatch(/error|fail|warn|exception|timeout|denied|not found/i)
+})
+
+test('records carry block counts: total, pinned, asked of Jev, kept by Jev (numbers only)', async () => {
+  const transport = async (body: Record<string, any>) => ({
+    model: MODEL, usage,
+    answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: body.state.blocks.find((b: any) => b.id === id).text.includes('IMPORTANT_BUSINESS_CONTEXT') ? 0.99 : 0.01 }])),
+  })
+  const { meta } = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(meta.blocks_total).toBe(40)
+  expect(meta.blocks_pinned!).toBeGreaterThan(0)
+  expect(meta.jev_blocks_asked).toBe(40 - meta.blocks_pinned!)
+  expect(meta.jev_blocks_kept).toBe(1)
+  const rules = await prune(longLog(), { backend: 'rules', goal: '', threshold: 0.8 })
+  expect(rules.meta.blocks_total).toBe(40)
+  expect('jev_blocks_asked' in rules.meta).toBe(false)
+  const failed = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async () => { throw new JevError('http_429') } })
+  expect('jev_blocks_kept' in failed.meta).toBe(false)
+})

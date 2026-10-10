@@ -26,6 +26,7 @@ interface Setup {
   projectSettingsEnv?: Record<string, string> // a cloned repo's .claude/settings.json: must never be used
   throwOnWrite?: boolean
   http?: (url: string, init: any) => any
+  httpMs?: number // virtual milliseconds the stubbed API takes (moves the mock clock)
 }
 
 // Stubs every Claude Code answer the Mod needs. `written` captures private writes by path.
@@ -44,7 +45,7 @@ function stubs(on: any, setup: Setup = {}) {
   const configSets: Array<{ key: string; value: unknown }> = []
   const panes: string[] = []
   const requests: Array<{ url: string; init: any }> = []
-  mock.clock(on)
+  const clock = mock.clock(on)
   on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
   on('session.cwd', () => ({ value: CWD }))
   on('session.id', () => ({ value: 'session-golden' }))
@@ -70,8 +71,9 @@ function stubs(on: any, setup: Setup = {}) {
     }
     return { value: { exitCode: 127, stdout: '', stderr: '' } }
   })
-  on('http.fetch', (_: any, e: any) => {
+  on('http.fetch', async (_: any, e: any) => {
     requests.push({ url: e.url, init: e.init })
+    if (setup.httpMs) await clock.advance(setup.httpMs)
     return { value: setup.http ? setup.http(e.url, e.init) : { ok: false, status: 500, headers: {}, text: '' } }
   })
   on('ui.toast', (_: any, e: any) => { toasts.push(e.text); return { value: undefined } })
@@ -93,7 +95,7 @@ function stubs(on: any, setup: Setup = {}) {
   on('session.start', () => ({ cwd: CWD }))
   const bash = { stdout: longLog(), stderr: 'WARNING stderr evidence', interrupted: false, isImage: false }
   on('tool.call', () => (setup.tool ?? { result: bash, text: 'original' }))
-  return { panes, configSets, written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
+  return { clock, panes, configSets, written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
 }
 
 // The stub host's `command.run` takes the raw input (origin etc. are defaulted at run time).
@@ -270,6 +272,29 @@ test('/jev status lists recent decision records', async ($, on) => {
   const out = await jev($, 'status')
   expect(out.text).toContain('records for this project')
   expect(out.text).toMatch(/\d+ → \d+ chars/)
+})
+
+test('a jev decision record carries measured latency and block counts, and status shows them', async ($, on) => {
+  // The stubbed API takes 37 virtual ms, so the measured latency must be 37 (it used to be always 0).
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: VERIFY_OK, httpMs: 37 })
+  await call($)
+  const record = decisions(s.written).find((d) => d.backend === 'jev')
+  expect(typeof record.latency_ms).toBe('number')
+  expect(record.latency_ms).toBe(37)
+  expect(record.blocks_total).toBeGreaterThan(0)
+  expect(record.blocks_pinned).toBeGreaterThan(0)
+  expect(record.jev_blocks_asked).toBe(record.blocks_total - record.blocks_pinned)
+  expect(typeof record.jev_blocks_kept).toBe('number')
+  const out = (await jev($, 'status')).text
+  expect(out).toContain(`Jev kept ${record.jev_blocks_kept} of ${record.jev_blocks_asked} blocks it was asked about`)
+})
+
+test('the default goal sent to Jev is the broad one, not "diagnose the failure"', async ($, on) => {
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: VERIFY_OK })
+  await call($)
+  const sent = JSON.parse(s.requests[0]!.init.body)
+  expect(sent.state.goal).toContain('quiet lines that state a setting, mode, version, fallback or environment')
+  expect(sent.state.goal).not.toBe('Diagnose the current test or build failure')
 })
 
 test('/jev status says when the jev backend never asked Jev, and shows input chars for host-cut rows', async ($, on) => {
@@ -520,6 +545,19 @@ test('plain /jev doctor never makes a request and points at --verify; a bad argu
   expect(out).toContain('present in environment (not validated; run /jev doctor --verify')
   expect((await jev($, 'doctor --bogus')).text).toBe('Usage: /jev doctor [--verify]')
   expect(s.requests.length).toBe(0)
+})
+
+test('/jev doctor shows which goal Jev is given: the built-in broad default, or the project goal file', async ($, on) => {
+  stubs(on)
+  const out = (await jev($, 'doctor')).text
+  expect(out).toContain('Goal sent to Jev (backend jev only): built-in default: "Find the root cause of why this command did not give the intended result.')
+})
+
+test('/jev doctor shows the goal file when there is one, redacted', async ($, on) => {
+  stubs(on, { files: { [CWD + '/.claude/jev-goal.txt']: 'look for settings and versions; token=abc123secretvalue' } })
+  const out = (await jev($, 'doctor')).text
+  expect(out).toContain('Goal sent to Jev (backend jev only): .claude/jev-goal.txt: "look for settings and versions;')
+  expect(out).not.toContain('abc123secretvalue')
 })
 
 test('/jev doctor says how updates work: Claude Code does them, auto-update is opt-in, the plugin never checks the network', async ($, on) => {

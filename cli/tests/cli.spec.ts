@@ -220,3 +220,10 @@ test('scripts/jev.sh adds --experimental-strip-types only on Node 22.6 to 22.17 
     }
   }
 })
+
+test('the quiet-cues experiment tests the same goal text the Mod ships as its default', () => {
+  const mod = readFileSync('hooks/register.ts', 'utf8').match(/const DEFAULT_GOAL = '([^']+)'/)?.[1]
+  const experiment = readFileSync('scripts/quiet-cues-experiment.ts', 'utf8').match(/'G1 new default': '([^']+)'/)?.[1]
+  assert.ok(mod && experiment, 'both goal strings found')
+  assert.equal(experiment, mod)
+})

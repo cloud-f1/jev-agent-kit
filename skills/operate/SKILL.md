@@ -39,6 +39,10 @@ Optional maintainer CLI: `node "${CLAUDE_PLUGIN_ROOT}/cli/jev.ts" <command>` (No
 6. **Jev backend limit.** Jev is asked about at most 96 non-pinned blocks (8 lines each) or 60 KB per request. A longer log gets reason `budget_fallback_original`: nothing is sent and the output is unchanged. In practice that is roughly 800 short lines (about 14,000 characters), so with `backend: jev` and the default `minimumChars` the usable window is only about 8,000 to 14,000 characters; a 27 KB log never reaches Jev (known limitation). Seen working once headless (a 600-line synthetic log: `reason: ok`, about $0.0003 of Jev input). `/jev savings` reads only the last 500 records.
 7. **Any failure returns the original output.** Look at the record's `reason` (`ok`, `missing_key`, `http_429`, `invalid_model`, `model_mismatch`, `budget_fallback_original`, `host_truncated_output`, `paused_after_readback`, ...).
 
+## What pruning can lose (say this plainly)
+
+Error/warning/traceback lines are never dropped. **Quiet lines are not safe**: a line saying a setting, mode, version, target or fallback differs from what was intended has no error word. In a held-out synthetic test, Jev with the old narrow default goal kept 0 of 12 such lines and with the broader default 5 of 12 (74% reduction); lowering `keepThreshold` keeps more and saves less. So: recommend `observe` first; for `assist`, suggest a short `.claude/jev-goal.txt` naming what matters to the user (only write it if they ask; it is a project file); `/jev doctor` shows the goal in effect. When a task result looks wrong after pruning, read the original from the file named in the receipt before concluding anything. Dropped spans show as `[omitted N lines; use readback for the full log]`.
+
 ## Settings and precedence
 
 Defaults < plugin settings (Configure form, user-wide) < project file `.claude/jev-agent-kit.json`. **A field present in the project file wins over `/jev mode`, `/jev on` and the Configure form.** To change a project's mode, edit the file, or delete it and run `/jev preset <name>`. `/jev doctor` labels every value `project file` or `plugin settings`.

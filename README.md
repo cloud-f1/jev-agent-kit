@@ -65,6 +65,17 @@ Limits worth knowing:
 - Jev only sees logs of roughly 8,000 to 14,000 characters (up to 96 blocks / 60 KB per request). Longer logs are **not sent** and come back unchanged.
 - A log where every block contains an error or warning word is never sent either. To see Jev answer in a real session, the log needs ordinary lines as well as error lines, and must stay under the limit above. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
 
+## What pruning can lose
+
+Lines with an error, warning or traceback word are always kept. **Quiet lines are the risk**: a line that says a setting, mode, version, target or fallback is not what you intended (`DRY_RUN=1 set`, `node v16 in use; requires >=20`, `query returned 0 rows; continuing`) contains no error word, so only Jev's judgment can save it, and Jev often does not.
+
+In our held-out test (12 such lines hidden in a 31 KB synthetic log, 3 shuffled runs, real API): with the old default goal Jev kept **0 of 12** (the same as the local rules alone); with the new broader default goal **5 of 12**, still shrinking the log by 74%. No setting we tried kept all 12 and also shrank the output much (keep threshold 0.5: 8 of 12 at 60%; 0.1: 12 of 12 at 0%). This is one synthetic log shape, so read it as a direction, not as your numbers. Details and the script to reproduce it: [docs/REFERENCE.md](docs/REFERENCE.md#what-pruning-can-lose-quiet-lines).
+
+What to do about it:
+- Start with `observe` and `rules`; treat `assist` with `jev` as something to earn with your own evidence.
+- Write what you care about in `.claude/jev-goal.txt` (one or two sentences; `/jev doctor` shows the goal in effect). A goal that names your kinds of quiet evidence helps, and costs reduction.
+- The model sees `[omitted N lines; use readback ...]` where lines were dropped and can read the saved original. If a run looks wrong, read the original first.
+
 ## Is it worth it?
 
 Shorter output is not the goal. Lower cost per successful task at the same success rate is. The kit gives you three levels of evidence:
@@ -79,7 +90,7 @@ Shorter output is not the goal. Lower cost per successful task at the same succe
 
 | Command | Does |
 |---|---|
-| `/jev doctor [--verify]` | Version, effective settings and where each came from, key present or not, what to do next. `--verify` also checks the key with one synthetic sentence. |
+| `/jev doctor [--verify]` | Version, effective settings and where each came from, the goal Jev is given, key present or not, what to do next. `--verify` also checks the key with one synthetic sentence. |
 | `/jev status` | Record count, the last 10 decisions, failed-command repeats. |
 | `/jev savings` | Counted characters removed (or that `assist` would remove), and how many logs Jev really answered. Not a token or cost claim. |
 | `/jev pane` / `/jev pane close` | A side pane with savings and recent decisions. |

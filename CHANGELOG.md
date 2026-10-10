@@ -21,6 +21,30 @@
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
 
+## 0.8.0 (unreleased)
+
+Driven by a user's own shadow-mode and `assist` tests on 0.6.5 (summarized in Jira JEV-31) and a held-out experiment run to check them.
+
+### Changed (behavior)
+- **Default goal sent to Jev.** Was "Diagnose the current test or build failure"; now a broad goal that asks to keep quiet lines about a setting, mode, version, fallback or environment that differs from what was intended. Reason: in a held-out test (12 quiet cues in a 31 KB synthetic log, 3 shuffled runs, real API) the old default kept 0 of 12 (same as local rules alone), the new one 5 of 12 (reduction 95% to 74%). A project goal file `.claude/jev-goal.txt` still replaces it. `keepThreshold` default is unchanged (0.8).
+- **Omitted marker.** `[omitted original lines; use readback for the full log]` became `[omitted N lines; use readback for the full log]` with the exact number of lines left out (it never claimed a position, because block positions are counted after repeated-warning collapse). The golden fixture was regenerated for this; inputs, reasons and which lines are kept are unchanged.
+
+### Fixed
+- `latency_ms` was always 0 in session records (the Mod handed the core a clock that returned 0). It is now measured around the prune call, including the Jev request.
+
+### New
+- Records hold block counts: `blocks_total`, `blocks_pinned`, and for the Jev backend `jev_blocks_asked` and `jev_blocks_kept` (numbers only). `/jev status` shows `Jev kept K of A blocks it was asked about` and the latency, so `observe` shows how selective Jev is.
+- `/jev doctor` prints the goal in effect (`built-in default` or `.claude/jev-goal.txt`, redacted, first 160 characters).
+- `scripts/quiet-cues-experiment.ts`: the held-out experiment as a maintainer script (needs a key; synthetic text only), with a test that its goal text matches the Mod's default.
+- README and the shipped `operate` skill state the quiet-line risk with the numbers; `docs/REFERENCE.md` has the full tables and limits.
+
+### Verified
+- 133 Mod tests and 50 Node tests pass. The latency test uses the mock clock and asserts exactly 37 ms; it fails if the measurement is removed. The old-vs-new default result was re-run through the committed script.
+
+### Not done
+- JEV-29 (split logs above 96 blocks across several Jev requests) was deliberately **not** built: the evidence above says Jev is weak on quiet lines, so sending it more logs would prune more of them. Revisit only if retention is shown to be acceptable.
+- One log shape, three seeds, one model version; multi-line cues are untested. Windows, the sensitive-key field's masking, and a real upgrade keeping settings are still unverified.
+
 ## 0.7.0 (2026-10-10)
 
 Found by a user in a real interactive session on 0.6.5 (Jira JEV-33).

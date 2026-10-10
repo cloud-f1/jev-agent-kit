@@ -8,7 +8,9 @@ import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, jevNotAsked, prune, redact } from '../core/prune.ts'
 import { verifyKey } from '../core/verify.ts'
 
-const DEFAULT_GOAL = 'Diagnose the current test or build failure'
+// Broad on purpose: a narrow goal ("diagnose the failure") made Jev drop every quiet line (a changed setting, mode,
+// version or fallback) in a held-out test; see docs/REFERENCE.md and scripts/quiet-cues-experiment.ts.
+const DEFAULT_GOAL = 'Find the root cause of why this command did not give the intended result. Keep every line that could explain it, including quiet lines that state a setting, mode, version, fallback or environment that differs from what was intended, even if the line contains no error wording.'
 const ARTIFACT_ID = /^[a-f0-9]{32}$/
 
 // Session-local counters for the status line and loop observation. They reset on reload.
@@ -232,7 +234,9 @@ async function statusText($: Engine): Promise<string> {
         : typeof row.input_chars === 'number' ? ` · ${row.input_chars} chars in` : ''
       // backend jev but no request sent: every block was an error/warning line, kept by the local rules.
       const note = jevNotAsked(row) ? ' · Jev not asked (every block was an error/warning line; local rules only)' : ''
-      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}${note}`)
+      const kept = row.jev_asked === true && typeof row.jev_blocks_asked === 'number' && typeof row.jev_blocks_kept === 'number' ? ` · Jev kept ${row.jev_blocks_kept} of ${row.jev_blocks_asked} blocks it was asked about` : ''
+      const ms = typeof row.latency_ms === 'number' && Number.isFinite(row.latency_ms) && row.latency_ms > 0 ? ` · ${Math.round(row.latency_ms)} ms` : ''
+      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}${kept}${ms}${note}`)
     } catch {
       lines.push('(unreadable record ' + name + ')')
     }
@@ -255,6 +259,14 @@ async function doctorText($: Engine, verify = false): Promise<string> {
   }
   const direct = await $.env.get('TYPESAFE_API_KEY')
   const where = direct && direct !== 'REPLACE_ME' ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
+  try {
+    // The goal is what tells Jev which lines matter; show which one is in effect (redacted, shortened).
+    const fromFile = await $.fs.exists(cwd + '/.claude/jev-goal.txt')
+    const goal = await loadGoal($, cwd)
+    lines.push('Goal sent to Jev (backend jev only): ' + (fromFile ? '.claude/jev-goal.txt' : 'built-in default') + ': "' + goal.slice(0, 160) + (goal.length > 160 ? '...' : '') + '"')
+  } catch {
+    // Not worth failing the report for.
+  }
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   if (verify) {
     // Explicit request only: one synthetic sentence to the fixed endpoint; the reply is reduced to a fixed word.
@@ -514,10 +526,12 @@ export function register(on: On, options?: PluginOptions) {
         return res
       }
       const transport = cfg.backend === 'jev' ? makeTransport($, await apiKey($), cfg.timeoutSeconds * 1000) : undefined
+      const startedAt = await $.clock.now()
       const { output, meta } = await prune(out.stdout, {
         backend: cfg.backend, goal: await loadGoal($, cwd), threshold: cfg.keepThreshold, transport,
         model: pluginModel(pluginOptions), now: () => 0,
       })
+      const latencyMs = Math.max(0, (await $.clock.now()) - startedAt) // measured here: the core never reads the clock
       $.ui.log(
         `prune ${meta.reason}: ${meta.input_chars} -> ${meta.output_chars} chars (${meta.backend}, ${cfg.mode})`,
         { to: 'debug' },
@@ -533,7 +547,7 @@ export function register(on: On, options?: PluginOptions) {
         await recordDecision($, root, { feature: 'compatibility', reason: 'missing_tool_fields' })
       }
       await recordDecision($, root, {
-        ...meta, mode: cfg.mode, artifact_id: artifactId, delivered_chars: charLength(stdout),
+        ...meta, latency_ms: latencyMs, mode: cfg.mode, artifact_id: artifactId, delivered_chars: charLength(stdout),
       })
       if (canRewrite) {
         stats.pruned += 1
