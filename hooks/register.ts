@@ -358,7 +358,7 @@ async function savingsText($: Engine, limit = 500): Promise<string> {
     `assist: ${total.assist.logs} logs rewritten, ${total.assist.chars} chars removed net (after the receipt line)`,
     `observe: ${total.observe.logs} logs, ${total.observe.chars} chars assist would have removed`,
     `fell back to the original: ${total.fellBack}`,
-    ...(total.jevAsked + total.jevNotAsked > 0 ? [`backend jev: Jev was asked for ${total.jevAsked} logs; ${total.jevNotAsked} logs were handled by the local rules only because Jev was not asked (every block was an error/warning line), so they say nothing about Jev`] : []),
+    ...(total.jevAsked + total.jevNotAsked > 0 ? [`backend jev: answered by Jev for ${total.jevAsked} log(s); ${total.jevNotAsked} log(s) handled by the local rules only because Jev was not asked (every block was an error/warning line), so they say nothing about Jev. Failed requests are in the fell-back count.`] : []),
     'Counted characters only. This is not a token, cost or success measurement; see docs/EVALUATION.md.',
   ].join('\n')
 }

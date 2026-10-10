@@ -274,6 +274,15 @@ test('collapsing repeated warnings never loses an error-class line and keeps the
   expect(collapseRepeats(warn(5).join(''))).toBe(warn(5).join('')) // below the run threshold
 })
 
+test('a failed request still counts as asked (jev_asked true) but is never reason ok', async () => {
+  const transport = async () => { throw new JevError('http_429') }
+  const { meta } = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(meta.jev_asked).toBe(true)
+  expect(meta.reason).toBe('http_429')
+  expect(meta.actual_model).toBe(null)
+  expect(jevNotAsked(meta)).toBe(false)
+})
+
 test('jevNotAsked recognizes new and older records, and nothing else', () => {
   expect(jevNotAsked({ backend: 'jev', reason: 'ok', jev_asked: false })).toBe(true)
   expect(jevNotAsked({ backend: 'jev', reason: 'ok', jev_asked: true, actual_model: 'jev-1.13.0' })).toBe(false)

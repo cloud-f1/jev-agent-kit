@@ -27,14 +27,14 @@ Found by looking at a real interactive session: `/jev status` listed ten rows of
 - Failed-command repeat records (`loop`) carry a repeat count, not character counts, so the generic row format printed empty fields. `/jev status` now shows the last 10 real records and one line for repeats: `failed-command repeats: N records, highest repeat count M (recorded only, output unchanged)`. A record with no character counts prints no arrow. It reads the last 200 records (the header still shows the total).
 
 - A `backend: jev` record could read `reason: ok` with `actual_model`, token counts and latency empty and never say why. Cause: when every block of a log contains an error or warning word, all blocks are pinned, there is nothing to ask Jev, and no request is sent (the output is the local rules' result). Records now carry `jev_asked` (true only when a request was really sent), and `/jev status` prints `Jev not asked (every block was an error/warning line; local rules only)`. A run that shows this is **not** evidence that the Jev path works.
-- `/jev savings` now has a line `backend jev: Jev was asked for A logs; N logs were handled by the local rules only because Jev was not asked ...`, so a "chars assist would have removed" figure is not mistaken for Jev's result. Records written before this version are recognized too (a `jev` record with no answering model).
+- `/jev savings` now has a line `backend jev: answered by Jev for A log(s); N log(s) handled by the local rules only because Jev was not asked ...` (failed requests stay in the fell-back count), so a "chars assist would have removed" figure is not mistaken for Jev's result. Records written before this version are recognized too (a `jev` record with no answering model).
 - `/jev status` shows `N chars in` for rows that have only an input count (host-cut output), and labels the repeat summary `among the last 200`.
 
 ### Changed
 - Display text of `/jev status` and one new metadata field (`jev_asked`) written to records. No pruning, threshold, model, request or data-sent change: the Jev request is made in exactly the same cases as before. `core/` differs from 0.6.4 in the version string, the `jev_asked` field and a pure helper `jevNotAsked`.
 
 ### Verified
-- 116 Mod tests and 49 Node tests pass; the status test fails if the loop branch is disabled, the `jev_asked` test fails if the flag is not set, and the `jevNotAsked` test fails if older records are not recognized. Gate green.
+- 117 Mod tests and 49 Node tests pass; the status test fails if the loop branch is disabled, the `jev_asked` test fails if the flag is not set, and the `jevNotAsked` test fails if older records are not recognized. Gate green.
 
 ### Not verified
 - The pane's recent-decisions list was not changed or re-checked for the same row shape. Windows, the sensitive-key field's masking.

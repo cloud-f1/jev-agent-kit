@@ -279,7 +279,7 @@ test('/jev status says when the jev backend never asked Jev, and shows input cha
   expect(out).toContain('Jev not asked (every block was an error/warning line; local rules only)')
   expect(out).not.toMatch(/→\s+chars/)
   const savings = (await jev($, 'savings')).text
-  expect(savings).toContain('backend jev: Jev was asked for 0 logs; 1 logs were handled by the local rules only because Jev was not asked')
+  expect(savings).toContain('backend jev: answered by Jev for 0 log(s); 1 log(s) handled by the local rules only because Jev was not asked')
 })
 
 test('/jev savings counts logs Jev really answered separately from local-rules-only ones', async ($, on) => {
@@ -289,7 +289,7 @@ test('/jev savings counts logs Jev really answered separately from local-rules-o
   } })
   await call($)
   const savings = (await jev($, 'savings')).text
-  expect(savings).toContain('backend jev: Jev was asked for 1 logs; 0 logs were handled by the local rules only')
+  expect(savings).toContain('backend jev: answered by Jev for 1 log(s); 0 log(s) handled by the local rules only')
 })
 
 test('/jev status summarizes failed-command repeats on one line instead of empty rows', async ($, on) => {
