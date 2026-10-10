@@ -13,16 +13,17 @@ node --test cli/tests/*.spec.ts         # CLI, state, metrics and release-gate t
 claude plugin test                      # TS core + Mod tests (offline; needs Claude Code 2.1.287+)
 claude plugin validate --strict .       # manifests + Mod static analysis (its one warning, root CLAUDE.md not loaded as plugin context, is expected: this file is the dev guide)
 node scripts/release-check.ts           # full local gate; --release for tagging (also: npm run gate)
+npm run typecheck                       # tsc over cli/scripts/core and hooks/core/tests (needs `npm ci`; plugin types come from Claude Code)
 node scripts/gen-golden.ts              # checks the frozen golden fixture; --write only after an INTENTIONAL behavior change
 node cli/jev.ts doctor                  # maintainer CLI (smoke, bench-logs, status, readback, check-config, report)
 ```
 
-No CI: the local gate is the gate. The plugin has no runtime dependencies and the repo has no Node dependencies at all (the optional type-check needs `typescript` only on a maintainer's machine); do not add any. Node runs `.ts` directly (type stripping): no enums, namespaces or parameter properties, `import type` for types, and Node refuses to strip types inside `node_modules`, so the CLI runs from a checkout. Use the `release` skill (`.claude/skills/release`) to cut versions.
+No CI: the local gate is the gate. The plugin has no runtime dependencies and the repo's only Node dependencies are the dev-only `typescript` and `@types/node` (lockfile checked in); do not add others. Node runs `.ts` directly (type stripping): no enums, namespaces or parameter properties, `import type` for types, and Node refuses to strip types inside `node_modules`, so the CLI runs from a checkout. Use the `release` skill (`.claude/skills/release`) to cut versions.
 
 ## Architecture rules
 
 - `core/*.ts` is **pure**: no `$`, no I/O, no clock reads. Time, transport, storage are passed in.
-- `hooks/register.ts` is the **only** file that calls the mods API. Mods API calls must be written in full (`$.ns.method`), event names string literals, helpers taking `$` must be top-level functions in the same file (`claude plugin validate` enforces; read its `calls:` line).
+- `hooks/register.ts` is the **only** file that calls the mods API. `$` is typed `EngineInterface` (from `.claude-plugin/types`, which Claude Code generates); keep it typed, never `any`. Mods API calls must be written in full (`$.ns.method`), event names string literals, helpers taking `$` must be top-level functions in the same file (`claude plugin validate` enforces; read its `calls:` line).
 - Platform: the Mod must not need `sh`/`find`/`pwd` on Windows; every OS-specific branch is chosen by `isWindows($)` and covered by a stubbed test. Resolve paths with `$.fs.stat(path, {resolve: true}).realPath`. The Windows branch has never run on Windows; do not claim it works.
 - `core/*.ts` is the single implementation (the Python reference core was retired in 0.5.0 after a 178-comparison differential run found 0 differences). `tests/fixtures/golden.ts` was generated from Python and is the frozen contract; `node scripts/gen-golden.ts` fails if the core's behavior drifts. Regenerate with `--write` only for an intentional change, and review the diff like code. The CLI (`cli/`) imports the same core.
 - The Mod is the only thing that touches Bash output. Do not reintroduce classic `hooks` entries in `hooks/hooks.json` (the gate rejects it): two processors would double the cost and the risk. The old marker mechanism is gone.

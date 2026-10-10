@@ -40,7 +40,7 @@ test('the CLI settings layer agrees with every golden merge case', () => {
   for (const c of golden.merges) {
     const env = Object.fromEntries(Object.entries(c.options).map(([k, v]) => ['CLAUDE_PLUGIN_OPTION_' + names[k], String(v)]))
     const dir = project(c.project ?? undefined)
-    if ('error' in (c.expected as object)) assert.throws(() => loadProjectConfig(dir, env), undefined, JSON.stringify(c.options))
+    if ('error' in (c.expected as object)) assert.throws(() => loadProjectConfig(dir, env), /./, JSON.stringify(c.options))
     else assert.deepEqual(loadProjectConfig(dir, env), c.expected, JSON.stringify(c.options))
   }
   assert.deepEqual(optionsFromEnv({ CLAUDE_PLUGIN_OPTION_ENABLE_ALL_PROJECTS: 'false' }), { enable_all_projects: false })

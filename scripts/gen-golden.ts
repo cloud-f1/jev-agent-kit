@@ -31,8 +31,8 @@ export async function build() {
   await add('separators', 'a\x0bb\x0cc\x1cd\x85e\u2028f\u2029g\n'.repeat(40))
   await add('no-trailing-newline', Array.from({ length: 80 }, (_, i) => `line ${i}\n`).join('') + 'last line without newline FAIL')
   await add('all-important', Array.from({ length: 50 }, (_, i) => `error ${i}\n`).join(''))
-  for (const [name, special] of [['cr-in-at-line', 'at foo\rbar:12\n'], ['unicode-digit', 'at foo:٣\n'], ['dotless-i', 'FAıL\n'],
-    ['x1f-file', '\x1f File x\n'], ['unicode-word-boundary', 'warné x\n'], ['emoji-lines', '\u{1F600} emoji line ERROR\n']]) {
+  for (const [name, special] of ([['cr-in-at-line', 'at foo\rbar:12\n'], ['unicode-digit', 'at foo:٣\n'], ['dotless-i', 'FAıL\n'],
+    ['x1f-file', '\x1f File x\n'], ['unicode-word-boundary', 'warné x\n'], ['emoji-lines', '\u{1F600} emoji line ERROR\n']] as Array<[string, string]>)) {
     await add(name, filler(40).join('') + special + filler(40).join(''))
   }
   await add('repeated-warnings', filler(30).join('') + warn(200).join('') + filler(30).join(''))

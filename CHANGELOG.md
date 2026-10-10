@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.0 | 2026-10-10 | `/jev pane`, real types for the Mod, type-check in the gate, paired eval cases that found and fixed two real failures (unreadable read-back pointer; output cut by the host) |
 | 0.5.0 | 2026-10-10 | Node and TypeScript only: the maintainer CLI, release gate and tests are ported; Python removed; verified by a 178-comparison differential |
 | 0.4.0 | 2026-10-10 | `/jev preset`, `/jev savings`, repeated-warning collapse (errors never collapsed), honest `/jev on|off|mode` |
 | 0.3.0 | 2026-10-10 | `/jev on|off|mode|init`, measured receipt line, pause after read-back, optional type-check; live synthetic benchmark run |
@@ -12,6 +13,16 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.6.0 (2026-10-10)
+
+- New: `/jev pane` opens a side pane (and `/jev pane close` closes it) with the same counted characters and recent decisions as `/jev savings` and `/jev status`. Drawn from a `ui.render` hook in `hooks/register.ts`; refreshes at most every 3 s; shows only counts and fixed reason codes, never content or keys. Seen working in a real interactive session (two seeded records of 30,000 -> 640 characters drew as "2 logs rewritten, 58720 chars removed net"; close worked). Not seen: a narrow terminal, other surfaces.
+- Changed (maintainers): every `$` in the Mod is now `EngineInterface` from Claude Code's generated types and the handlers' arguments are inferred, instead of `any`. A deliberate typo (`$.fs.reed`) is now a compile error. `typescript` and `@types/node` are dev-only dependencies (`package-lock.json` is checked in; the plugin itself still has no dependencies). `npm run typecheck` runs `tsconfig.node.json` (cli, scripts, core) and `tsconfig.plugin.json` (hooks, core, tests); both are steps of the release gate (SKIPPED, hence a release failure, if `npm ci` or the generated `.claude-plugin/types` are missing). `scripts/typecheck.sh` is gone.
+- Fixed in passing: index-possibly-undefined cases found by `noUncheckedIndexedAccess` in `core/prune.ts` and `cli/metrics.ts` (no behavior change; golden fixture and all tests unchanged).
+- Changed (behavior; found by the new eval suite): the receipt now names a file the model can read: `The full original is in the file <state>/artifacts/<id>.log (read it with your Read tool or cat); the user can run /jev readback <id>`. Before, it only pointed at `/jev readback`, a slash command the model cannot run, so when pruning dropped a non-error line the model could not get it back (measured: 1 of 5 runs passed with the plugin vs 5 of 5 without). A Bash command that mentions that artifacts folder now counts as a read-back (rewriting stops for the project, and that command's output is returned whole).
+- Changed (behavior; found by the same suite): output that looks cut by Claude Code is left alone. Claude Code truncates Bash output at 30,000 characters (`BASH_MAX_OUTPUT_LENGTH`) before any hook runs and keeps the complete text in its own file. At the cut the kit only sees a head, so its stored "original" is incomplete and its pruned text could hide the tail from the model (measured: an error beyond the cut was not found by 1 of 6 runs with the plugin vs 6 of 6 without, and the model searched the kit's incomplete copy). From 99% of the cap upward the kit records `host_truncated_output` and returns the result unchanged. The kit therefore only acts on outputs between `minimumChars` (default 8,000) and about 29,700 characters.
+- New: `evals/` holds four paired `claude plugin eval` cases (see `evals/README.md`). Smoke result on the final cases, haiku, 8 runs each, local rules backend: 32 of 32 passed with the plugin and 32 of 32 without; mean agent cost per run $0.0032 with vs $0.0040 without (the two in-range cases were cheaper with the plugin, $0.0025 vs $0.0039 and $0.0025 vs $0.0046; the negative control cost slightly more, $0.0045 vs $0.0043, with one more turn; the oversized case was equal). This is 4 synthetic tasks on one cheap model: it shows the mechanism now behaves, it is **not** evidence of a general cost or success benefit.
+- Tests: 38 Node + 105 Mod/core tests.
 
 ## 0.5.0 (2026-10-10)
 

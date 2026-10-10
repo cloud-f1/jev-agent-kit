@@ -43,20 +43,20 @@ test('release requires a dated changelog; a plain heading is accepted', () => {
 })
 
 test('manifest checks: consistent passes; defaultEnabled:false, classic hooks, missing plugin/module, bad JSON fail', () => {
-  assert.equal(rc.checkManifests(makeRepo())[0].status, rc.PASS)
-  const dflt = rc.checkManifests(makeRepo({ extra: { defaultEnabled: false } }))[0]
+  assert.equal(rc.checkManifests(makeRepo())[0]!.status, rc.PASS)
+  const dflt = rc.checkManifests(makeRepo({ extra: { defaultEnabled: false } }))[0]!
   assert.equal(dflt.status, rc.FAIL)
   assert.match(dflt.detail, /defaultEnabled/)
-  const classic = rc.checkManifests(makeRepo({ classicHooks: true }))[0]
+  const classic = rc.checkManifests(makeRepo({ classicHooks: true }))[0]!
   assert.equal(classic.status, rc.FAIL)
   assert.match(classic.detail, /classic hooks/)
-  assert.equal(rc.checkManifests(makeRepo({ market: ['other'] }))[0].status, rc.FAIL)
+  assert.equal(rc.checkManifests(makeRepo({ market: ['other'] }))[0]!.status, rc.FAIL)
   const gone = makeRepo()
   unlinkSync(join(gone, 'hooks', 'register.ts'))
-  assert.equal(rc.checkManifests(gone)[0].status, rc.FAIL)
+  assert.equal(rc.checkManifests(gone)[0]!.status, rc.FAIL)
   const bad = makeRepo()
   writeFileSync(join(bad, '.claude-plugin', 'plugin.json'), '{not json')
-  assert.equal(rc.checkManifests(bad)[0].status, rc.FAIL)
+  assert.equal(rc.checkManifests(bad)[0]!.status, rc.FAIL)
 })
 
 test('secret scan: clean files pass; every kind is detected and the secret is never echoed', () => {

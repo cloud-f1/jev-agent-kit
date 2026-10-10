@@ -21,6 +21,8 @@ interface Setup {
   gitExit?: number
   settingsEnv?: Record<string, string>
   configDeny?: boolean
+  paneUnplaced?: boolean
+  paneThrows?: boolean
   projectSettingsEnv?: Record<string, string> // a cloned repo's .claude/settings.json: must never be used
   throwOnWrite?: boolean
   http?: (url: string, init: any) => any
@@ -40,6 +42,7 @@ function stubs(on: any, setup: Setup = {}) {
   const logs: string[] = []
   const status: string[] = []
   const configSets: Array<{ key: string; value: unknown }> = []
+  const panes: string[] = []
   const requests: Array<{ url: string; init: any }> = []
   mock.clock(on)
   on('env.get', (_: any, e: any) => ({ value: env[e.name] }))
@@ -75,14 +78,26 @@ function stubs(on: any, setup: Setup = {}) {
   on('ui.log', (_: any, e: any) => { logs.push(e.text); return { value: undefined } })
   on('settings.read', (_: any, e: any) => ({ value: { env: ((e?.source === 'user' ? setup.settingsEnv : e?.source === undefined ? { ...setup.projectSettingsEnv, ...setup.settingsEnv } : setup.projectSettingsEnv) ?? {}) } }))
   on('config.set', (_: any, e: any) => { configSets.push({ key: e.key, value: e.value }); return setup.configDeny ? { deny: 'locked' } : { value: e.value } })
+  on('ui.open', (_: any, e: any) => {
+    if (setup.paneThrows) throw new Error('no panes here')
+    panes.push('open:' + e.id)
+    return { value: setup.paneUnplaced ? { isPlaced: false, reason: 'narrow' } : { isPlaced: true } }
+  })
+  on('ui.close', (_: any, e: any) => { panes.push('close:' + e.id); return { value: undefined } })
+  on('ui.resolve', () => ({
+    Box: ({ children, ...props }: any) => ({ type: 'Box', props, children }),
+    Text: ({ children, ...props }: any) => ({ type: 'Text', props, children }),
+  }))
   on('ui.status', (_: any, e: any) => { status.push(e.text); return { value: undefined } })
   on('command.register', (_: any, e: any) => { registered.push(e.name); return { value: undefined } })
   on('session.start', () => ({ cwd: CWD }))
   const bash = { stdout: longLog(), stderr: 'WARNING stderr evidence', interrupted: false, isImage: false }
   on('tool.call', () => (setup.tool ?? { result: bash, text: 'original' }))
-  return { configSets, written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
+  return { panes, configSets, written, status, requests, bash, files, commands, scripts, fsWrites, registered, toasts, logs }
 }
 
+// The stub host's `command.run` takes the raw input (origin etc. are defaulted at run time).
+const jev = ($: any, args: string): Promise<{ text: string }> => $.command.run({ command: 'jev', args })
 const call = ($: any) => $.tool.call({ tool: 'Bash', command: 'npm test' })
 const artifacts = (written: Record<string, string>) => Object.keys(written).filter((p) => p.includes('/artifacts/'))
 const decisions = (written: Record<string, string>) =>
@@ -115,7 +130,7 @@ test('observe mode stores the original and records, but never rewrites', async (
   expect(out.text).toBe('original')
   expect(out.result.stdout).toBe(s.bash.stdout)
   const [path] = artifacts(s.written)
-  expect(s.written[path]).toBe(s.bash.stdout)
+  expect(s.written[path!]).toBe(s.bash.stdout)
   expect(decisions(s.written).some((d) => d.reason === 'ok' && d.mode === 'observe')).toBe(true)
 })
 
@@ -127,7 +142,7 @@ test('assist mode rewrites stdout, keeps stderr, and points to readback', async 
   expect(out.result.stdout).toContain('/jev readback ')
   expect(out.result.stdout.length).toBeLessThan(s.bash.stdout.length)
   expect(out.ref).toBeUndefined()
-  const id = artifacts(s.written)[0].split('/').pop()!.replace('.log', '')
+  const id = artifacts(s.written)[0]!.split('/').pop()!.replace('.log', '')
   expect(out.result.stdout).toContain(id)
   expect(s.status.some((t) => t.includes('1/1'))).toBe(true)
 })
@@ -201,8 +216,8 @@ test('jev backend with a key sends the redacted request to the fixed endpoint on
   const s = stubs(on, { config: { ...ASSIST, backend: 'jev' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http })
   const out: any = await call($)
   expect(s.requests.length).toBe(1)
-  expect(s.requests[0].url).toBe('https://api.typesafe.ai/v1/systemone')
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer test-key-123')
+  expect(s.requests[0]!.url).toBe('https://api.typesafe.ai/v1/systemone')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer test-key-123')
   expect(out.result.stdout.length).toBeLessThan(s.bash.stdout.length)
   const record = decisions(s.written).find((d) => d.backend === 'jev')
   expect(record.api_input_tokens).toBe(50)
@@ -226,12 +241,12 @@ test('key can come from JEV_ENV_FILE', async ($, on) => {
     files: { '/secrets/.env.local': 'TYPESAFE_API_KEY=file-key-9\n' }, http,
   })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer file-key-9')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer file-key-9')
 })
 
 test('/jev doctor reports state without revealing the key', async ($, on) => {
   stubs(on, { config: ASSIST, env: { TYPESAFE_API_KEY: 'test-key-123' } })
-  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  const out = await jev($, 'doctor')
   expect(out.text).toContain('enabled=true')
   expect(out.text).toContain('present')
   expect(out.text).not.toContain('test-key-123')
@@ -241,25 +256,25 @@ test('/jev readback returns the stored original and rejects bad ids', async ($, 
   const s = stubs(on, { config: ASSIST })
   const out: any = await call($)
   const id = out.result.stdout.match(/readback ([a-f0-9]{32})/)[1]
-  const back = await $.command.run({ command: 'jev', args: 'readback ' + id })
+  const back = await jev($, 'readback ' + id)
   expect(back.text).toBe(s.bash.stdout)
-  const bad = await $.command.run({ command: 'jev', args: 'readback ../../etc/passwd' })
+  const bad = await jev($, 'readback ../../etc/passwd')
   expect(bad.text).toContain('Usage')
-  const missing = await $.command.run({ command: 'jev', args: 'readback ' + 'a'.repeat(32) })
+  const missing = await jev($, 'readback ' + 'a'.repeat(32))
   expect(missing.text).toContain('No artifact')
 })
 
 test('/jev status lists recent decision records', async ($, on) => {
   stubs(on, { config: ASSIST })
   await call($)
-  const out = await $.command.run({ command: 'jev', args: 'status' })
+  const out = await jev($, 'status')
   expect(out.text).toContain('records for this project')
 })
 
 test('/jev with no or unknown subcommand prints usage', async ($, on) => {
   stubs(on)
-  expect((await $.command.run({ command: 'jev', args: '' })).text).toContain('Usage')
-  expect((await $.command.run({ command: 'jev', args: 'frobnicate' })).text).toContain('Usage')
+  expect((await jev($, '')).text).toContain('Usage')
+  expect((await jev($, 'frobnicate')).text).toContain('Usage')
 })
 
 test('every private write runs under umask 077 (raw logs may hold secrets)', async ($, on) => {
@@ -325,7 +340,7 @@ test('session.start enforces retentionDays for this project', async ($, on) => {
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: CWD })
   const finds = s.commands.filter((c) => c[0] === 'find')
   expect(finds.length).toBe(1)
-  expect(finds[0].includes('+3') && finds[0].includes('-delete')).toBe(true)
+  expect(finds[0]!.includes('+3') && finds[0]!.includes('-delete')).toBe(true)
 })
 
 test('no retention cleanup for a project that has not opted in', async ($, on) => {
@@ -375,19 +390,19 @@ optsTest('the API key from plugin settings is used and never recorded', { enable
   const http = () => ({ ok: false, status: 401, headers: {}, text: 'settings-key-777 echoed' })
   const s = stubs(on, { http })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer settings-key-777')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer settings-key-777')
   expect(JSON.stringify(s.written)).not.toContain('settings-key-777')
 })
 
 optsTest('the environment key wins over the plugin-settings key', { enable_all_projects: true, backend: 'jev', minimum_chars: 100, typesafe_api_key: 'settings-key-777' }, async ($: any, on: any) => {
   const s = stubs(on, { env: { TYPESAFE_API_KEY: 'env-key-111' }, http: () => ({ ok: false, status: 500, headers: {}, text: '' }) })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer env-key-111')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer env-key-111')
 })
 
 optsTest('/jev doctor names where each value comes from and never shows the key', { enable_all_projects: true, mode: 'assist', typesafe_api_key: 'settings-key-777' }, async ($: any, on: any) => {
   stubs(on, { config: { minimumChars: 4000 } })
-  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  const out = await jev($, 'doctor')
   expect(out.text).toContain('mode=assist (plugin settings)')
   expect(out.text).toContain('minimumChars=4000 (project file)')
   expect(out.text).toContain('plugin settings (secure storage)')
@@ -396,7 +411,7 @@ optsTest('/jev doctor names where each value comes from and never shows the key'
 
 test('/jev doctor tells an un-opted-in user exactly what to do', async ($, on) => {
   stubs(on)
-  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  const out = await jev($, 'doctor')
   expect(out.text).toContain('NOT opted in')
   expect(out.text).toContain('Enable in every project')
 })
@@ -425,7 +440,7 @@ test('Windows: retention runs PowerShell with parameters, not interpolated text'
   const ps = s.commands.find((c) => c[0] === 'powershell')!
   expect(ps).toBeDefined()
   expect(ps[ps.length - 1]).toBe('5')
-  expect(ps[ps.length - 2].startsWith('C:\\state/')).toBe(true)
+  expect(ps[ps.length - 2]!.startsWith('C:\\state/')).toBe(true)
   expect(ps.slice(0, -2).join(' ')).not.toContain('C:\\state')
   expect(s.commands.some((c) => c[0] === 'find')).toBe(false)
 })
@@ -436,8 +451,8 @@ for (const [dir, ok] of dirCases) {
     const s = stubs(on, { config: ASSIST, env: { OS: 'Windows_NT', HOME: '', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: dir } })
     await call($)
     const first = s.fsWrites[0]
-    expect(first.includes(dir + '/')).toBe(ok)
-    if (!ok) expect(first.includes('C:\\Users\\u/.cache/jev-agent-kit/')).toBe(true)
+    expect(first!.includes(dir + '/')).toBe(ok)
+    if (!ok) expect(first!.includes('C:\\Users\\u/.cache/jev-agent-kit/')).toBe(true)
   })
 }
 
@@ -481,7 +496,7 @@ test('an internal error is announced once and the original result is kept', asyn
 test('the key can come from Claude Code settings.json env', async ($, on) => {
   const s = stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'settings-env-key-5' }, http: () => ({ ok: false, status: 500, headers: {}, text: '' }) })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer settings-env-key-5')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer settings-env-key-5')
   expect(JSON.stringify(s.written)).not.toContain('settings-env-key-5')
 })
 
@@ -496,14 +511,14 @@ test('key order: environment, then plugin setting, then settings.env', async ($,
   const http = () => ({ ok: false, status: 500, headers: {}, text: '' })
   const s = stubs(on, { config: JEV_ASSIST, env: { TYPESAFE_API_KEY: 'from-env-1' }, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' }, http })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer from-env-1')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer from-env-1')
 })
 
 optsTest('plugin-setting key beats settings.env', { typesafe_api_key: 'from-plugin-2' }, async ($: any, on: any) => {
   const http = () => ({ ok: false, status: 500, headers: {}, text: '' })
   const s = stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' }, http })
   await call($)
-  expect(s.requests[0].init.headers.Authorization).toBe('Bearer from-plugin-2')
+  expect(s.requests[0]!.init.headers.Authorization).toBe('Bearer from-plugin-2')
 })
 
 optsTest('the model setting is sent, and the model that answered is recorded', { model: 'jev-latest', typesafe_api_key: 'k-12345678' }, async ($: any, on: any) => {
@@ -533,7 +548,7 @@ optsTest('an invalid model setting falls back to the pinned default', { model: '
 
 optsTest('/jev doctor shows the model and where the key comes from', { model: 'jev-latest' }, async ($: any, on: any) => {
   stubs(on, { config: JEV_ASSIST, settingsEnv: { TYPESAFE_API_KEY: 'from-settings-3' } })
-  const out = await $.command.run({ command: 'jev', args: 'doctor' })
+  const out = await jev($, 'doctor')
   expect(out.text).toContain('Jev model: jev-latest (plugin settings)')
   expect(out.text).toContain('Claude Code settings.json env')
   expect(out.text).not.toContain('from-settings-3')
@@ -543,12 +558,12 @@ optsTest('/jev doctor shows the model and where the key comes from', { model: 'j
 // ---- v0.3: /jev on|off|mode|init and the measured receipt line
 test('/jev on, off and mode change only the named plugin rows', async ($, on) => {
   const s = stubs(on, { config: JEV_ASSIST })
-  const onOut = await $.command.run({ command: 'jev', args: 'on' })
+  const onOut = await jev($, 'on')
   expect(onOut.text).toContain('enable_all_projects = true')
   expect(onOut.text).toContain('ALL projects')
-  await $.command.run({ command: 'jev', args: 'off' })
-  await $.command.run({ command: 'jev', args: 'mode assist' })
-  const bad = await $.command.run({ command: 'jev', args: 'mode shell' })
+  await jev($, 'off')
+  await jev($, 'mode assist')
+  const bad = await jev($, 'mode shell')
   expect(bad.text).toContain('Usage')
   expect(s.configSets).toEqual([
     { key: 'jev-agent-kit.enable_all_projects', value: true },
@@ -559,7 +574,7 @@ test('/jev on, off and mode change only the named plugin rows', async ($, on) =>
 
 test('/jev on reports a refused change without claiming success', async ($, on) => {
   const s = stubs(on, { config: JEV_ASSIST, configDeny: true })
-  const out = await $.command.run({ command: 'jev', args: 'on' })
+  const out = await jev($, 'on')
   expect(out.text).toContain('Not changed')
   expect(out.text).not.toContain('Set ')
   expect(s.configSets.length).toBe(1)
@@ -567,29 +582,29 @@ test('/jev on reports a refused change without claiming success', async ($, on) 
 
 test('/jev init creates the project file once and never overwrites it', async ($, on) => {
   const s = stubs(on, {})
-  const first = await $.command.run({ command: 'jev', args: 'init assist' })
+  const first = await jev($, 'init assist')
   expect(first.text).toContain('Created')
-  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'assist', backend: 'rules' })
-  expect((await $.command.run({ command: 'jev', args: 'init bogus' })).text).toContain('Usage')
+  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json']!)).toEqual({ schemaVersion: 1, enabled: true, mode: 'assist', backend: 'rules' })
+  expect((await jev($, 'init bogus')).text).toContain('Usage')
 })
 
 test('/jev init leaves an existing project file alone', async ($, on) => {
   const t = stubs(on, { config: JEV_ASSIST })
-  expect((await $.command.run({ command: 'jev', args: 'init' })).text).toContain('already exists')
+  expect((await jev($, 'init')).text).toContain('already exists')
   expect(t.fsWrites.length).toBe(0)
 })
 
 test('the read-back line reports measured characters in and out', async ($, on) => {
   stubs(on, { config: ASSIST })
   const out = await call($)
-  expect(out.result.stdout).toMatch(/\[Jev agent kit: pruned \d+ -> \d+ chars; full original available via \/jev readback [a-f0-9]{32}\]/)
+  expect(out.result.stdout).toMatch(/\[Jev agent kit: pruned \d+ -> \d+ chars\. The full original is in the file \S+\/artifacts\/[a-f0-9]{32}\.log \(read it with your Read tool or cat\); the user can run \/jev readback [a-f0-9]{32}\]/)
 })
 
 test('after a read-back, assist stops rewriting for the rest of the session', async ($, on) => {
   stubs(on, { config: ASSIST })
   const first = await call($)
   const id = first.result.stdout.match(/readback ([a-f0-9]{32})/)[1]
-  await $.command.run({ command: 'jev', args: 'readback ' + id })
+  await jev($, 'readback ' + id)
   const second = await call($)
   expect(second.result.stdout).not.toContain('/jev readback')
   expect(second.result.stdout).toBe(longLog())
@@ -605,19 +620,19 @@ test('observe with the jev backend asks Jev but never rewrites (shadow mode)', a
 
 test('/jev preset writes fixed fields only, lists names, rejects unknown names', async ($, on) => {
   const s = stubs(on, {})
-  const list = await $.command.run({ command: 'jev', args: 'preset' })
+  const list = await jev($, 'preset')
   expect(list.text).toContain('shadow-jev')
-  expect((await $.command.run({ command: 'jev', args: 'preset __proto__' })).text).toContain('Usage')
-  expect((await $.command.run({ command: 'jev', args: 'preset constructor' })).text).toContain('Usage')
+  expect((await jev($, 'preset __proto__')).text).toContain('Usage')
+  expect((await jev($, 'preset constructor')).text).toContain('Usage')
   expect(s.fsWrites.length).toBe(0)
-  expect((await $.command.run({ command: 'jev', args: 'preset shadow-jev' })).text).toContain('Created')
-  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'observe', backend: 'jev' })
+  expect((await jev($, 'preset shadow-jev')).text).toContain('Created')
+  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json']!)).toEqual({ schemaVersion: 1, enabled: true, mode: 'observe', backend: 'jev' })
 })
 
 test('/jev savings reports counted characters for observe and never claims tokens or cost', async ($, on) => {
   stubs(on, { config: { ...JEV_ASSIST, backend: 'rules', mode: 'observe' } })
   await call($)
-  const out = await $.command.run({ command: 'jev', args: 'savings' })
+  const out = await jev($, 'savings')
   expect(out.text).toMatch(/observe: 1 logs, [1-9]\d* chars assist would have removed/)
   expect(out.text).toContain('assist: 0 logs rewritten')
   expect(out.text).toContain('not a token, cost or success measurement')
@@ -626,7 +641,7 @@ test('/jev savings reports counted characters for observe and never claims token
 test('/jev savings counts what assist actually removed', async ($, on) => {
   stubs(on, { config: ASSIST })
   const rewritten = await call($)
-  await $.command.run({ command: 'jev', args: 'savings' }).then((out: any) => {
+  await jev($, 'savings').then((out: any) => {
     expect(out.text).toMatch(/assist: 1 logs rewritten, [1-9]\d* chars removed net/)
   })
   expect(rewritten.result.stdout).toContain('pruned ')
@@ -641,7 +656,85 @@ test('/jev savings does not count unrewritten assist rows or non-finite numbers'
   s.written[dir + '1-aaaa.json'] = row({ input_chars: 500, delivered_chars: 500 })
   s.written[dir + '2-bbbb.json'] = row({ input_chars: 1e999, delivered_chars: 1 })
   s.written[dir + '3-cccc.json'] = '{not json'
-  const out = await $.command.run({ command: 'jev', args: 'savings' })
+  const out = await jev($, 'savings')
   expect(out.text).toMatch(/assist: 1 logs rewritten/)
   expect(out.text).not.toContain('Infinity')
+})
+
+test('/jev pane opens and closes the pane and reports a narrow terminal honestly', async ($, on) => {
+  const s = stubs(on, { config: ASSIST })
+  expect((await jev($, 'pane')).text).toContain('pane opened')
+  expect((await jev($, 'pane close')).text).toContain('closed')
+  expect(s.panes).toEqual(['open:jev-pane', 'close:jev-pane'])
+})
+
+test('/jev pane says it is waiting when the terminal is too narrow, and survives an error', async ($, on) => {
+  stubs(on, { config: ASSIST, paneUnplaced: true })
+  expect((await jev($, 'pane')).text).toContain('waiting')
+})
+
+test('/jev pane failure is reported, never thrown', async ($, on) => {
+  stubs(on, { config: ASSIST, paneThrows: true })
+  expect((await jev($, 'pane')).text).toContain('Could not open the pane')
+})
+
+test('the pane draws counted characters and recent decisions, and nothing secret', async ($, on) => {
+  stubs(on, { config: ASSIST, env: { TYPESAFE_API_KEY: 'pane-key-123456789' } })
+  await call($)
+  const tree: any = await ($ as any).ui.render({ surface: 'terminal', component: 'Pane', requestId: 'jev-pane', props: {} })
+  const text = JSON.stringify(tree)
+  expect(text).toContain('chars removed net')
+  expect(text).toContain('logs rewritten')
+  expect(text).toContain('/jev pane close')
+  expect(text).not.toContain('pane-key-123456789')
+})
+
+test('the model can read the original from the file named in the receipt, and that stops rewriting', async ($, on) => {
+  const s = stubs(on, { config: ASSIST })
+  const first: any = await call($)
+  const file = first.result.stdout.match(/in the file (\S+\.log) /)[1]
+  expect(Object.keys(s.written)).toContain(file)
+  // The model now cats that file: the output must come back whole, and later output too.
+  const second: any = await $.tool.call({ tool: 'Bash', command: 'cat ' + file })
+  expect(second.result.stdout).toBe(longLog())
+  const third: any = await call($)
+  expect(third.result.stdout).toBe(longLog())
+})
+
+test('a command that merely mentions a different path does not pause pruning', async ($, on) => {
+  stubs(on, { config: ASSIST })
+  const out: any = await $.tool.call({ tool: 'Bash', command: 'cat /somewhere/else/artifacts/x.log' })
+  expect(out.result.stdout).toContain('/jev readback')
+})
+
+// ---- v0.6: host truncation (Claude Code cuts Bash output at 30000 characters before hooks run)
+const bigLog = (chars: number) => {
+  let text = ''
+  for (let i = 0; text.length < chars; i++) text += `progress item ${i}\n`
+  return text.slice(0, chars)
+}
+const withStdout = (stdout: string) => ({ result: { stdout, stderr: '', interrupted: false, isImage: false }, text: 'original' })
+
+test('output cut at the host cap is left alone and recorded, never rewritten', async ($, on) => {
+  const text = bigLog(30000)
+  const s = stubs(on, { config: ASSIST, tool: withStdout(text) })
+  const out: any = await call($)
+  expect(out.result.stdout).toBe(text)
+  expect(Object.values(s.written).some((v) => v.includes('host_truncated_output'))).toBe(true)
+  expect(Object.keys(s.written).some((p) => p.includes('/artifacts/'))).toBe(false)
+})
+
+test('output just under the cap is still pruned', async ($, on) => {
+  const text = bigLog(25000)
+  stubs(on, { config: ASSIST, tool: withStdout(text) })
+  const out: any = await call($)
+  expect(out.result.stdout).not.toBe(text)
+  expect(out.result.stdout).toContain('/jev readback')
+})
+
+test('the host cap follows BASH_MAX_OUTPUT_LENGTH', async ($, on) => {
+  const text = bigLog(12000)
+  stubs(on, { config: ASSIST, tool: withStdout(text), env: { BASH_MAX_OUTPUT_LENGTH: '12000' } })
+  const out: any = await call($)
+  expect(out.result.stdout).toBe(text)
 })

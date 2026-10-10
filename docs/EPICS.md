@@ -10,7 +10,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
-| E7 (JEV-7) | Usability | 0.4.0 | Presets, savings, init, receipt released; interactive `/jev on|off|mode` and pane open (JEV-20) |
+| E7 (JEV-7) | Usability | 0.6.0 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |
 | E10 (JEV-21) | Node + TypeScript alignment | 0.5.0 | Done; see docs/PLAN-node-ts.md |
@@ -41,14 +41,14 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 - S6.2 (JEV-11) Done: the pinned model answered as `jev-1.13.0`.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
-## E7 (JEV-7) Usability (planned, v0.3)
+## E7 (JEV-7) Usability (done through 0.6.0)
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
 - Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.
 - Built in 0.4.0: `/jev preset`, `/jev savings` (seen live / stubbed).
-- Open (JEV-20): verify `/jev on|off|mode` interactively and build the optional pane; both need a human-driven interactive session.
+- Done (JEV-20, 0.6.0): `/jev on|off|mode` verified interactively (0.5.0 session); `/jev pane` built and seen in a real interactive session.
 
 ## E8 (JEV-8) Evidence of benefit (planned)
-- Paired agent-task benchmark (10 to 20 smoke tasks, then 100+) per EVALUATION.md, with ground truth, baseline arm and negative control (layout idea from quicksilver).
+- (JEV-14, partly done in 0.6.0) `evals/` has four paired `claude plugin eval` cases (ground truth by regex, baseline arm, negative control, host-cap regression); the smoke run found and fixed two real failures. Still open: the real benchmark of EVALUATION.md (many more tasks, real repos, the Jev arm) needs a budget decision.
 - (JEV-15, built in 0.3.0) Shadow mode = `observe` + `jev` (documented, tested); stop pruning after a read-back. Evidence-survival check: error blocks are pinned by construction and tested.
 - (JEV-16, built in 0.3.0) Receipt line with measured counts only; no "tokens saved" counter.
 
@@ -60,4 +60,5 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 ## E10 (JEV-21) Node + TypeScript alignment (done in 0.5.0)
 - Port the maintainer CLI, release gate, golden check and tests from Python to Node + TypeScript; one pure core shared by the Mod and the CLI.
 - Differential check before deleting Python: 178 comparisons, 0 differences after ignoring float noise.
-- Open follow-ups: replace `$: any` helpers with real types and add `typescript` as an optional dev-only dependency; a built JS bundle if an `npx` install is ever wanted.
+- Done (JEV-28, 0.6.0): `$` is `EngineInterface`, `typescript` + `@types/node` dev-only, type-check in the gate.
+- Open: a built JS bundle if an `npx` install is ever wanted.

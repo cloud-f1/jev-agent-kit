@@ -44,7 +44,7 @@ test('failed runs still count toward cost', () => {
 
 test('duplicates, model confounding, bad numbers and verifier drift are rejected', () => {
   let { manifest, rows } = fixture()
-  assert.throws(() => report(manifest, [...rows, rows[0]]), /unexpected_or_duplicate_run/)
+  assert.throws(() => report(manifest, [...rows, rows[0]!]), /unexpected_or_duplicate_run/)
   ;({ manifest, rows } = fixture())
   rows.at(-1)!.model_id = 'different'
   assert.throws(() => report(manifest, rows), /unpaired_model_id/)

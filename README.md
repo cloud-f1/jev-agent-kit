@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.5.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.6.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -15,7 +15,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
-Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+The kit acts on Bash output between `minimumChars` and about 29,700 characters: Claude Code itself cuts output at 30,000 characters (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
 ## Install
 
@@ -116,8 +116,8 @@ What you can see and touch today, and what is only a plan.
 | `/jev readback <id>` | **Available** | Prints the untouched original. |
 | Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
 | `/jev init`, `/jev on`, `/jev off`, `/jev mode` | Planned (v0.3) | Change settings from the prompt via `$.config.set` instead of opening `/config`. |
+| `/jev pane` / `/jev pane close` | Open or close a side pane with the same counted characters and recent decisions as `/jev savings` and `/jev status` (refreshes at most every 3 s). On a narrow terminal it waits until the terminal widens. Seen working in a real interactive session. |
 | `/jev savings` | Planned (v0.3) | From `observe` data, what `assist` would have saved, so you decide with numbers. |
-| A `/jev` pane (tabs: Overview, Recent decisions, Settings) | Idea | A side pane with the same data as `status`/`doctor` and a Select for mode. Claude Code panes support tabs, buttons, inputs and selects, so it is feasible; it is not built. |
 
 ## Cross-platform notes
 
@@ -225,7 +225,7 @@ node cli/jev.ts bench-logs --outdir results/offline   # mock demo, NOT a quality
 node scripts/release-check.ts              # the local release gate (add --release to tag)
 ```
 
-Optional type-check of `hooks/` and `core/` against Claude Code's own type file (needs `typescript`; not part of the gate): Claude Code writes `.claude-plugin/types/` and a `tsconfig.json` itself when a mod loads interactively, then `CLAUDE_CODE_TYPES=.claude-plugin/types/claude-code.d.ts sh scripts/typecheck.sh`.
+Type-check (also a step of the release gate): `npm ci` once, then `npm run typecheck`. Two projects: `tsconfig.node.json` (cli, scripts, core: needs only `typescript` and `@types/node`) and `tsconfig.plugin.json` (hooks, core, tests against Claude Code's own types, which Claude Code writes to `.claude-plugin/types/` the first time a mod loads in an interactive session; git-ignored). The Mod's `$` is typed with Claude Code's `EngineInterface`, so a wrong API call is a compile error.
 
 Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `cli/` the Node maintainer CLI (it imports the same core), `tests/fixtures/golden.ts` the frozen behavior contract. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
 

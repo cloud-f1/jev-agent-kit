@@ -48,7 +48,7 @@ export function packageVersion(root: string): string | null {
 export function changelogHead(root: string): [string | null, string] {
   for (const line of read(root, 'CHANGELOG.md').split(/\r?\n/)) {
     const match = line.match(/^##\s+(\d+\.\d+\.\d+)\s*(?:\((.*)\))?\s*$/)
-    if (match) return [match[1], match[2] ?? '']
+    if (match) return [match[1] ?? null, match[2] ?? '']
   }
   return [null, '']
 }
@@ -133,7 +133,7 @@ export function checkGitState(root: string): Result[] {
 }
 
 export function runStep(name: string, argv: string[], root: string, missingReason: string): Result {
-  const done = spawnSync(argv[0], argv.slice(1), { cwd: root, encoding: 'utf8' })
+  const done = spawnSync(argv[0]!, argv.slice(1), { cwd: root, encoding: 'utf8' })
   if (done.error && (done.error as NodeJS.ErrnoException).code === 'ENOENT') return result(name, SKIPPED, missingReason)
   if (done.status === 0) return result(name, PASS)
   const tail = ((done.stdout ?? '') + (done.stderr ?? '')).trim().split(/\r?\n/).slice(-3)
@@ -196,6 +196,14 @@ export function main(argv: string[], root = join(dirname(fileURLToPath(import.me
   results.push(nodeTests(root, specs))
   results.push(runStep('mod tests (claude plugin test)', ['claude', 'plugin', 'test'], root, 'claude CLI not installed; mod tests NOT run'))
   results.push(runStep('golden fixture', [process.execPath, 'scripts/gen-golden.ts'], root, 'node unavailable'))
+  const tsc = join(root, 'node_modules', '.bin', process.platform === 'win32' ? 'tsc.cmd' : 'tsc')
+  const generatedTypes = join(root, '.claude-plugin', 'types', 'claude-code', 'index.d.ts')
+  results.push(existsSync(tsc)
+    ? runStep('typecheck: cli, scripts, core', [tsc, '-p', 'tsconfig.node.json'], root, '')
+    : result('typecheck: cli, scripts, core', SKIPPED, 'run npm ci (typescript is a dev dependency)'))
+  results.push(existsSync(tsc) && existsSync(generatedTypes)
+    ? runStep('typecheck: hooks, core, tests', [tsc, '-p', 'tsconfig.plugin.json'], root, '')
+    : result('typecheck: hooks, core, tests', SKIPPED, 'needs typescript and .claude-plugin/types (Claude Code writes it when a mod loads interactively)'))
   results.push(runValidate(root))
   const width = Math.max(...results.map((r) => r.name.length))
   for (const r of results) console.log(`${r.status.padEnd(8)} ${r.name.padEnd(width)}  ${r.detail}`.trimEnd())

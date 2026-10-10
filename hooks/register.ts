@@ -2,7 +2,7 @@
 // all decisions live in ../core (pure, testable without a session).
 import { ENDPOINT, JevError, MAX_BYTES, MODEL, VERSION } from '../core/contracts.ts'
 import type { Config, Transport } from '../core/contracts.ts'
-import type { On, PluginOptions } from 'claude-code' // types only; erased at run time
+import type { EngineInterface as Engine, On, PluginOptions, RenderElement } from 'claude-code' // types only; erased at run time
 import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, prune, redact } from '../core/prune.ts'
@@ -14,6 +14,8 @@ const ARTIFACT_ID = /^[a-f0-9]{32}$/
 // Plugin settings from /config (userConfig), handed to register(on, options). Reset on reload.
 let pluginOptions: unknown = {}
 const stats = { seen: 0, pruned: 0, savedChars: 0, readbacks: 0 }
+const PANE_ID = 'jev-pane'
+const paneCache: { at: number; lines: string[] } = { at: -Infinity, lines: [] } // a drawing can repeat often: reread records at most every 3 s
 const pausedRoots = new Set<string>() // projects where a read-back happened this session
 const fingerprints = new Map<string, number>()
 // Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
@@ -22,13 +24,13 @@ const toasted = new Set<string>()
 // Same rule as the CLI (cli/io.ts): only "~" and "~/..." expand; a result that is not absolute is
 // ignored, so state can never land in a relative path inside a repo.
 // Windows sets OS=Windows_NT; everything else is treated as POSIX (macOS, Linux).
-async function isWindows($: any): Promise<boolean> {
+async function isWindows($: Engine): Promise<boolean> {
   return (await $.env.get('OS')) === 'Windows_NT'
 }
 
 const ABSOLUTE = /^(?:\/|[A-Za-z]:[\\/]|\\\\)/ // /posix, C:\win or C:/win, \\unc
 
-async function stateBase($: any): Promise<string> {
+async function stateBase($: Engine): Promise<string> {
   const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE')) || ''
   const fallback = home + '/.cache/jev-agent-kit'
   let dir: string | undefined = await $.env.get('JEV_STATE_DIR')
@@ -40,7 +42,7 @@ async function stateBase($: any): Promise<string> {
 // The CLI hashes the resolved project path; the file API's realPath follows symlinks the same way on
 // every platform (no `pwd -P`), so a symlinked cwd lands in the same project directory.
 const resolved = new Map<string, string>()
-async function physicalCwd($: any, cwd: string): Promise<string> {
+async function physicalCwd($: Engine, cwd: string): Promise<string> {
   const known = resolved.get(cwd)
   if (known) return known
   let real = cwd
@@ -55,14 +57,14 @@ async function physicalCwd($: any, cwd: string): Promise<string> {
 }
 
 // Same layout as the CLI: <base>/<sha256("<resolved cwd>")[:24]>/{artifacts,decisions}
-async function projectRoot($: any, cwd: string): Promise<string> {
+async function projectRoot($: Engine, cwd: string): Promise<string> {
   return (await stateBase($)) + '/' + (await digestString(await physicalCwd($, cwd))).slice(0, 24)
 }
 
 // Raw logs may hold secrets. POSIX: umask 077 (files 0600, new directories 0700). Windows: the file
 // API (directories are created for us); the default location is inside the user's profile, which
 // Windows already restricts to that user. The Windows path has not been run on Windows yet.
-async function writePrivate($: any, path: string, text: string): Promise<void> {
+async function writePrivate($: Engine, path: string, text: string): Promise<void> {
   if (await isWindows($)) {
     await $.fs.write(path, text)
     return
@@ -75,17 +77,17 @@ async function writePrivate($: any, path: string, text: string): Promise<void> {
 }
 
 // defaults < plugin settings (/config) < project file. A bad project file throws; callers fail open.
-async function loadEffective($: any, cwd: string) {
+async function loadEffective($: Engine, cwd: string) {
   const path = cwd + '/.claude/jev-agent-kit.json'
   const project = (await $.fs.exists(path)) ? JSON.parse(await $.fs.read(path)) : undefined
   return mergeConfig(pluginOptions, project)
 }
 
-async function loadConfig($: any, cwd: string): Promise<Config> {
+async function loadConfig($: Engine, cwd: string): Promise<Config> {
   return (await loadEffective($, cwd)).config
 }
 
-async function loadGoal($: any, cwd: string): Promise<string> {
+async function loadGoal($: Engine, cwd: string): Promise<string> {
   const path = cwd + '/.claude/jev-goal.txt'
   try {
     if (await $.fs.exists(path)) return redact((await $.fs.read(path)).slice(0, 1200))
@@ -98,7 +100,7 @@ async function loadGoal($: any, cwd: string): Promise<string> {
 // Claude Code's own settings.json `env` block, as a fallback (the same place other tools keep it).
 // User settings only: the unfiltered merge would also take a key from a cloned repo's
 // .claude/settings.json, and projects must never supply a key.
-async function settingsEnvKey($: any): Promise<string | undefined> {
+async function settingsEnvKey($: Engine): Promise<string | undefined> {
   try {
     const env = (await $.settings.read({ source: 'user' }))?.env
     const value = env && typeof env === 'object' ? (env as Record<string, unknown>)['TYPESAFE_API_KEY'] : undefined
@@ -108,7 +110,7 @@ async function settingsEnvKey($: any): Promise<string | undefined> {
   }
 }
 
-async function apiKey($: any): Promise<string | undefined> {
+async function apiKey($: Engine): Promise<string | undefined> {
   const direct = await $.env.get('TYPESAFE_API_KEY')
   if (direct && direct !== 'REPLACE_ME') return direct
   const stored = pluginKey(pluginOptions)
@@ -126,7 +128,7 @@ async function apiKey($: any): Promise<string | undefined> {
 
 // The only network path. Fixed endpoint; the key never leaves this function; failures are
 // reduced to fixed reason codes so no response body or exception text is ever recorded.
-function makeTransport($: any, key: string | undefined, timeoutMs: number): Transport {
+function makeTransport($: Engine, key: string | undefined, timeoutMs: number): Transport {
   return async (body) => {
     if (!key) throw new JevError('missing_key')
     const encoded = JSON.stringify(body)
@@ -158,14 +160,14 @@ function makeTransport($: any, key: string | undefined, timeoutMs: number): Tran
   }
 }
 
-async function recordDecision($: any, root: string, entry: Record<string, unknown>): Promise<void> {
+async function recordDecision($: Engine, root: string, entry: Record<string, unknown>): Promise<void> {
   const ms = await $.clock.now()
   const suffix = Array.from(crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, '0')).join('')
   const name = (BigInt(ms) * 1_000_000n).toString() + '-' + suffix + '.json'
   await writePrivate($, root + '/decisions/' + name, JSON.stringify({ ...entry, timestamp: ms / 1000 }))
 }
 
-async function repoState($: any, cwd: string): Promise<string> {
+async function repoState($: Engine, cwd: string): Promise<string> {
   try {
     const head = await $.process.run(['git', 'rev-parse', 'HEAD'], { cwd, timeoutMs: 1000 })
     const diff = await $.process.run(['git', 'diff', 'HEAD', '--'], { cwd, timeoutMs: 1000 })
@@ -176,7 +178,7 @@ async function repoState($: any, cwd: string): Promise<string> {
   }
 }
 
-async function observeLoop($: any, root: string, cwd: string, cfg: Config, command: string, output: string): Promise<void> {
+async function observeLoop($: Engine, root: string, cwd: string, cfg: Config, command: string, output: string): Promise<void> {
   const state = await repoState($, cwd)
   const fingerprint = await digestString(JSON.stringify([command, output, state]))
   const count = (fingerprints.get(fingerprint) ?? 0) + 1
@@ -188,7 +190,7 @@ async function observeLoop($: any, root: string, cwd: string, cfg: Config, comma
 }
 
 // Tell the user once per reason per session. Only fixed reason codes are ever shown.
-async function notifyOnce($: any, reason: string, message: string): Promise<void> {
+async function notifyOnce($: Engine, reason: string, message: string): Promise<void> {
   if (toasted.has(reason)) return
   toasted.add(reason)
   try {
@@ -198,14 +200,14 @@ async function notifyOnce($: any, reason: string, message: string): Promise<void
   }
 }
 
-async function showStatus($: any, cfg: Config): Promise<void> {
+async function showStatus($: Engine, cfg: Config): Promise<void> {
   const text = cfg.mode === 'assist'
     ? `jev: ${stats.pruned}/${stats.seen} long logs pruned · ${stats.savedChars} chars saved${stats.readbacks > 0 ? ' · paused after read-back' : ''}`
     : `jev (observe): ${stats.seen} long logs seen, none rewritten`
   await $.ui.status(text)
 }
 
-async function statusText($: any): Promise<string> {
+async function statusText($: Engine): Promise<string> {
   const root = await projectRoot($, await $.session.cwd())
   let names: string[] = []
   try {
@@ -225,7 +227,7 @@ async function statusText($: any): Promise<string> {
   return `Jev Agent Kit ${VERSION}: ${names.length} records for this project\n` + (lines.join('\n') || '(none yet)')
 }
 
-async function doctorText($: any): Promise<string> {
+async function doctorText($: Engine): Promise<string> {
   const cwd = await $.session.cwd()
   const lines = [`Jev Agent Kit ${VERSION} (native Mod), model ${MODEL}`]
   try {
@@ -246,7 +248,7 @@ async function doctorText($: any): Promise<string> {
 
 // Changes one /config row as if the person did it in the menu. Row keys are `<plugin>.<field>`.
 // Only a fixed set of non-secret fields is ever written here; the reply never echoes input.
-async function setOption($: any, field: 'mode' | 'enable_all_projects', value: string | boolean): Promise<string> {
+async function setOption($: Engine, field: 'mode' | 'enable_all_projects', value: string | boolean): Promise<string> {
   try {
     const res = await $.config.set({ key: 'jev-agent-kit.' + field, value })
     if (res?.deny !== undefined) return 'Not changed: Claude Code refused it (a locked or managed setting). Use /config.'
@@ -266,7 +268,7 @@ const PRESETS: Record<string, { mode: 'observe' | 'assist'; backend: 'rules' | '
 }
 
 // Creates the project opt-in file with fixed fields only; never overwrites one that exists.
-async function writeProject($: any, mode: 'observe' | 'assist', backend: 'rules' | 'jev'): Promise<string> {
+async function writeProject($: Engine, mode: 'observe' | 'assist', backend: 'rules' | 'jev'): Promise<string> {
   try {
     const path = (await $.session.cwd()) + '/.claude/jev-agent-kit.json'
     if (await $.fs.exists(path)) return 'Project file already exists; not changed. Edit .claude/jev-agent-kit.json yourself.'
@@ -277,12 +279,12 @@ async function writeProject($: any, mode: 'observe' | 'assist', backend: 'rules'
   }
 }
 
-async function initProject($: any, mode: string): Promise<string> {
+async function initProject($: Engine, mode: string): Promise<string> {
   if (mode !== 'observe' && mode !== 'assist') return 'Usage: /jev init [observe|assist]'
   return writeProject($, mode, 'rules')
 }
 
-async function presetProject($: any, name: string | undefined): Promise<string> {
+async function presetProject($: Engine, name: string | undefined): Promise<string> {
   const preset = name !== undefined && Object.hasOwn(PRESETS, name) ? PRESETS[name] : undefined
   if (!preset) {
     return 'Usage: /jev preset <name>, creates the project file. Presets:\n' +
@@ -293,11 +295,11 @@ async function presetProject($: any, name: string | undefined): Promise<string> 
 
 // What assist would have saved (observe) or did save (assist), from this project's records.
 // Counted characters only: this is not a token, cost or success claim.
-async function savingsText($: any): Promise<string> {
+async function savingsText($: Engine, limit = 500): Promise<string> {
   const root = await projectRoot($, await $.session.cwd())
   let names: string[] = []
   try {
-    names = (await $.fs.list(root + '/decisions')).map((entry: { name: string }) => entry.name).sort().slice(-500)
+    names = (await $.fs.list(root + '/decisions')).map((entry: { name: string }) => entry.name).sort().slice(-limit)
   } catch {
     // No decisions directory yet.
   }
@@ -330,7 +332,32 @@ async function savingsText($: any): Promise<string> {
   ].join('\n')
 }
 
-async function readbackText($: any, id: string): Promise<string> {
+// The side pane: the same counted characters and recent decisions as /jev savings and /jev status.
+async function paneLines($: Engine): Promise<string[]> {
+  const now = await $.clock.now()
+  if (now - paneCache.at < 3000) return paneCache.lines
+  const saves = (await savingsText($, 200)).split('\n')
+  const status = (await statusText($)).split('\n')
+  paneCache.lines = [...saves, '', ...status, '', '/jev doctor | /jev savings | /jev pane close']
+  paneCache.at = now
+  return paneCache.lines
+}
+
+async function paneCommand($: Engine, arg: string | undefined): Promise<string> {
+  try {
+    if (arg === 'close') {
+      await $.ui.close({ id: PANE_ID })
+      return 'Pane closed.'
+    }
+    paneCache.at = -Infinity
+    const opened = await $.ui.open({ id: PANE_ID, title: 'Jev', closeOnEscape: true })
+    return opened.isPlaced ? 'Jev pane opened. /jev pane close (or Esc) closes it.' : 'Jev pane is waiting: widen the terminal to see it.'
+  } catch {
+    return 'Could not open the pane here.'
+  }
+}
+
+async function readbackText($: Engine, id: string): Promise<string> {
   if (!ARTIFACT_ID.test(id)) return 'Usage: /jev readback <32-hex artifact id>'
   const root = await projectRoot($, await $.session.cwd())
   try {
@@ -345,7 +372,7 @@ async function readbackText($: any, id: string): Promise<string> {
 
 export function register(on: On, options?: PluginOptions) {
   pluginOptions = options ?? {}
-  on('session.start', async ($: any, e: any, next: any) => {
+  on('session.start', async ($, e, next) => {
     // Retention: raw logs may hold secrets, so enforce retentionDays (the classic hook does the same).
     try {
       const cwd = await $.session.cwd()
@@ -369,14 +396,14 @@ export function register(on: On, options?: PluginOptions) {
       // No config or nothing to clean yet.
     }
     try {
-      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | savings | readback <id> | on | off | mode <m> | init [m] | preset <name>', argumentHint: 'status|doctor|savings|readback <id>|on|off|mode observe|assist|init [observe|assist]|preset <name>' })
+      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | savings | pane | readback <id> | on | off | mode <m> | init [m] | preset <name>', argumentHint: 'status|doctor|savings|pane|readback <id>|on|off|mode observe|assist|init [observe|assist]|preset <name>' })
     } catch {
       // A taken command name must not stop the session from starting.
     }
     return next(e)
   })
 
-  on('command.run', { command: 'jev' }, async ($: any, e: any) => {
+  on('command.run', { command: 'jev' }, async ($, e) => {
     const [sub, arg] = String(e.args ?? '').trim().split(/\s+/)
     if (sub === 'status') return { text: await statusText($) }
     if (sub === 'doctor') return { text: await doctorText($) }
@@ -387,10 +414,18 @@ export function register(on: On, options?: PluginOptions) {
     if (sub === 'init') return { text: await initProject($, arg ?? 'observe') }
     if (sub === 'preset') return { text: await presetProject($, arg) }
     if (sub === 'savings') return { text: await savingsText($) }
-    return { text: 'Usage: /jev status | doctor | savings | readback <artifact id> | on | off | mode observe|assist | init [observe|assist] | preset <name>' }
+    if (sub === 'pane') return { text: await paneCommand($, arg) }
+    return { text: 'Usage: /jev status | doctor | savings | pane | readback <artifact id> | on | off | mode observe|assist | init [observe|assist] | preset <name>' }
   })
 
-  on('tool.call', { tool: 'Bash' }, async ($: any, e: any, next: any) => {
+  on('ui.render', { component: 'Pane', requestId: PANE_ID }, async ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    const lines = await paneLines($)
+    // h returns a plain-data element; the render hook's type wants it narrowed.
+    return h(Box, { flexDirection: 'column', paddingX: 1 }, ...lines.map((line) => h(Text, null, line))) as RenderElement
+  })
+
+  on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
     const res = await next(e)
     // From here on any failure returns the untouched original result.
     try {
@@ -399,6 +434,7 @@ export function register(on: On, options?: PluginOptions) {
       const cfg = await loadConfig($, cwd)
       if (!cfg.enabled) return res
       const root = await projectRoot($, cwd)
+      if (String(e.command ?? '').includes(root + '/artifacts/')) pausedRoots.add(root) // the model went back to the original
       if (res.isError) {
         await observeLoop($, root, cwd, cfg, String(e.command ?? ''), String(res.text ?? ''))
         return res
@@ -410,6 +446,14 @@ export function register(on: On, options?: PluginOptions) {
       }
       await observeLoop($, root, cwd, cfg, String(e.command ?? ''), out.stdout)
       if (charLength(out.stdout) < cfg.minimumChars) return res
+      // Claude Code cuts Bash output at BASH_MAX_OUTPUT_LENGTH (default 30000) before any hook runs and keeps
+      // the complete text in its own file. At the cut we only see a head, so the original we would point to
+      // is incomplete: leave the result alone (measured: rewriting it hid the tail from the model).
+      const cap = Number(await $.env.get('BASH_MAX_OUTPUT_LENGTH')) || 30000
+      if (charLength(out.stdout) >= cap * 0.99) {
+        await recordDecision($, root, { feature: 'host_truncation', reason: 'host_truncated_output', input_chars: charLength(out.stdout) })
+        return res
+      }
 
       stats.seen += 1
       const artifactId = (await sha256Hex(JSON.stringify(out.stdout))).slice(0, 32)
@@ -435,7 +479,7 @@ export function register(on: On, options?: PluginOptions) {
       const fieldsOk = 'stderr' in out && 'interrupted' in out && 'isImage' in out
       // Never change failed/interrupted/image tool results or erase stderr.
       const canRewrite = cfg.mode === 'assist' && output !== out.stdout && fieldsOk && !out.interrupted && !out.isImage
-      const stdout = canRewrite ? output + '\n[Jev agent kit: pruned ' + charLength(out.stdout) + ' -> ' + charLength(output) + ' chars; full original available via /jev readback ' + artifactId + ']\n' : out.stdout
+      const stdout = canRewrite ? output + '\n[Jev agent kit: pruned ' + charLength(out.stdout) + ' -> ' + charLength(output) + ' chars. The full original is in the file ' + root + '/artifacts/' + artifactId + '.log (read it with your Read tool or cat); the user can run /jev readback ' + artifactId + ']\n' : out.stdout
       if (cfg.mode === 'assist' && output !== out.stdout && !fieldsOk) {
         await recordDecision($, root, { feature: 'compatibility', reason: 'missing_tool_fields' })
       }

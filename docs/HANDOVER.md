@@ -1,4 +1,4 @@
-# Handover: jev-agent-kit (updated 2026-10-10, after v0.5.0 was released)
+# Handover: jev-agent-kit (updated 2026-10-10, after v0.6.0 was released)
 
 For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this file (state), `docs/compatibility.md` (what is verified and what is not), `docs/sources.md` (what we may reuse from other repos). The v0.1 research background is `docs/REPO_HANDOVER.md`.
 
@@ -7,7 +7,7 @@ For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this 
 | Item | State |
 |---|---|
 | v0.2.0 | **Released.** `main` + tag `v0.2.0` + GitHub release: https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0. Installing it from the real marketplace was verified. |
-| v0.2.1 / v0.3.0 | **Released** (tags `v0.2.1` to `v0.5.0`; v0.5.0 = Node + TypeScript only; v0.4.0 adds `/jev preset`, `/jev savings`, repeated-warning collapse and corrects `/jev on|off|mode`, which do not work headless). v0.3.0: `/jev on|off|mode|init`, measured receipt, pause after read-back, `scripts/typecheck.sh`. Open Jira tickets: JEV-14 (needs budget), JEV-17 (needs Windows), JEV-20 (interactive verification and pane). |
+| v0.2.1 to v0.6.0 | **Released** (tags `v0.2.1`..`v0.6.0`). 0.3 `/jev on|off|mode|init`, receipt, pause after read-back; 0.4 `/jev preset`, `/jev savings`, repeated-warning collapse; 0.5 Node + TypeScript only; 0.6 `/jev pane`, typed `$`, type-check in the gate. Open Jira: JEV-14 (paired benchmark: small eval cases exist, a real benchmark needs a budget decision), JEV-17 (needs a Windows machine). |
 | Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Post-release check done: v0.2.1 installed from the real marketplace in a scratch project and `/jev doctor` reported 0.2.1. `claude plugin list` also shows a stale 0.2.0 local-scope entry that was not cleaned up. |
 | Public claim status | Mechanism works; **cost or success benefit is unproven.** Do not claim savings anywhere. |
 
@@ -99,6 +99,6 @@ Project `JEV` on cloud-f1.atlassian.net mirrors `docs/EPICS.md` (JEV-1..9 epics,
 2. If yes to the live smoke test: `TYPESAFE_API_KEY` is already in the environment; run `node cli/jev.ts smoke` (synthetic sentence only), then optionally `bench-logs --live`. Report exit code 3 honestly; never paste or log the key.
 3. v0.3 usability: `/jev on|off|mode` via `$.config.set`, `/jev init`, `/jev savings` (what `assist` would have saved, from `observe` data), optional `/jev` pane (tabs + Select), presets.
 4. Test the Mod on a real Windows machine and fix what breaks.
-5. Optional maintainer type-check: check in Claude Code's `claude-code.d.ts` and run `tsc` over `hooks/` (the reference repo does; needs Node; keep it out of the release gate).
+5. Done in 0.6.0: type-check (`npm run typecheck`) is a gate step; `$` is `EngineInterface`.
 6. Adoption backlog in `docs/sources.md` (shadow mode for the Jev decision, evidence-survival check, stop pruning after a read-back).
 7. Only with a budget: run the paired benchmark (10 to 20 smoke tasks, then 100+). Until then the honest status is "mechanism works, benefit unproven".

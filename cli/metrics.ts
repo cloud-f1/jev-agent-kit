@@ -8,7 +8,7 @@ type Manifest = Record<string, any>
 
 export function percentile(values: number[], p: number): number | null {
   const ordered = [...values].sort((a, b) => a - b)
-  return ordered.length ? ordered[Math.max(0, Math.ceil(p * ordered.length) - 1)] : null
+  return ordered.length ? (ordered[Math.max(0, Math.ceil(p * ordered.length) - 1)] ?? null) : null
 }
 
 const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length
@@ -98,19 +98,19 @@ export function report(manifest: Manifest, rows: Row[], draws = 2000): Record<st
   }
   const byArm: Record<string, Row[]> = {}
   for (const arm of arms) byArm[arm] = tasks.flatMap((t) => Array.from({ length: repeats }, (_, i) => at(t, i, arm)))
-  const summaries = Object.fromEntries(arms.map((arm) => [arm, summarize(byArm[arm])]))
+  const summaries = Object.fromEntries(arms.map((arm) => [arm, summarize(byArm[arm]!)]))
   const comparisons: Record<string, any> = {}
   const rng = mulberry32(20261009)
   const minTasks = gates.minimum_unique_tasks ?? 100
   const minRepeats = gates.minimum_repeats ?? 3
-  const base = summaries[baseline]
+  const base = summaries[baseline]!
   for (const arm of arms) {
     if (arm === baseline) continue
-    const target = summaries[arm]
+    const target = summaries[arm]!
     const passDeltas: number[] = []
     const ratios: number[] = []
     for (let d = 0; d < draws; d++) {
-      const sampled = tasks.map(() => tasks[Math.floor(rng() * tasks.length)])
+      const sampled = tasks.map(() => tasks[Math.floor(rng() * tasks.length)]!)
       const left = sampled.flatMap((t) => Array.from({ length: repeats }, (_, i) => at(t, i, baseline)))
       const right = sampled.flatMap((t) => Array.from({ length: repeats }, (_, i) => at(t, i, arm)))
       passDeltas.push(mean(right.map((r) => num(r.success))) - mean(left.map((r) => num(r.success))))
@@ -124,7 +124,7 @@ export function report(manifest: Manifest, rows: Row[], draws = 2000): Record<st
     const ratio = base.cost_per_success_usd && target.cost_per_success_usd !== null ? target.cost_per_success_usd / base.cost_per_success_usd : null
     const latencyRatio = base.p95_wall_seconds ? (target.p95_wall_seconds as number) / base.p95_wall_seconds : null
     let status = 'INSUFFICIENT_EVIDENCE'
-    if (!byArm[arm].every((r) => r.evidence_guard_passed)) status = 'NO_GO_EVIDENCE_LOSS'
+    if (!byArm[arm]!.every((r) => r.evidence_guard_passed)) status = 'NO_GO_EVIDENCE_LOSS'
     else if (!base.cost_complete || !target.cost_complete) status = 'UNKNOWN_COST'
     else if (tasks.length >= minTasks && repeats >= minRepeats && ratios.length >= 0.95 * draws) {
       const maxRatio = 1 - (gates.minimum_cost_improvement ?? 0.1)
