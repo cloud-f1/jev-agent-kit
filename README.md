@@ -248,4 +248,5 @@ Not a security control. Not proven to save money (a 4-task smoke eval passed 32/
 | [CHANGELOG.md](CHANGELOG.md) | Version history and what changed in each release |
 | [CLAUDE.md](CLAUDE.md), [docs/HANDOVER.md](docs/HANDOVER.md) | Rules and current state for contributors and the next Claude session |
 | [docs/PLAN-node-ts.md](docs/PLAN-node-ts.md), [docs/sources.md](docs/sources.md) | The Node + TypeScript decision; other projects we read and what we may reuse |
-| [docs/REPO_HANDOVER.md](docs/REPO_HANDOVER.md), [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md) | v0.1 history (Python era), kept for reference |
+| [skills/operate/SKILL.md](skills/operate/SKILL.md), [examples/project-config.json](examples/project-config.json) | The skill shipped to users; an example project file |
+| [docs/REPO_HANDOVER.md](docs/REPO_HANDOVER.md), [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md), [SESSION.md](SESSION.md), [VALIDATION.md](VALIDATION.md) | v0.1 history (Python era), kept for reference; their commands no longer exist |

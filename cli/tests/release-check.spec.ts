@@ -140,20 +140,23 @@ test('a stale package-lock.json version fails the version check; no lockfile is 
   assert.equal(by(rc.checkVersions(root))['versions agree'], rc.FAIL)
 })
 
-test('markdown links: a missing target fails, external links and anchors are ignored, a null file list is SKIPPED', () => {
-  const root = mkdtempSync(join(tmpdir(), 'jev-links-'))
-  mkdirSync(join(root, 'docs'))
-  writeFileSync(join(root, 'docs', 'real.md'), '# real\n')
-  const files = {
-    'README.md': 'See [real](docs/real.md#top), [web](https://example.com/x), [anchor](#here), [mail](mailto:a@b.c).',
-    'docs/a.md': 'Back to [readme](../README.md).',
-    'not-markdown.txt': '[ignored](nowhere.md)',
+test('markdown links: checked against tracked files, so missing, wrong-case and untracked targets fail', () => {
+  const root = '/unused'
+  const files: Record<string, string> = {
+    'README.md': 'See [real](docs/real.md#top), [web](https://example.com/x), [anchor](#here), [mail](mailto:a@b.c), [dir](docs/), [root](/docs/real.md).',
+    'docs/real.md': 'Back to [readme](../README.md) and [self](real.md?plain=1) and [spaced](my%20file.md "a title").',
+    'docs/my file.md': '# spaced\n',
+    'notes.txt': '[ignored](nowhere.md)',
   }
-  assert.equal(rc.checkLinks(root, files).status, rc.FAIL) // ../README.md is not on disk in this temp repo
-  writeFileSync(join(root, 'README.md'), '# r\n')
   assert.equal(rc.checkLinks(root, files).status, rc.PASS)
-  const broken = rc.checkLinks(root, { ...files, 'docs/b.md': 'Bad [link](missing.md).' })
-  assert.equal(broken.status, rc.FAIL)
-  assert.ok(broken.detail.includes('docs/b.md: missing.md'))
+  const bad = (extra: Record<string, string>) => rc.checkLinks(root, { ...files, ...extra })
+  assert.equal(bad({ 'docs/b.md': 'Bad [link](missing.md).' }).status, rc.FAIL)
+  assert.ok(bad({ 'docs/b.md': 'Bad [link](missing.md).' }).detail.includes('docs/b.md: missing.md'))
+  assert.equal(bad({ 'docs/b.md': 'Wrong case [x](REAL.md).' }).status, rc.FAIL)
+  assert.equal(bad({ 'docs/b.md': 'Escapes the repo [x](../../outside.md).' }).status, rc.FAIL)
+  assert.equal(bad({ 'docs/b.md': 'With a title [x](missing.md "t").' }).status, rc.FAIL)
+  assert.equal(bad({ 'docs/b.md': 'Reference style.\n\n[ref]: missing.md\n' }).status, rc.FAIL)
+  assert.equal(bad({ 'docs/b.md': 'Angle [x](<missing.md>).' }).status, rc.FAIL)
+  assert.equal(bad({ 'docs/b.md': 'Example only: `[x](missing.md)` and\n```\n[y](missing.md)\n```\n' }).status, rc.PASS)
   assert.equal(rc.checkLinks(root, null).status, rc.SKIPPED)
 })

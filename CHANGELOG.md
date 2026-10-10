@@ -21,7 +21,8 @@ No runtime change: `hooks/` and `core/` differ from 0.6.0 only in the version st
 
 - New: `docs/TESTING.md`, a one-page tester checklist (Traditional Chinese): install, opt in, observe, assist, pane, read-back, the 30,000-character cut, a non-error needle, clean-up, what to report. Written against what was actually observed; the read-back rule is stated precisely (a Bash command or `/jev readback` counts, the Read tool alone does not).
 - Changed: `docs/HANDOVER.md` rewritten to the real current state (it still described v0.2.1 as unreleased); `docs/compatibility.md` brought to 0.6.0 (header, test counts, install rows, interactive status, the two things learned about Claude Code's output cut and slash commands); README gained a documentation map and a pointer to the checklist; PRD, EPICS, CLAUDE.md and the release skill link to each other.
-- New: the release gate fails on a broken relative Markdown link (`markdown links` step, with a test). 40 Node tests.
+- New: the release gate fails on a broken relative Markdown link (`markdown links` step). It checks against `git ls-files`, so a wrong-case target (fine on macOS, broken on GitHub/Linux) or an uncommitted file fails; handles titles, `<...>` targets, reference-style links, `%20`, query strings and root-absolute paths; ignores code fences and inline code; does not check `#anchors`. 40 Node tests.
+- Fixed in the checklist before release (found by the read-only audit): switching to `assist` must replace the project file (a project file's `mode` overrides `/jev mode`), and the non-error-needle test has to run before the read-back, which pauses rewriting.
 - Housekeeping done on the maintainer machine: the stale 0.2.0 local-scope install and the test install of 0.6.0 were uninstalled. Old version folders remain in Claude Code's plugin cache; they are inert and Claude Code has no prune command for them.
 - Tests: 40 Node + 109 Mod/core tests.
 

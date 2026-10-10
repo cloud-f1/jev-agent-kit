@@ -8,7 +8,7 @@
 // reports SKIPPED, never PASS: a gate that cannot check must not look green.
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, posix } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 export const PASS = 'PASS'
@@ -124,17 +124,32 @@ export function trackedFiles(root: string): Record<string, string> | null {
   return files
 }
 
-// Every relative Markdown link in tracked files must point at a file that exists.
+// Every relative Markdown link in tracked files must point at a tracked file or folder. Checked against
+// `git ls-files` (not the disk), so a case mismatch that breaks on GitHub/Linux, or a file nobody committed,
+// fails here too. Links inside code fences and `inline code` are examples, not links. Anchors are not checked.
 export function checkLinks(root: string, files: Record<string, string> | null = trackedFiles(root)): Result {
   if (!files) return result('markdown links', SKIPPED, 'git unavailable')
+  const tracked = Object.keys(files)
+  const known = new Set(tracked)
+  const exists = (rel: string) => rel === '' || rel === '.' || known.has(rel) || tracked.some((p) => p.startsWith(rel + '/'))
   const broken: string[] = []
-  for (const [path, text] of Object.entries(files)) {
+  for (const [path, raw] of Object.entries(files)) {
     if (!path.endsWith('.md')) continue
-    for (const match of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
-      const target = match[1] ?? ''
-      if (/^(https?:|mailto:|#)/.test(target)) continue
-      const resolved = join(root, dirname(path), target.split('#')[0] ?? '')
-      if (!existsSync(resolved)) broken.push(`${path}: ${target}`)
+    const text = raw.replace(/^(```|~~~)[\s\S]*?^\1[^\n]*$/gm, '').replace(/`[^`\n]*`/g, '')
+    const targets = [
+      ...[...text.matchAll(/\]\(\s*<?([^)\s>]+)>?(?:\s+(?:"[^"]*"|'[^']*'))?\s*\)/g)].map((m) => m[1] ?? ''),
+      ...[...text.matchAll(/^[ ]{0,3}\[[^\]]+\]:\s*<?(\S+?)>?(?:\s|$)/gm)].map((m) => m[1] ?? ''),
+    ]
+    for (const target of targets) {
+      if (!target || target.startsWith('#') || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue
+      let clean = target.split('#')[0]!.split('?')[0]!
+      try {
+        clean = decodeURIComponent(clean)
+      } catch {
+        // keep the raw text
+      }
+      const rel = clean.startsWith('/') ? posix.normalize(clean.slice(1)) : posix.normalize(posix.join(posix.dirname(path), clean))
+      if (rel.startsWith('..') || !exists(rel.replace(/\/$/, ''))) broken.push(`${path}: ${target}`)
     }
   }
   return result('markdown links', broken.length ? FAIL : PASS, broken.slice(0, 3).join(' | '))

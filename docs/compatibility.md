@@ -1,6 +1,6 @@
 # Compatibility and verification status
 
-Updated 2026-10-10 (v0.6.0). Records what was actually run and what was not. No CI exists; every row below was run locally.
+Updated 2026-10-10 (v0.6.1). Records what was actually run and what was not. No CI exists; every row below was run locally.
 
 Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 
@@ -22,7 +22,7 @@ Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 | `/jev readback <id>` | Tested with stubs only | not run live |
 | Install from the GitHub marketplace | Passed for 0.2.0, 0.2.1, 0.3.0, 0.4.0, 0.5.0 and 0.6.0 | `marketplace add`, `install`/`update` in a scratch project; `claude -p "/jev doctor"` ran from the installed copy. Install prints `8 userConfig options not yet set` (all optional). The test installs were uninstalled afterwards |
 | `/jev preset`, `/jev init`, `/jev savings` in `claude -p` | Passed (2026-10-10) | project file created and read back by `/jev doctor` |
-| `/jev on|off|mode` | Works interactively, not headless | interactive (expect-driven, 2026-10-10): "Set mode=assist" and hooks reloaded; headless `claude -p`: no /config row for this plugin |
+| `/jev on|off|mode` | Works interactively, not headless | interactive (expect-driven, 2026-10-10): "Set mode = assist (your plugin settings, every project)" and hooks reloaded; note a project file still overrides; headless `claude -p`: no /config row for this plugin |
 | `claude plugin eval` paired smoke (4 cases x 8 runs, haiku, local rules) | Passed 32/32 both arms (2026-10-10) | found two real failures first (see CHANGELOG 0.6.0); small synthetic sample: not benefit evidence |
 | `/jev pane` in a real interactive session | Passed | opened, drew counted characters from seeded records, closed; narrow terminals not seen |
 | Live Jev API `smoke` | Passed once (2026-10-10) | one synthetic sentence; `api_validated`, model `jev-1.13.0` answered as itself |

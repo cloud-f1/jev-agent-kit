@@ -11,6 +11,8 @@
 
 ## 步驟
 
+> 設定的優先序：**專案檔 > `/config` / `/jev mode`（使用者層級）> 預設值**。專案檔有寫的欄位，`/jev mode`、`/jev on` 改不動它；`/jev doctor` 會標明每個值來自哪裡。
+
 | # | 做什麼 | 應該看到 | 通過 |
 |---|---|---|---|
 | 1 | 安裝：`/plugin marketplace add cloud-f1/jev-agent-kit`，再 `/plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit`。終端機版：`claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`。然後重啟 Claude Code | 安裝成功；會提示 `8 userConfig options not yet set`（全部選填，可忽略） | ☐ |
@@ -19,14 +21,14 @@
 | 4 | `/jev doctor` | `enabled=true (project file)`、`mode=observe`、`backend=rules` | ☐ |
 | 5 | 請 Claude 執行：`node -e "for(let i=0;i<1500;i++){console.log('progress item '+i); if(i===700)console.log('ERROR demo: expected 1 got 2')}"`（約 27,000 字元） | 輸出**完整、沒有被改**（observe 只記錄） | ☐ |
 | 6 | `/jev status`，再 `/jev savings` | status 有一筆 `prune · ok · 27xxx → 1xxx chars`；savings 的 `observe:` 顯示 `1 logs` 和 assist 會移除的字元數 | ☐ |
-| 7 | `/jev mode assist`（需在互動畫面） | `Set mode=assist ...`，並出現 hooks 重新載入的訊息 | ☐ |
-| 8 | 再請 Claude 執行**同一個**指令 | 輸出變短，`ERROR demo` 那行還在，結尾有一行說明：`pruned N -> M chars. The full original is in the file ...artifacts/<id>.log` | ☐ |
-| 9 | `/jev pane` | 側欄出現，內容有 `assist: 1 logs rewritten, ... chars removed net` 和最近的紀錄；`/jev pane close`（或 Esc）關閉 | ☐ |
-| 10 | 請 Claude 用 Bash 執行 `cat <第 8 步說明裡的檔案路徑>`（用 Read 工具也能讀到內容，但**只有 Bash 指令或 `/jev readback <id>` 才算「讀回」**） | 能讀到**完整原始輸出**（含被省略的 progress 行），而且這個 `cat` 的輸出本身**不會被再壓縮** | ☐ |
-| 11 | 讀回之後，再執行第 5 步的指令 | 這次輸出**不再被壓縮**（讀回後 assist 對此專案暫停，直到重啟 Claude Code） | ☐ |
-| 12 | 超過上限的輸出：`node -e "for(let i=0;i<3000;i++)console.log('progress item '+i)"`（約 56,000 字元），再 `/jev status` | Claude Code 自己會截斷並另存完整檔；plugin **不動它**；status 出現 `host_truncation · host_truncated_output` | ☐ |
-| 13 | 非錯誤線索：`node -e "for(let i=0;i<1500;i++){console.log('progress item '+i); if(i===700)console.log('NOTE tenant_region=eu-west-3 selected')}"`，請 Claude 回答 tenant_region 是什麼 | Claude 答得出 `eu-west-3`（可能多一兩個步驟去讀原始檔） | ☐ |
-| 14 | 清理：`/jev mode observe`，刪掉 `.claude/jev-agent-kit.json`，`claude plugin uninstall jev-agent-kit@jev-agent-kit`，移除 `JEV_STATE_DIR` 資料夾 | 乾淨 | ☐ |
+| 7 | 切換到 assist。**專案檔的設定優先於 `/jev mode`**，所以要換專案檔：先 `rm .claude/jev-agent-kit.json`（在終端機，或請 Claude 執行），再 `/jev preset prune-local` | `Created .claude/jev-agent-kit.json (enabled, mode=assist, backend=rules)`；`/jev doctor` 顯示 `mode=assist (project file)`。下一次 Bash 指令就會生效（不用重啟） | ☐ |
+| 8 | 再請 Claude 執行**同一個**第 5 步的指令 | 輸出變短，`ERROR demo` 那行還在，結尾有一行說明：`pruned N -> M chars. The full original is in the file ...artifacts/<id>.log`；輸入框下方的狀態列可能顯示 `jev: 1/1 long logs pruned` | ☐ |
+| 9 | 非錯誤線索（要在讀回**之前**做，因為讀回會暫停壓縮）：`node -e "for(let i=0;i<1500;i++){console.log('progress item '+i); if(i===700)console.log('NOTE tenant_region=eu-west-3 selected')}"`，請 Claude 回答 tenant_region 是什麼 | 這行不是錯誤，會被壓縮掉。Claude 看到說明後，應該自己去讀原始檔（可能多一兩個步驟）並答出 `eu-west-3` | ☐ |
+| 10 | `/jev pane` | 側欄出現，內容有 `assist: N logs rewritten, ... chars removed net` 和最近的紀錄；`/jev pane close`（或 Esc）關閉 | ☐ |
+| 11 | 讀回：請 Claude 用 Bash 執行 `cat <第 8 步說明裡的檔案路徑>`（用 Read 工具也能讀到內容，但**只有 Bash 指令或 `/jev readback <id>` 才算「讀回」**） | 讀到**完整原始輸出**（含被省略的 progress 行），而且這個 `cat` 的輸出本身**不會被再壓縮** | ☐ |
+| 12 | 讀回之後，再執行第 5 步的指令 | 這次輸出**不再被壓縮**（讀回後 assist 對此專案暫停，直到重啟 Claude Code） | ☐ |
+| 13 | **重啟 Claude Code**（解除暫停），再測超過上限的輸出：`node -e "for(let i=0;i<3000;i++)console.log('progress item '+i)"`（約 56,000 字元），然後 `/jev status` | Claude Code 自己會截斷並另存完整檔；plugin **不動它**；status 出現 `host_truncation · host_truncated_output` | ☐ |
+| 14 | 清理：刪掉 `.claude/jev-agent-kit.json`，`claude plugin uninstall jev-agent-kit@jev-agent-kit`，移除測試資料夾和 `JEV_STATE_DIR` 資料夾 | 乾淨 | ☐ |
 
 ## 選用：Jev API（會花錢，會把脫敏後的日誌片段送到 TypeSafe）
 
