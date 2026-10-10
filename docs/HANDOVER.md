@@ -71,10 +71,7 @@ docs/                                          PRD, EPICS, TESTING, PLAN-node-ts
 
 ## Jira
 
-**Ticket rule (user, 2026-10-10): every JEV ticket is assigned to alex hsieh** (never Unassigned), has its parent epic, default priority Medium (High for privacy/safety bugs), is written in English with reproduction steps, one ticket per finding. Details in the `release` skill, step 11.
-
-Project `JEV` on cloud-f1.atlassian.net mirrors [`EPICS.md`](EPICS.md): epics JEV-1 to JEV-9 and JEV-21, stories JEV-10 to JEV-20 and JEV-22 to JEV-28. Credentials live in `../symphony-workflow/.env` (never read or printed; use `uv run --env-file .env symphony-workflow call ...`). symphony-workflow cannot create projects, only issues and transitions. After a release, move the matching issues and update `EPICS.md`.
-
+Project `JEV` on cloud-f1.atlassian.net, **Epic -> Story -> Subtask**, everything assigned to alex hsieh: rules and tools in [JIRA.md](JIRA.md), structure in [jira/plan.json](jira/plan.json), a dated snapshot in [jira/board.md](jira/board.md). `symphony-workflow audit JEV --assignee-me` should print 0 errors (it did on 2026-10-10: 10 epics, 38 stories, 144 subtasks). Credentials live in `../symphony-workflow/.env` (never read or printed). Open: JEV-14 (benchmark budget), JEV-17 (Windows), JEV-29 (deferred), JEV-35 and JEV-36 (done on the unreleased `v0.8.0` branch, release subtask open), JEV-47 and JEV-48 (follow-ups from the redaction fix).
 ## Independent audits (all 2026-10-10)
 
 One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high findings. The one high ever found (0.2.0): redaction let Bearer and JSON-quoted secrets reach the Jev API (fixed). Others fixed along the way: a project `settings.json` could supply the key; the pinned model was not required to answer as itself; `/jev savings` over-counting; `--env-file PATH` regression; the transport deadline not covering the body; a nonsense `BASH_MAX_OUTPUT_LENGTH` switching pruning off. Residual: `$.http.fetch` in the Mod may follow redirects (the key is only ever sent to the fixed endpoint). Details: [`CHANGELOG.md`](../CHANGELOG.md).
