@@ -47,6 +47,7 @@ export interface PruneMeta {
   cost_complete: boolean
   requested_model?: string
   actual_model?: string | null
+  jev_asked?: boolean // jev backend only: true once a request was actually sent to the API
   latency_ms?: number
 }
 

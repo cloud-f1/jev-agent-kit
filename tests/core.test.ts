@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
-import { collapseRepeats, prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
+import { collapseRepeats, jevNotAsked, prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
 const usage = { input_tokens: 100, output_tokens: 0 }
@@ -124,6 +124,26 @@ test('jev backend adds relevant blocks and never drops error blocks', async () =
   expect(output).toContain('ERROR build')
   expect(output).toContain('IMPORTANT_BUSINESS_CONTEXT')
   expect(output.length).toBeLessThan(text.length)
+})
+
+test('jev_asked is true only when a request was really sent to the transport', async () => {
+  let calls = 0
+  const transport = async (body: Record<string, any>) => {
+    calls += 1
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  const asked = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(calls).toBe(1)
+  expect(asked.meta.jev_asked).toBe(true)
+  // Every block contains an error word, so every block is pinned and there is nothing to ask Jev.
+  const allErrors = Array.from({ length: 400 }, (_, i) => 'ERROR unit test failed ' + i + '\n').join('')
+  const none = await prune(allErrors, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(calls).toBe(1)
+  expect(none.meta.jev_asked).toBe(false)
+  expect(none.meta.actual_model).toBe(null)
+  expect(none.meta.api_input_tokens).toBe(null)
+  const rules = await prune(longLog(), { backend: 'rules', goal: 'g', threshold: 0.8 })
+  expect('jev_asked' in rules.meta).toBe(false)
 })
 
 test('jev backend falls back to the exact original on every failure', async () => {
@@ -252,4 +272,15 @@ test('collapsing repeated warnings never loses an error-class line and keeps the
   expect(out).toContain('[9 similar lines omitted (original lines 3-11)]')
   expect(out.length).toBeLessThan(text.length)
   expect(collapseRepeats(warn(5).join(''))).toBe(warn(5).join('')) // below the run threshold
+})
+
+test('jevNotAsked recognizes new and older records, and nothing else', () => {
+  expect(jevNotAsked({ backend: 'jev', reason: 'ok', jev_asked: false })).toBe(true)
+  expect(jevNotAsked({ backend: 'jev', reason: 'ok', jev_asked: true, actual_model: 'jev-1.13.0' })).toBe(false)
+  // Older records had no jev_asked: no answering model means no request was sent.
+  expect(jevNotAsked({ backend: 'jev', reason: 'ok', actual_model: null, api_input_tokens: null })).toBe(true)
+  expect(jevNotAsked({ backend: 'jev', reason: 'ok', actual_model: 'jev-1.13.0' })).toBe(false)
+  expect(jevNotAsked({ backend: 'jev', reason: 'http_429', jev_asked: false })).toBe(false)
+  expect(jevNotAsked({ backend: 'rules', reason: 'ok', jev_asked: false })).toBe(false)
+  for (const odd of [null, undefined, 'x', 7, [], {}]) expect(jevNotAsked(odd)).toBe(false)
 })

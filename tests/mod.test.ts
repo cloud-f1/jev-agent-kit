@@ -272,6 +272,26 @@ test('/jev status lists recent decision records', async ($, on) => {
   expect(out.text).toMatch(/\d+ → \d+ chars/)
 })
 
+test('/jev status says when the jev backend never asked Jev, and shows input chars for host-cut rows', async ($, on) => {
+  stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, tool: { result: { stdout: Array.from({ length: 400 }, (_, i) => 'ERROR unit test failed ' + i + '\n').join(''), stderr: '' }, text: 'kept' } })
+  await call($)
+  const out = (await jev($, 'status')).text
+  expect(out).toContain('Jev not asked (every block was an error/warning line; local rules only)')
+  expect(out).not.toMatch(/→\s+chars/)
+  const savings = (await jev($, 'savings')).text
+  expect(savings).toContain('backend jev: Jev was asked for 0 logs; 1 logs were handled by the local rules only because Jev was not asked')
+})
+
+test('/jev savings counts logs Jev really answered separately from local-rules-only ones', async ($, on) => {
+  stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: (_u: string, init: any) => {
+    const body = JSON.parse(init.body)
+    return { ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'jev-1.13.0', usage: { input_tokens: 5, output_tokens: 1 }, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }) }
+  } })
+  await call($)
+  const savings = (await jev($, 'savings')).text
+  expect(savings).toContain('backend jev: Jev was asked for 1 logs; 0 logs were handled by the local rules only')
+})
+
 test('/jev status summarizes failed-command repeats on one line instead of empty rows', async ($, on) => {
   stubs(on, { config: ASSIST, tool: { result: { stdout: 'x', stderr: '' }, isError: true, text: 'same failure' } })
   await call($)
@@ -279,7 +299,7 @@ test('/jev status summarizes failed-command repeats on one line instead of empty
   await call($)
   const out = (await jev($, 'status')).text
   expect(out).toContain('3 records for this project')
-  expect(out).toContain('failed-command repeats: 3 records, highest repeat count 3 (recorded only, output unchanged)')
+  expect(out).toContain('failed-command repeats: 3 records among the last 200, highest repeat count 3 (recorded only, output unchanged)')
   expect(out).not.toMatch(/→\s+chars/)
   expect(out).not.toContain('loop ·')
 })

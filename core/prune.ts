@@ -165,7 +165,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
     plugin_version: VERSION, question_version: QUESTION_VERSION, backend: options.backend,
     reason: 'ok', input_chars: charLength(text), api_input_tokens: null, api_output_tokens: null,
     jev_cost_usd_estimate: null, cost_complete: options.backend !== 'jev',
-    ...(options.backend === 'jev' ? { requested_model: options.model ?? MODEL, actual_model: null } : {}),
+    ...(options.backend === 'jev' ? { requested_model: options.model ?? MODEL, actual_model: null, jev_asked: false } : {}),
   }
   const finish = (output: string) => {
     meta.output_chars = charLength(output)
@@ -199,6 +199,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
         keep = new Set(parts.keys())
       } else {
         try {
+          meta.jev_asked = true
           const obj = await options.transport(body)
           const { usage, model: actual } = validateResponse(obj, options.model ?? MODEL)
           meta.actual_model = actual
@@ -222,4 +223,14 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
   let output = render(parts, keep)
   if (charLength(output) >= charLength(text) || meta.reason !== 'ok') output = text
   return finish(output)
+}
+
+// True for a decision record of the jev backend that never sent a request: reason ok but no Jev call was
+// made (every block was an error/warning line). Older records (before jev_asked existed) are recognized by
+// having no answering model. Such a record is the local rules' result, not evidence about Jev.
+export function jevNotAsked(row: unknown): boolean {
+  if (typeof row !== 'object' || row === null) return false
+  const r = row as Record<string, unknown>
+  if (r.backend !== 'jev' || r.reason !== 'ok') return false
+  return r.jev_asked === false || (r.jev_asked === undefined && (r.actual_model === null || r.actual_model === undefined))
 }

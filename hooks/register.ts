@@ -5,7 +5,7 @@ import type { Config, Transport } from '../core/contracts.ts'
 import type { EngineInterface as Engine, On, PluginOptions, RenderElement } from 'claude-code' // types only; erased at run time
 import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
-import { charLength, prune, redact } from '../core/prune.ts'
+import { charLength, jevNotAsked, prune, redact } from '../core/prune.ts'
 
 const DEFAULT_GOAL = 'Diagnose the current test or build failure'
 const ARTIFACT_ID = /^[a-f0-9]{32}$/
@@ -227,14 +227,17 @@ async function statusText($: Engine): Promise<string> {
         if (typeof row.repeated_count === 'number' && Number.isFinite(row.repeated_count)) highestRepeat = Math.max(highestRepeat, row.repeated_count)
         continue
       }
-      const counts = typeof row.input_chars === 'number' && typeof row.output_chars === 'number' ? ` · ${row.input_chars} → ${row.output_chars} chars` : ''
-      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}`)
+      const counts = typeof row.input_chars === 'number' && typeof row.output_chars === 'number' ? ` · ${row.input_chars} → ${row.output_chars} chars`
+        : typeof row.input_chars === 'number' ? ` · ${row.input_chars} chars in` : ''
+      // backend jev but no request sent: every block was an error/warning line, kept by the local rules.
+      const note = jevNotAsked(row) ? ' · Jev not asked (every block was an error/warning line; local rules only)' : ''
+      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}${note}`)
     } catch {
       lines.push('(unreadable record ' + name + ')')
     }
   }
   const shown = lines.slice(-10)
-  if (loops > 0) shown.push(`failed-command repeats: ${loops} records, highest repeat count ${highestRepeat} (recorded only, output unchanged)`)
+  if (loops > 0) shown.push(`failed-command repeats: ${loops} records among the last 200, highest repeat count ${highestRepeat} (recorded only, output unchanged)`)
   return `Jev Agent Kit ${VERSION}: ${names.length} records for this project\n` + (shown.join('\n') || '(none yet)')
 }
 
@@ -329,13 +332,14 @@ async function savingsText($: Engine, limit = 500): Promise<string> {
   } catch {
     // No decisions directory yet.
   }
-  const total = { observe: { logs: 0, chars: 0 }, assist: { logs: 0, chars: 0 }, fellBack: 0 }
+  const total = { observe: { logs: 0, chars: 0 }, assist: { logs: 0, chars: 0 }, fellBack: 0, jevAsked: 0, jevNotAsked: 0 }
   const count = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0
   for (const name of names) {
     try {
       const row = JSON.parse(await $.fs.read(root + '/decisions/' + name))
       if (typeof row.artifact_id !== 'string' || !count(row.input_chars)) continue
       if (row.reason !== 'ok') { total.fellBack += 1; continue }
+      if (row.backend === 'jev') total[jevNotAsked(row) ? 'jevNotAsked' : 'jevAsked'] += 1
       if (row.mode === 'assist' && count(row.delivered_chars)) {
         if (row.delivered_chars !== row.input_chars) {
           total.assist.logs += 1 // only rows that were actually rewritten
@@ -354,6 +358,7 @@ async function savingsText($: Engine, limit = 500): Promise<string> {
     `assist: ${total.assist.logs} logs rewritten, ${total.assist.chars} chars removed net (after the receipt line)`,
     `observe: ${total.observe.logs} logs, ${total.observe.chars} chars assist would have removed`,
     `fell back to the original: ${total.fellBack}`,
+    ...(total.jevAsked + total.jevNotAsked > 0 ? [`backend jev: Jev was asked for ${total.jevAsked} logs; ${total.jevNotAsked} logs were handled by the local rules only because Jev was not asked (every block was an error/warning line), so they say nothing about Jev`] : []),
     'Counted characters only. This is not a token, cost or success measurement; see docs/EVALUATION.md.',
   ].join('\n')
 }
