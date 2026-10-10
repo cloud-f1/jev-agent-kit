@@ -253,21 +253,78 @@ async function setOption($: any, field: 'mode' | 'enable_all_projects', value: s
     const scope = field === 'enable_all_projects' && value === true ? 'Pruning is now ON for ALL projects without their own project file. ' : ''
     return scope + 'Set ' + field + ' = ' + String(value) + ' (your plugin settings, every project). /jev doctor shows the effective values; a project file still overrides.'
   } catch {
-    return 'Could not change the setting here. Use /config.'
+    // Seen live (headless claude -p): Claude Code exposes no /config row for this plugin there.
+    return 'Could not change the setting from here (Claude Code did not expose a /config row for this plugin). Use /config, or run: claude plugin configure jev-agent-kit'
   }
 }
 
-// Creates the project opt-in file; never overwrites one that exists.
-async function initProject($: any, mode: string): Promise<string> {
-  if (mode !== 'observe' && mode !== 'assist') return 'Usage: /jev init [observe|assist]'
+const PRESETS: Record<string, { mode: 'observe' | 'assist'; backend: 'rules' | 'jev'; about: string }> = {
+  'observe-local': { mode: 'observe', backend: 'rules', about: 'record only, nothing leaves the machine' },
+  'shadow-jev': { mode: 'observe', backend: 'jev', about: 'ask Jev and record, never rewrite (sends redacted blocks to the API)' },
+  'prune-local': { mode: 'assist', backend: 'rules', about: 'rewrite long output with the local rules' },
+  'prune-jev': { mode: 'assist', backend: 'jev', about: 'rewrite using Jev relevance (needs a key; falls back to the original)' },
+}
+
+// Creates the project opt-in file with fixed fields only; never overwrites one that exists.
+async function writeProject($: any, mode: 'observe' | 'assist', backend: 'rules' | 'jev'): Promise<string> {
   try {
     const path = (await $.session.cwd()) + '/.claude/jev-agent-kit.json'
     if (await $.fs.exists(path)) return 'Project file already exists; not changed. Edit .claude/jev-agent-kit.json yourself.'
-    await $.fs.write(path, JSON.stringify({ schemaVersion: 1, enabled: true, mode }, null, 2) + '\n')
-    return 'Created .claude/jev-agent-kit.json (enabled, mode=' + mode + '). Takes effect on the next Bash call. /jev doctor shows the result.'
+    await $.fs.write(path, JSON.stringify({ schemaVersion: 1, enabled: true, mode, backend }, null, 2) + '\n')
+    return 'Created .claude/jev-agent-kit.json (enabled, mode=' + mode + ', backend=' + backend + '). Takes effect on the next Bash call. /jev doctor shows the result.'
   } catch {
     return 'Could not create the project file. Create .claude/jev-agent-kit.json by hand (see README).'
   }
+}
+
+async function initProject($: any, mode: string): Promise<string> {
+  if (mode !== 'observe' && mode !== 'assist') return 'Usage: /jev init [observe|assist]'
+  return writeProject($, mode, 'rules')
+}
+
+async function presetProject($: any, name: string | undefined): Promise<string> {
+  const preset = name !== undefined && Object.hasOwn(PRESETS, name) ? PRESETS[name] : undefined
+  if (!preset) {
+    return 'Usage: /jev preset <name>, creates the project file. Presets:\n' +
+      Object.entries(PRESETS).map(([key, value]) => `  ${key}: ${value.about}`).join('\n')
+  }
+  return writeProject($, preset.mode, preset.backend)
+}
+
+// What assist would have saved (observe) or did save (assist), from this project's records.
+// Counted characters only: this is not a token, cost or success claim.
+async function savingsText($: any): Promise<string> {
+  const root = await projectRoot($, await $.session.cwd())
+  let names: string[] = []
+  try {
+    names = (await $.fs.list(root + '/decisions')).map((entry: { name: string }) => entry.name).sort().slice(-500)
+  } catch {
+    // No decisions directory yet.
+  }
+  const total = { observe: { logs: 0, chars: 0 }, assist: { logs: 0, chars: 0 }, fellBack: 0 }
+  for (const name of names) {
+    try {
+      const row = JSON.parse(await $.fs.read(root + '/decisions/' + name))
+      if (typeof row.artifact_id !== 'string' || typeof row.input_chars !== 'number') continue
+      if (row.reason !== 'ok') { total.fellBack += 1; continue }
+      if (row.mode === 'assist' && typeof row.delivered_chars === 'number') {
+        total.assist.logs += 1
+        total.assist.chars += Math.max(0, row.input_chars - row.delivered_chars)
+      } else if (typeof row.output_chars === 'number') {
+        total.observe.logs += 1
+        total.observe.chars += Math.max(0, row.input_chars - row.output_chars)
+      }
+    } catch {
+      // Unreadable record: skip.
+    }
+  }
+  return [
+    `Jev Agent Kit ${VERSION}: characters, from the last ${names.length} records of this project`,
+    `assist: ${total.assist.logs} logs rewritten, ${total.assist.chars} chars removed`,
+    `observe: ${total.observe.logs} logs, ${total.observe.chars} chars assist would have removed`,
+    `fell back to the original: ${total.fellBack}`,
+    'Counted characters only. This is not a token, cost or success measurement; see docs/EVALUATION.md.',
+  ].join('\n')
 }
 
 async function readbackText($: any, id: string): Promise<string> {
@@ -309,7 +366,7 @@ export function register(on: On, options?: PluginOptions) {
       // No config or nothing to clean yet.
     }
     try {
-      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | readback <id> | on | off | mode <m> | init [m]', argumentHint: 'status|doctor|readback <id>|on|off|mode observe|assist|init [observe|assist]' })
+      await $.command.register({ name: 'jev', description: 'Jev Agent Kit: status | doctor | savings | readback <id> | on | off | mode <m> | init [m] | preset <name>', argumentHint: 'status|doctor|savings|readback <id>|on|off|mode observe|assist|init [observe|assist]|preset <name>' })
     } catch {
       // A taken command name must not stop the session from starting.
     }
@@ -325,7 +382,9 @@ export function register(on: On, options?: PluginOptions) {
     if (sub === 'off') return { text: await setOption($, 'enable_all_projects', false) }
     if (sub === 'mode') return { text: arg === 'observe' || arg === 'assist' ? await setOption($, 'mode', arg) : 'Usage: /jev mode observe|assist' }
     if (sub === 'init') return { text: await initProject($, arg ?? 'observe') }
-    return { text: 'Usage: /jev status | doctor | readback <artifact id> | on | off | mode observe|assist | init [observe|assist]' }
+    if (sub === 'preset') return { text: await presetProject($, arg) }
+    if (sub === 'savings') return { text: await savingsText($) }
+    return { text: 'Usage: /jev status | doctor | savings | readback <artifact id> | on | off | mode observe|assist | init [observe|assist] | preset <name>' }
   })
 
   on('tool.call', { tool: 'Bash' }, async ($: any, e: any, next: any) => {

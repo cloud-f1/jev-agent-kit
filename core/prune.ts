@@ -9,6 +9,35 @@ import type { Backend, Block, PruneMeta, Transport } from './contracts.ts'
 // `^` anchors only at the start of a block). tests/fixtures/golden.* keep both in sync.
 const WS = '[ \\t\\n\\r\\f\\v]'
 const IMPORTANT = new RegExp('error|fail|exception|traceback|assert|warning|warn\\b|expected|actual|timeout|denied|not found|at [^\\n]+[:(][0-9]|^' + WS + '*File ', 'i')
+// Repeated warning lines are collapsed (first 2, a count marker, last 1). Lines with any error-class
+// word, a stack frame or a File line are never collapsed. Mirrors jevkit/core.py collapse_repeats.
+const WARNISH = /warning|warn\b/i
+const ERRORISH = new RegExp('error|fail|exception|traceback|assert|expected|actual|timeout|denied|not found|at [^\\n]+[:(][0-9]|^' + WS + '*File ', 'i')
+const MIN_RUN = 6
+const collapsible = (line: string) => WARNISH.test(line) && !ERRORISH.test(line)
+const runKey = (line: string) => line.replace(/[0-9]+/g, '#')
+
+export function collapseRepeats(text: string): string {
+  const lines = splitLines(text)
+  const out: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    if (collapsible(lines[i])) {
+      const key = runKey(lines[i])
+      let j = i + 1
+      while (j < lines.length && collapsible(lines[j]) && runKey(lines[j]) === key) j += 1
+      if (j - i >= MIN_RUN) {
+        out.push(lines[i], lines[i + 1], '[' + (j - i - 3) + ' similar lines omitted (original lines ' + (i + 3) + '-' + (j - 1) + ')]\n', lines[j - 1])
+        i = j
+        continue
+      }
+    }
+    out.push(lines[i])
+    i += 1
+  }
+  return out.join('')
+}
+
 const SECRET_VALUE = `(?:"[^"\\n]*"|'[^'\\n]*'|(?:(?:bearer|basic)[ \\t]+)?[^ \\t\\n\\r\\f\\v"',;]+)`
 const SECRET = new RegExp(
   `(?:api[_-]?key|token|password|secret|authorization)["']?${WS}*[:=]${WS}*${SECRET_VALUE}` +
@@ -147,7 +176,7 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
     meta.reason = 'input_too_large'
     return finish(text)
   }
-  const { parts, pinned } = makeBlocks(text)
+  const { parts, pinned } = makeBlocks(collapseRepeats(text))
   let keep = new Set(pinned)
   if (options.backend === 'jev') {
     // Errors are never subject to Jev's decision; it only adds relevant non-error blocks.
@@ -191,6 +220,6 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
     }
   }
   let output = render(parts, keep)
-  if (charLength(output) >= charLength(text) || keep.size === parts.length) output = text
+  if (charLength(output) >= charLength(text) || meta.reason !== 'ok') output = text
   return finish(output)
 }

@@ -2,7 +2,7 @@ import { expect, test } from 'claude-code/testing'
 import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
-import { prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
+import { collapseRepeats, prune, redact, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
 const usage = { input_tokens: 100, output_tokens: 0 }
@@ -240,4 +240,16 @@ test('model: default request is the pinned model, and rules runs record no model
   expect(requested).toBe(MODEL)
   const rules = await prune(longLog(), { backend: 'rules', goal: 'g', threshold: 0.8 })
   expect(rules.meta.requested_model).toBeUndefined()
+})
+
+test('collapsing repeated warnings never loses an error-class line and keeps the count honest', () => {
+  const warn = (n: number, tag = 'deprecated api') => Array.from({ length: n }, (_, i) => `WARNING: ${tag} call #${i} at step ${i * 7}\n`)
+  const errors = ['ERROR boom 1\n', 'FAILED test_a\n', 'Traceback (most recent call last):\n', '  File "x.py", line 3\n', 'AssertionError: expected 1\n']
+  const text = [...warn(12), errors[0], ...warn(20), errors[1], ...warn(8, 'warn error code'), errors[2], errors[3], errors[4], ...warn(6)].join('')
+  const out = collapseRepeats(text)
+  for (const e of errors) expect(out).toContain(e)
+  expect(out.split('\n').filter((l) => l.includes('warn error code')).length).toBe(8) // error-class: untouched
+  expect(out).toContain('[9 similar lines omitted (original lines 3-11)]')
+  expect(out.length).toBeLessThan(text.length)
+  expect(collapseRepeats(warn(5).join(''))).toBe(warn(5).join('')) // below the run threshold
 })

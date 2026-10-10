@@ -39,6 +39,12 @@ def build():
                           ('dotless-i', 'FA\u0131L\n'), ('x1f-file', '\x1f File x\n'), ('unicode-word-boundary', 'warn\u00e9 x\n'),
                           ('emoji-lines', '\U0001F600 emoji line ERROR\n')]:
         case(name, ''.join(filler(40)) + special + ''.join(filler(40)))
+    warn = lambda n, tag='deprecated api': [f'WARNING: {tag} call #{i} at step {i * 7}\n' for i in range(n)]
+    case('repeated-warnings', ''.join(filler(30)) + ''.join(warn(200)) + ''.join(filler(30)))
+    case('warnings-below-threshold', ''.join(filler(30)) + ''.join(warn(5)) + ''.join(filler(30)))
+    case('warnings-with-error-never-collapsed', ''.join(filler(30)) + ''.join(warn(100, 'warn error code')) + ''.join(filler(30)))
+    case('warning-runs-broken-by-error', ''.join(filler(30)) + ''.join(warn(10)) + 'ERROR boom\n' + ''.join(warn(10)) + ''.join(filler(30)))
+    case('warning-run-no-trailing-newline', ''.join(filler(30)) + ''.join(warn(9))[:-1])
     case('emoji-bulk', ''.join(f'\U0001F600 line {i}\n' for i in range(120)))
     redactions = [{'input': t, 'expected': core.redact(t)} for t in [
         'Authorization: Bearer abcdefSECRET123',

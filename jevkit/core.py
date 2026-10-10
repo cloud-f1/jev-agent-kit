@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-VERSION = '0.3.0'
+VERSION = '0.4.0'
 QUESTION_VERSION = 'log-keep-v1'
 ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 MODEL = 'jev-1.13.0'
@@ -104,6 +104,33 @@ def config(project, env=None):
         result.update(value)
     return _validate_config(result)
 
+# Repeated warning lines are collapsed (first 2, a count marker, last 1). Lines with any error-class
+# word, a stack frame or a File line are never collapsed. Mirrors core/prune.ts collapseRepeats.
+WARNISH = re.compile(r'warning|warn\b', re.I | re.A)
+ERRORISH = re.compile(r'error|fail|exception|traceback|assert|expected|actual|timeout|denied|not found|at [^\n]+[:(][0-9]|^' + WS + r'*File ', re.I | re.A)
+MIN_RUN = 6
+
+def _collapsible(line):
+    return bool(WARNISH.search(line)) and not ERRORISH.search(line)
+
+def collapse_repeats(text):
+    lines = text.splitlines(keepends=True)
+    out = []
+    i = 0
+    while i < len(lines):
+        if _collapsible(lines[i]):
+            key = re.sub(r'[0-9]+', '#', lines[i])
+            j = i + 1
+            while j < len(lines) and _collapsible(lines[j]) and re.sub(r'[0-9]+', '#', lines[j]) == key:
+                j += 1
+            if j - i >= MIN_RUN:
+                out += [lines[i], lines[i + 1], '[' + str(j - i - 3) + ' similar lines omitted (original lines ' + str(i + 3) + '-' + str(j - 1) + ')]\n', lines[j - 1]]
+                i = j
+                continue
+        out.append(lines[i])
+        i += 1
+    return ''.join(out)
+
 def blocks(text, lines_per_block=8):
     lines = text.splitlines(keepends=True)
     parts = []
@@ -190,7 +217,7 @@ def prune(text, backend='rules', goal='Diagnose the current test or build failur
     if len(text.encode()) > MAX_BYTES:
         meta.update(reason='input_too_large', output_chars=len(text), latency_ms=0)
         return text, meta
-    parts, pinned = blocks(text)
+    parts, pinned = blocks(collapse_repeats(text))
     keep = set(pinned)
     if backend == 'jev':
         candidates = [i for i in range(len(parts)) if i not in pinned]
@@ -226,7 +253,7 @@ def prune(text, backend='rules', goal='Diagnose the current test or build failur
                     keep = set(range(len(parts)))
                     meta['reason'] = 'invalid_response'
     output = render(parts, keep)
-    if len(output) >= len(text) or len(keep) == len(parts):
+    if len(output) >= len(text) or meta['reason'] != 'ok':
         output = text
     meta.update(output_chars=len(output), latency_ms=round((time.monotonic()-started)*1000, 3))
     return output, meta

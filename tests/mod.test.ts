@@ -569,7 +569,7 @@ test('/jev init creates the project file once and never overwrites it', async ($
   const s = stubs(on, {})
   const first = await $.command.run({ command: 'jev', args: 'init assist' })
   expect(first.text).toContain('Created')
-  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'assist' })
+  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'assist', backend: 'rules' })
   expect((await $.command.run({ command: 'jev', args: 'init bogus' })).text).toContain('Usage')
 })
 
@@ -601,4 +601,33 @@ test('observe with the jev backend asks Jev but never rewrites (shadow mode)', a
   const out = await call($)
   expect(s.requests.length).toBeGreaterThan(0)
   expect(out.result.stdout).toBe(longLog())
+})
+
+test('/jev preset writes fixed fields only, lists names, rejects unknown names', async ($, on) => {
+  const s = stubs(on, {})
+  const list = await $.command.run({ command: 'jev', args: 'preset' })
+  expect(list.text).toContain('shadow-jev')
+  expect((await $.command.run({ command: 'jev', args: 'preset __proto__' })).text).toContain('Usage')
+  expect((await $.command.run({ command: 'jev', args: 'preset constructor' })).text).toContain('Usage')
+  expect(s.fsWrites.length).toBe(0)
+  expect((await $.command.run({ command: 'jev', args: 'preset shadow-jev' })).text).toContain('Created')
+  expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json'])).toEqual({ schemaVersion: 1, enabled: true, mode: 'observe', backend: 'jev' })
+})
+
+test('/jev savings reports counted characters for observe and never claims tokens or cost', async ($, on) => {
+  stubs(on, { config: { ...JEV_ASSIST, backend: 'rules', mode: 'observe' } })
+  await call($)
+  const out = await $.command.run({ command: 'jev', args: 'savings' })
+  expect(out.text).toMatch(/observe: 1 logs, [1-9]\d* chars assist would have removed/)
+  expect(out.text).toContain('assist: 0 logs rewritten')
+  expect(out.text).toContain('not a token, cost or success measurement')
+})
+
+test('/jev savings counts what assist actually removed', async ($, on) => {
+  stubs(on, { config: ASSIST })
+  const rewritten = await call($)
+  await $.command.run({ command: 'jev', args: 'savings' }).then((out: any) => {
+    expect(out.text).toMatch(/assist: 1 logs rewritten, [1-9]\d* chars removed/)
+  })
+  expect(rewritten.result.stdout).toContain('pruned ')
 })

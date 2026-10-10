@@ -42,7 +42,9 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 
 ## E7 (JEV-7) Usability (planned, v0.3)
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
-- Open: `/jev savings` (what `assist` would have saved, from `observe` data); optional pane; presets.
+- Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.
+- Built in 0.4.0: `/jev preset`, `/jev savings` (seen live / stubbed).
+- Open: optional pane (needs an interactive session to verify).
 
 ## E8 (JEV-8) Evidence of benefit (planned)
 - Paired agent-task benchmark (10 to 20 smoke tasks, then 100+) per EVALUATION.md, with ground truth, baseline arm and negative control (layout idea from quicksilver).
@@ -52,4 +54,4 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 ## E9 (JEV-9) Platform and maintainability (planned)
 - Test the Mod on a real Windows machine and fix what breaks.
 - (JEV-18, built in 0.3.0: script + typed `register`; `$: any` helpers remain) Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
-- Collapse repeated lines that differ only in numbers or ids (change both cores, regenerate golden).
+- (JEV-19, built in 0.4.0) Collapse repeated warning-only lines differing in digits; error-class lines never collapsed; both cores, golden regenerated.

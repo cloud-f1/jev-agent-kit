@@ -281,4 +281,27 @@ class ModelAcceptanceTests(unittest.TestCase):
                 core.request({'model': 'jev-1.13.0'})
             self.assertEqual(str(ctx.exception), 'model_mismatch')
 
+class CollapseTests(unittest.TestCase):
+    def test_error_class_lines_are_never_collapsed_and_markers_are_correct(self):
+        warn = lambda n, tag='deprecated api': [f'WARNING: {tag} call #{i} at step {i * 7}\n' for i in range(n)]
+        errors = ['ERROR boom 1\n', 'FAILED test_a\n', 'Traceback (most recent call last):\n', '  File "x.py", line 3\n', 'AssertionError: expected 1\n']
+        text = ''.join(warn(12) + [errors[0]] + warn(20) + [errors[1]] + warn(8, 'warn error code') + errors[2:] + warn(6))
+        out = core.collapse_repeats(text)
+        for e in errors:
+            self.assertIn(e, out)
+        self.assertEqual(sum('warn error code' in l for l in out.splitlines()), 8)
+        self.assertIn('[9 similar lines omitted (original lines 3-11)]', out)
+        self.assertLess(len(out), len(text))
+        short = ''.join(warn(5))
+        self.assertEqual(core.collapse_repeats(short), short)
+
+    def test_non_ok_results_return_the_exact_original(self):
+        text = ''.join(f'WARNING: x {i}\n' for i in range(300)) + ''.join(f'filler {i}\n' for i in range(200)) + 'tail line\n' * 5
+        def broken(body, timeout):
+            raise core.JevError('http_500')
+        with patch.dict(os.environ, {'TYPESAFE_API_KEY': 'k-12345678'}):
+            output, meta = core.prune(text, 'jev', caller=broken)
+        self.assertEqual(output, text)
+        self.assertEqual(meta['reason'], 'http_500')
+
 if __name__=='__main__': unittest.main()

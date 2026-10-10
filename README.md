@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.3.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.4.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -15,7 +15,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`jev.py`) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
-Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
 ## Install
 
@@ -149,9 +149,10 @@ Tested on Python 3.10, 3.11, 3.12, 3.13 and 3.14. Because of the `/config` picke
 | `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
 | `/jev status` | Count and the last 10 decision records for this project. |
 | `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output. Only 32 hex chars are accepted. After a read-back, `assist` stops rewriting for the rest of the session (the model needed the original, so pruning cost something). |
-| `/jev on` / `/jev off` | Turn "Enable in every project" on or off (your plugin settings). A project file still overrides. |
-| `/jev mode observe|assist` | Set the mode in your plugin settings. |
-| `/jev init [observe|assist]` | Create `.claude/jev-agent-kit.json` for this project (enabled). Never overwrites an existing file. |
+| `/jev on` / `/jev off` / `/jev mode observe\|assist` | Try to change your plugin settings through Claude Code. **Seen live in headless `claude -p`: Claude Code exposes no `/config` row for this plugin there, so these report that and point you to `/config` or `claude plugin configure jev-agent-kit`.** They have not been seen working in an interactive session. |
+| `/jev init [observe\|assist]` | Create `.claude/jev-agent-kit.json` for this project (enabled). Never overwrites an existing file. Works in headless runs (seen live). |
+| `/jev preset <name>` | Same, from a preset: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. `/jev preset` lists them. Seen live. |
+| `/jev savings` | Counted characters: what `assist` removed, and what it would have removed in `observe`. Not a token, cost or success measurement. |
 
 Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 30000 -> 570 chars; full original available via /jev readback <id>]`. These are counted characters, not a token or cost claim.
 
@@ -218,8 +219,8 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 ## Develop and verify
 
 ```bash
-uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (58)
-claude plugin test                         # TypeScript core + Mod tests (91), offline
+uv run --no-project python -m unittest discover -s tests   # Python core + release-gate tests (60)
+claude plugin test                         # TypeScript core + Mod tests (95), offline
 claude plugin validate --strict .
 uv run --no-project jev.py bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
 uv run --no-project scripts/release_check.py   # the local release gate (add --release to tag)

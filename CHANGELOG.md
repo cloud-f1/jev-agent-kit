@@ -4,12 +4,22 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.4.0 | 2026-10-10 | `/jev preset`, `/jev savings`, repeated-warning collapse (errors never collapsed), honest `/jev on|off|mode` |
 | 0.3.0 | 2026-10-10 | `/jev on|off|mode|init`, measured receipt line, pause after read-back, optional type-check; live synthetic benchmark run |
 | 0.2.1 | 2026-10-10 | Visible failures (toast + debug log), key from user `settings.json` env, `Jev model` setting, audit fixes |
 | 0.2.0 | 2026-10-10 | Native TypeScript Mod replaces the Python hook; `/jev` commands; `/config` settings; independent audit fixes; cross-platform code path |
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.4.0 (2026-10-10)
+
+- Fixed (found live): in v0.3.0 `/jev on|off|mode` called `$.config.set` with key `jev-agent-kit.<field>`, but a real headless session has no `/config` row for this plugin (`no /config row with key ...`), so it never worked there; the stubs hid it. It now says so and points to `/config` or `claude plugin configure jev-agent-kit`. Not seen in an interactive session (a scripted interactive run was blocked by the harness's safety check, so the interactive behavior is still unverified).
+- New: `/jev preset <name>` (`observe-local`, `shadow-jev`, `prune-local`, `prune-jev`) writes the project file with fixed fields only and never overwrites. Seen live with `claude -p`.
+- New: `/jev savings` reports counted characters from this project's records (what assist removed; what it would have removed in observe; fallbacks). No token, cost or success claim.
+- Changed (behavior, both cores, golden regenerated; existing cases byte-identical): runs of 6 or more consecutive warning-only lines that differ only in digits are collapsed to the first 2, a count marker and the last 1. Lines with an error-class word, a stack frame or a `File` line are never collapsed. A run of warnings with any such word is untouched. Any non-ok result still returns the exact original. Example on a synthetic log: 9,710 -> 763 characters.
+- Not done: a pane (needs an interactive session to verify), paired agent-task benchmark (budget), Windows run.
+- Tests: 60 Python + 95 Mod/core tests.
 
 ## 0.3.0 (2026-10-10)
 

@@ -33,7 +33,7 @@ No CI: the local gate is the gate. Python is stdlib-only; do not add dependencie
 
 - Any failure after the tool ran returns the original result unchanged.
 - Never rewrite `stderr`, interrupted, image, failed (`isError`) or denied results.
-- Error-bearing blocks are never dropped, with or without Jev.
+- Error-bearing blocks are never dropped, with or without Jev. Error-class lines are never collapsed; only runs of 6+ warning-only lines that differ in digits only are collapsed (first 2, count marker, last 1), identically in both cores.
 - Records/logs never contain keys, response bodies, exception text, code, prompts or full logs; only fixed reason codes.
 - Raw originals are written `0600` (umask 077). The goal text is redacted before leaving the machine.
 - Jev endpoint is fixed; the key is read from env / `JEV_ENV_FILE` only; never from the repo.
