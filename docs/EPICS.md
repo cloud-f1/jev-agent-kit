@@ -10,7 +10,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
-| E7 (JEV-7) | Usability (v0.3) | 0.3.0 | Commands, receipt released; `/jev savings`, pane, presets open |
+| E7 (JEV-7) | Usability | 0.4.0 | Presets, savings, init, receipt released; interactive `/jev on|off|mode` and pane open (JEV-20) |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | planned | Not started |
 
@@ -44,7 +44,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
 - Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.
 - Built in 0.4.0: `/jev preset`, `/jev savings` (seen live / stubbed).
-- Open: optional pane (needs an interactive session to verify).
+- Open (JEV-20): verify `/jev on|off|mode` interactively and build the optional pane; both need a human-driven interactive session.
 
 ## E8 (JEV-8) Evidence of benefit (planned)
 - Paired agent-task benchmark (10 to 20 smoke tasks, then 100+) per EVALUATION.md, with ground truth, baseline arm and negative control (layout idea from quicksilver).
