@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.6 | 2026-10-10 | README rewritten shorter (detail moved to `docs/REFERENCE.md`); `/jev doctor` says how updates work and how to turn on auto-update |
 | 0.6.5 | 2026-10-10 | `/jev status` no longer prints empty `loop · observe ·  →  chars` rows (repeats are one summary line); records now say when Jev was never asked |
 | 0.6.4 | 2026-10-10 | CLI `--help`, `doctor --verify`, config sources, read-back after `/jev init` and `/jev preset`, backend data-flow table, Node wrapper (JEV-30, JEV-31) |
 | 0.6.3 | 2026-10-10 | Messages and docs point to the real settings path (`/plugin` → Configure), Node 22.17 note, README status brought up to date; found from a real interactive install |
@@ -18,6 +19,23 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
+
+## 0.6.6 (2026-10-10)
+
+### New
+- `/jev doctor` ends with how updates work: Claude Code does them, auto-update is off by default for third-party marketplaces (`/plugin` → Marketplaces → jev-agent-kit → Enable auto-update), or `claude plugin update jev-agent-kit@jev-agent-kit` then `/reload-plugins`. The plugin does not check for updates itself and makes no network call for it: a plugin has no supported way to trigger one, and a self-updating Mod would be a supply-chain risk.
+
+### Changed
+- README rewritten: 135 lines instead of 264, with install, updates, a five-minute safe start, what leaves your machine, using Jev, how to judge whether it is worth it, commands, settings and troubleshooting. Everything removed moved into the new `docs/REFERENCE.md` (stale statements corrected there: `/jev on|off|mode` work interactively, the pane and savings are available).
+- The README no longer says saved settings are kept across an update: Claude Code does not document that, and a real upgrade has not been tested here.
+- Message string only in `hooks/register.ts`; `core/` differs from 0.6.5 only in the version string.
+
+### Verified
+- 118 Mod tests and 49 Node tests pass; the new test checks the doctor line and that no request is made. Gate green.
+
+### Not verified
+- Whether saved settings survive a real version upgrade (test it with the next release: install the old version with settings, update, run `/jev doctor`).
+- That auto-update picks this plugin up on a real third-party marketplace timeline (Claude Code checks after the first message of a session, up to about 10 minutes later).
 
 ## 0.6.5 (2026-10-10)
 

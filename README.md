@@ -1,263 +1,135 @@
 # Jev Agent Kit
 
-Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) before it reaches the model, with a local rules engine and an optional [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) (TypeSafe AI System One) relevance pass. The original output is always kept and recoverable.
+A [Claude Code](https://claude.com/claude-code) plugin that shortens long `Bash` output before the model reads it. It uses local rules, and can optionally ask the [Jev](https://typesafe.ai/blog/introducing-system-one-models-and-jev) model (TypeSafe AI) which parts matter. The full original is always kept, so nothing is lost.
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.5, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
+> **Status: v0.6.6. The mechanism works; the benefit is unproven.** In tests, long synthetic logs shrink a lot and error lines are kept. Whether it lowers your total cost per *successful* task has **not** been measured. Treat it as an experiment and see [Is it worth it?](#is-it-worth-it).
 
-## What it does
+## How it works
 
-| Piece | What |
-|---|---|
-| Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
-| `/jev` command + plugin settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and a settings form under `/plugin` → Installed → Jev Agent Kit → Configure. |
-| Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
-| CLI (`cli/jev.ts`, Node) | `--help`, `doctor [--verify]`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
+```
+Bash runs -> long output (8,000 to ~29,700 chars) -> kit shortens it -> the model reads the short version
+                                                    \-> the full original is saved; one line tells the model where
+```
 
-The kit acts on Bash output between `minimumChars` and about 29,700 characters (assuming the default 30,000-character cap, or 99% of `BASH_MAX_OUTPUT_LENGTH` if it is set in the environment): Claude Code itself cuts output at that cap (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. With `backend: jev`, Jev is asked about at most 96 non-pinned blocks (8 lines each) and 60 KB per request. A longer log is **not sent at all** and comes back unchanged (record reason `budget_fallback_original`). In practice that is roughly 800 short lines, about 14,000 characters, so a 27 KB log never reaches Jev (found in a real session; tracked as Jira JEV-29). Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+- It keeps the start, the end, and every block with an error, warning or traceback. Error lines are never dropped, with or without Jev.
+- It never touches `stderr`, failed or denied commands, images, or output Claude Code already cut at 30,000 characters.
+- If anything goes wrong, you get the original output unchanged.
+- Nothing happens until a project **opts in**.
 
 ## Install
 
-Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node; only the optional maintainer CLI needs Node 22.18+ (on 22.6 to 22.17 run it as `node --experimental-strip-types cli/jev.ts ...`). On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
+Needs Claude Code **2.1.287 or later**.
 
 ```
 /plugin marketplace add cloud-f1/jev-agent-kit
 /plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit
 ```
 
-Or from a shell: `claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`.
-Local development: `claude --plugin-dir /absolute/path/to/jev-agent-kit`.
+The install opens a settings form. You can leave everything at its default and skip the API key.
 
-Installing changes nothing by itself. **Each project opts in** with a config file. Want to try it end to end? [docs/TESTING.md](docs/TESTING.md) is a 20-minute checklist (Traditional Chinese) that uses only the safe settings and needs no key.
+**Updates.** Claude Code does the updating; a plugin cannot update itself, and this one never checks the network for new versions.
+- **Automatic:** auto-update is **off by default for third-party marketplaces**. Turn it on in `/plugin` → Marketplaces → jev-agent-kit → Enable auto-update. Claude Code then checks after your first message in a session (after a random delay of up to 10 minutes), shows "Plugin updated ... Run /reload-plugins", and loads the new version on the next launch.
+- **By hand:** `claude plugin update jev-agent-kit@jev-agent-kit`, then restart or run `/reload-plugins`.
+- **Your data:** project files (`.claude/jev-agent-kit.json`) are never touched by an update. Claude Code does not document whether saved plugin settings survive an update, and we have not tested a real upgrade; if a setting looks reset, run `/jev doctor` and set it again. This project's rule is never to rename or remove a setting, or add a required one.
+- `/jev doctor` shows the version you are running and these steps.
 
-## Use it: five minutes
+## Try it in five minutes (safe, free, nothing leaves your machine)
 
-Installing changes nothing by itself: a project must be opted in. Two ways, pick one.
+1. In your project, run `/jev preset observe-local`. This creates `.claude/jev-agent-kit.json`.
+2. Run `/jev doctor` and check it says the project is opted in.
+3. Run something that prints a lot (a long test run), then `/jev status`. You will see a record, and the output you saw was **not changed**.
+4. Happy? Switch to pruning: delete the file and run `/jev preset prune-local`. The model now sees the short version plus a note naming the file with the full original.
+5. See the effect with `/jev savings` (counted characters only) or `/jev pane` (a side pane).
 
-### Option A: settings screen (no files)
+Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 
-1. In Claude Code open `/plugin` → Installed → **Jev Agent Kit** → Configure (the same form appears when you install it; some versions also list the rows in `/config`):
+## What leaves your machine
 
-   ```text
-   Mode                      observe  [observe | assist]
-   Backend                   rules    [rules | jev]
-   Minimum output length     8000
-   Jev keep threshold        0.8
-   Keep stored logs (days)   7
-   Enable in every project   off
-   ```
-
-   (The TypeSafe API key is asked for when you enable the plugin and kept in secure storage; Claude Code does not list sensitive options as `/config` rows. Set it later with `claude plugin configure jev-agent-kit`. This has not yet been seen interactively; see docs/compatibility.md.)
-2. Switch **Enable in every project** on. Start with **Mode = observe** and **Backend = rules**: local only, nothing is rewritten, nothing is sent anywhere.
-3. Run `/jev doctor` to confirm: every value is listed with where it came from (`plugin settings` or `project file`) and what to do next if the project is not opted in.
-
-### Option B: a file in one project
-
-```bash
-mkdir -p .claude && cat > .claude/jev-agent-kit.json <<'JSON'
-{"schemaVersion": 1, "enabled": true, "mode": "observe", "backend": "rules"}
-JSON
-```
-
-The project file always wins over `/config` settings, including `"enabled": false` to opt one repo out while everything else is on.
-
-### Then
-
-4. Run something noisy (a long test run), then `/jev status`. In `observe` the original is stored and the decision logged, but the output is unchanged.
-5. Switch Mode to `assist` (in the Configure form, or `"mode": "assist"` in the file). The model now sees the pruned text plus a note naming the file that holds the full original (it can read it with its Read tool) and `/jev readback <id>` for you. `/jev readback <id>` returns everything.
-6. Optional, **costs money and sends redacted log blocks to TypeSafe**: set Backend to `jev` and provide a key (below). Watch `/jev status` in `observe` first.
-
-### Settings reference
-
-Precedence: **built-in defaults < plugin settings (the Configure form, applies to you everywhere) < project file (`.claude/jev-agent-kit.json`)**. Claude Code fills untouched settings with their defaults, so `/jev doctor` labels those `plugin settings` too.
-
-| `/config` row | Project-file field | Default | Meaning |
-|---|---|---|---|
-| Enable in every project | `enabled` | off | Must be on (or the project file must say `true`) or the kit does nothing. |
-| Mode | `mode` | observe | `observe` records only; `assist` rewrites output. |
-| Backend | `backend` | rules | `rules` is local; `jev` adds the API relevance pass. |
-| Minimum output length | `minimumChars` | 8000 | Shorter output is never touched. (Claude Code caps Bash output near 30,000 chars itself.) |
-| Jev keep threshold | `keepThreshold` | 0.8 | Probability a non-error block needs for Jev to keep it. |
-| Keep stored logs (days) | `retentionDays` | 7 | How long originals and records are kept. |
-| Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). A pinned model must answer as itself (otherwise `model_mismatch` and the original output is kept); `jev-latest` may resolve to any `jev-*` name. A project file cannot set it. `/jev status` records the model that actually answered. |
-| (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
-
-Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad plugin-setting value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
-
-### The Jev API key
-
-Get early-access credentials at [console.typesafe.ai](https://console.typesafe.ai). Never paste the key into a chat and never commit it. Lookup order: `TYPESAFE_API_KEY` environment variable, then the plugin's secure setting, then the `env` block of your *user* `settings.json` (a project's own `settings.json` is never used), then a file named by `JEV_ENV_FILE`. `/jev doctor` says which one is in use (never the value).
-
-```bash
-# easiest: enter it when Claude Code asks while you enable the plugin (secure storage).
-# Skipped it? `claude plugin configure jev-agent-kit` lists unset options and can save values.
-# or, from a shell:
-cp .env.example .env.local        # edit TYPESAFE_API_KEY=... (gitignored)
-export JEV_ENV_FILE=/absolute/path/to/.env.local   # before starting claude
-node cli/jev.ts --env-file .env.local smoke   # synthetic text only; exit 3 = no verdict
-```
-
-### Where things live
-
-State (originals, decision records) is under `~/.cache/jev-agent-kit/` (override with an absolute `JEV_STATE_DIR`), files `0600`, directories `0700`. Raw logs may contain secrets; redaction is best effort. Records never contain code, prompts, commands, full logs, keys or HTTP bodies.
-
-## The interface
-
-What you can see and touch today, and what is only a plan.
-
-| Surface | Status | What it is |
-|---|---|---|
-| `/config` rows | **Available** | The settings above, drawn by Claude Code from the plugin manifest (pickers, numbers, a switch). |
-| Failure toast | **Available** | If Jev (or pruning) falls back to the original output, a toast says so once per reason per session, with a fixed reason code such as `http_429` or `missing_key`. Nothing from the response is ever shown. |
-| Key prompt | **Available** | Asked when you enable the plugin; stored in secure storage. |
-| `/jev doctor` | **Available** | Effective config with the source of every value, key presence (never the key), next step. |
-| `/jev status` | **Available** | Record count and the last 10 decisions. |
-| `/jev readback <id>` | **Available** | Prints the untouched original. |
-| Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
-| `/jev init`, `/jev on`, `/jev off`, `/jev mode` | Shipped (v0.3/v0.4) | Change settings from the prompt via `$.config.set`; interactive sessions only. |
-| `/jev pane` / `/jev pane close` | Open or close a side pane with the same counted characters and recent decisions as `/jev savings` and `/jev status` (refreshes at most every 3 s). On a narrow terminal it waits until the terminal widens. Seen working in a real interactive session. |
-| `/jev savings` | Shipped (v0.4.0) | From `observe` data, what `assist` would have saved, so you decide with numbers. |
-
-## Cross-platform notes
-
-The plugin is one TypeScript Mod: nothing but Claude Code is needed to use it.
-
-| Platform | Status |
+| `backend` | Sent to TypeSafe's API? |
 |---|---|
-| macOS, Linux | Verified (macOS arm64). Private files via `umask 077` (files `0600`, directories `0700`); retention via `find`. |
-| Windows | **Code path written, never run on Windows.** Uses the Mod's file API for writes (state lives under your user profile), PowerShell for retention, `USERPROFILE` when `HOME` is unset. Covered by stubbed tests only. Please report what you see. |
+| `rules` (default) | **Nothing.** Everything is local. |
+| `jev` | **Yes.** Redacted log blocks, a short goal line and your API key go to `https://api.typesafe.ai`, in both `observe` and `assist`. |
 
-Project paths are resolved with the Mod's own file API (`realPath`), so symlinked folders map to the same state on every platform.
+`mode` only decides whether the output you see is changed: `observe` records only, `assist` rewrites.
 
-**Maintainer and evaluation CLI** (`cli/jev.ts`) is optional and written in TypeScript. Node 22.18 or later runs it directly (type stripping, no build and no dependencies), on macOS, Linux and Windows:
+## Using Jev (optional, costs money)
 
-```bash
-node cli/jev.ts doctor
-node --test cli/tests/*.spec.ts
-```
+1. Get a key at [console.typesafe.ai](https://console.typesafe.ai). Never paste it into a chat or commit it.
+2. Save it: `claude plugin configure jev-agent-kit` (kept in secure storage), or set `TYPESAFE_API_KEY`.
+3. Check it works: `node cli/jev.ts doctor --verify` from a checkout of this repo (sends one synthetic sentence; prints `valid`, `invalid (401)` or `missing`).
+4. Start with `/jev preset shadow-jev`: it asks Jev and records what it would keep, but never changes your output.
 
-Node refuses to strip types inside `node_modules`, so the CLI runs from a checkout (an `npx` install would need a build step; not provided). Because of the `/config` pickers the plugin needs Claude Code 2.1.271+ to load at all; the Mod needs 2.1.287+.
+Limits worth knowing:
+- Jev only sees logs of roughly 8,000 to 14,000 characters (up to 96 blocks / 60 KB per request). Longer logs are **not sent** and come back unchanged.
+- A log where every block contains an error or warning word is never sent either. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
 
-## Full usage
+## Is it worth it?
 
-### In-session commands (Mod)
+Shorter output is not the goal. Lower cost per successful task at the same success rate is. The kit gives you three levels of evidence:
+
+| Level | What to do | Tells you |
+|---|---|---|
+| Free, a week | Keep `observe` on. Read `/jev savings`, `/jev status` and the fall-back reasons. | How much output is long enough to matter, and how often fall-backs happen. Not whether answers get better. |
+| Cheap | Use `prune-local` on a few real tasks. Watch for the model reading the original back (the kit pauses pruning after a read-back). | Whether the short version is enough in practice. |
+| Real verdict | Paired runs: no plugin vs rules vs Jev, same tasks, your own verifier. See [docs/EVALUATION.md](docs/EVALUATION.md) and [evals/README.md](evals/README.md). | The only thing that can show a net saving. |
+
+## Commands
 
 | Command | Does |
 |---|---|
-| `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
-| `/jev status` | Count and the last 10 decision records for this project. |
-| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output (the same text is in the file named there). Only 32 hex chars are accepted. After a read-back (this command, or any Bash command that mentions the stored artifacts folder), `assist` stops rewriting in that project for the rest of the session (the model needed the original, so pruning cost something). |
-| `/jev on` / `/jev off` / `/jev mode observe\|assist` | Try to change your plugin settings through Claude Code. **Seen live in headless `claude -p`: Claude Code exposes no `/config` row for this plugin there, so these report that and point you to `/config` or `claude plugin configure jev-agent-kit`.** They have not been seen working in an interactive session. |
-| `/jev init [observe\|assist]` | Create `.claude/jev-agent-kit.json` for this project (enabled). Never overwrites an existing file. Works in headless runs (seen live). |
-| `/jev preset <name>` | Same, from a preset: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. `/jev preset` lists them. Seen live. |
-| `/jev savings` | Counted characters: what `assist` removed, and what it would have removed in `observe`. Not a token, cost or success measurement. |
+| `/jev doctor` | Version, effective settings and where each came from, key present or not, what to do next. |
+| `/jev status` | Record count, the last 10 decisions, failed-command repeats. |
+| `/jev savings` | Counted characters removed (or that `assist` would remove), and how many logs Jev really answered. Not a token or cost claim. |
+| `/jev pane` / `/jev pane close` | A side pane with savings and recent decisions. |
+| `/jev readback <id>` | Print the untouched original. |
+| `/jev preset <name>` | Create the project file: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. Never overwrites. |
+| `/jev init [observe\|assist]`, `/jev on`, `/jev off`, `/jev mode <m>` | Create the file, or change your settings (interactive sessions only). |
 
-Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 12000 -> 570 chars. The full original is in the file <state>/artifacts/<id>.log (read it with your Read tool or cat); the user can run /jev readback <id>]` (the path shown to the model is your own state folder, so it contains your home path). These are counted characters, not a token or cost claim.
+If a project file exists, its fields win over `/jev mode` and the settings form. To switch, edit the file or delete it and run a preset.
 
-**Shadow mode:** `mode: observe` with `backend: jev` asks Jev about each long log and records what it would have kept, but never rewrites anything. Note this sends (redacted) log blocks to the Jev API even though nothing is changed.
+## Settings
 
-The status line under the prompt shows `jev: N/M long logs pruned · X chars saved` (assist) or `jev (observe): M long logs seen` (observe).
+Open `/plugin` → Installed → Jev Agent Kit → Configure, or edit `.claude/jev-agent-kit.json` in a project (the file wins).
 
-### CLI (`node cli/jev.ts ...` from a checkout; Node 22.18+)
-
-Optional maintainer and evaluation tool; end users do not need it.
-
-| Command | Does | Needs key |
+| Setting | Default | Meaning |
 |---|---|---|
-| `doctor` | Node version, Claude CLI, key presence, endpoint, model. Offline. | no |
-| `doctor --verify` | Same, plus one synthetic request that reports `key_check`: `valid`, `invalid (401)`, `missing` or `error (<reason>)`. Exit 3 unless `valid`. | yes |
-| `check-config --project DIR` | Validate `.claude/jev-agent-kit.json` and print the effective config with a `sources` map (default, plugin settings, project file). | no |
-| `status --project DIR` | Recent decision records. | no |
-| `readback ID --project DIR` | Print a stored original. | no |
-| `bench-logs --outdir DIR` | Offline demo on 5 synthetic logs with a mock Jev. **Not** a quality or billing result. | no |
-| `smoke` | One synthetic request to the real API; exit 3 = no verdict (missing key, 401, 429, timeout...). | yes |
-| `bench-logs --live --outdir DIR` | Same fixtures against the real API (synthetic text only). | yes |
-| `report --manifest M --records R --outdir DIR` | Paired agent-task comparison report. | no |
+| `enabled` (form: "Enable in every project") | off | Must be on, or the project file must say `true`. |
+| `mode` | `observe` | `observe` records only; `assist` rewrites output. |
+| `backend` | `rules` | `rules` is local; `jev` adds the API pass. |
+| `minimumChars` | 8000 | Shorter output is never touched. |
+| `keepThreshold` | 0.8 | How sure Jev must be to keep a block. |
+| `retentionDays` | 7 | How long originals and records are kept. |
+| Jev model | `jev-1.13.0` | Pinned on purpose; `jev-latest` follows the newest. |
 
-`node cli/jev.ts --help` (also `-h`, `help`) lists every command and marks the ones that use the network. On Node 22.6 to 22.17 run `sh scripts/jev.sh <command>` (or `npm run jev -- <command>`), which adds `--experimental-strip-types` for you.
-
-Add `--env-file PATH` before the command to load `TYPESAFE_API_KEY` from a local dotenv file for that run only.
-
-### Several projects
-
-Install the plugin once (user scope). In each repo commit only `.claude/jev-agent-kit.json`; do not copy plugin code. Different repos can use different modes. State is isolated per project directory, so a stored original from one repo is never readable from another.
-
-### Measuring whether it helps
-
-Shorter output is not the goal; lower **cost per successful task** at equal success is. The kit ships the harness, not the answer:
-
-1. Read [docs/EVALUATION.md](docs/EVALUATION.md). Keep the cheap `log_proxy` numbers (characters saved, evidence kept) separate from `agent_task` results.
-2. Pre-register tasks in a manifest (`evals/agent-manifest.json` shows the shape), run each task under `baseline`, `local` (rules) and `jev`, several repeats, on identical commits and verifiers.
-3. Record one JSON line per run (`evals/agent-record.example.json`), then `node cli/jev.ts report --manifest M --records R`. The bootstrap uses a seeded generator, so its confidence intervals are deterministic but not numerically comparable with reports made by v0.4.x and earlier.
-4. Compare `jev` against `local`, not only against baseline, so a cheaper-model effect is not credited to Jev. Missing runs, unknown costs or too few tasks give INCOMPLETE / UNKNOWN_COST / INSUFFICIENT_EVIDENCE, never GO. The gate numbers are a product policy you may change, not a proven threshold.
-
-### Upgrade, rollback, uninstall
-
-- Update: `claude plugin update jev-agent-kit` (installed plugins are cached by version, so a fix only arrives with a new version).
-- Roll back: reinstall the earlier tag, or remove and re-add the marketplace pinned to it. Project config files stay valid across 0.1 to 0.2 (`schemaVersion` 1).
-- Stop using it in one project: set `"enabled": false` (or delete the file). Everywhere: `claude plugin disable jev-agent-kit`, or `claude plugin uninstall jev-agent-kit`.
-- Remove stored data: delete `~/.cache/jev-agent-kit/` (or your `JEV_STATE_DIR`). Originals and records live only there.
-
-### Privacy and data flow
-
-What leaves your machine depends on `backend`, not on `mode`:
-
-| `backend` | `mode` | Sent to `api.typesafe.ai`? | Output changed? |
-|---|---|---|---|
-| `rules` | `observe` | **Nothing.** | No (records only). |
-| `rules` | `assist` | **Nothing.** | Yes, pruned locally. |
-| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output that reaches Jev (not below `minimumChars`, not at the host cap, not over the 96-block / 60 KB budget, not without a key). | No (records what Jev would keep). |
-| `jev` | `assist` | **Yes**, same as above. | Yes, pruned with Jev relevance; falls back to the original on any failure. |
-
-For `jev`, redacted log blocks (secrets pattern-masked, best effort), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.
-
-Decision records hold counts, reason codes, timing, token usage and an artifact id. They never hold code, prompts, commands, full logs, keys, response bodies or exception text. Optionally put a one-line task description in `.claude/jev-goal.txt` to tell Jev what evidence is relevant (it is redacted before sending).
+Everything else (all settings in detail, the key lookup order, storage, the CLI, evaluation, other platforms) is in [docs/REFERENCE.md](docs/REFERENCE.md).
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---|---|
-| `/jev` not found | Mod not loaded: update Claude Code, or check `claude --debug-file f.log` for `hooks module jev-agent-kit`. |
-| Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
-| `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
-| `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in the Configure form. |
-| `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
-| `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and the Configure form; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
-| Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
-
-## Develop and verify
-
-```bash
-node --test cli/tests/*.spec.ts            # CLI, state, metrics and release-gate tests (Node 22.18+)
-claude plugin test                         # TypeScript core + Mod tests, offline
-claude plugin validate --strict .
-node cli/jev.ts bench-logs --outdir results/offline   # mock demo, NOT a quality or billing result
-node scripts/release-check.ts              # the local release gate (add --release to tag)
-```
-
-Type-check (also a step of the release gate): `npm ci` once, then `npm run typecheck`. Two projects: `tsconfig.node.json` (cli, scripts, core: needs only `typescript` and `@types/node`) and `tsconfig.plugin.json` (hooks, core, tests against Claude Code's own types, which Claude Code writes to `.claude-plugin/types/` the first time a mod loads in an interactive session; git-ignored). The Mod's `$` is typed with Claude Code's `EngineInterface`, so a wrong API call is a compile error.
-
-Layout: `core/` pure TypeScript (no mods API), `hooks/register.ts` the only file that talks to Claude Code, `cli/` the Node maintainer CLI (it imports the same core), `tests/fixtures/golden.ts` the frozen behavior contract. See [CLAUDE.md](CLAUDE.md) and [docs/HANDOVER.md](docs/HANDOVER.md). Verified vs not-run: [docs/compatibility.md](docs/compatibility.md). Original v0.1 Chinese README: [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md).
-
-## Using it with other Jev mods
-
-Works alongside [fast-jev-compaction](https://github.com/tamaratran/fast-jev-compaction) (MIT, whole-conversation compaction). They hook different events (ours: `tool.call`; theirs: `session.compact`, `turn.complete`), and loading both in a real session worked: both modules loaded, no hook was skipped, and our pruning ran. **Not tested:** an actual compaction with both active (it needs a Jev key and a long session). Install them separately; neither depends on the other.
+| `/jev` not found | Update Claude Code (2.1.287+) and restart. |
+| Nothing is pruned | Run `/jev doctor`: is the project opted in? Is the output over `minimumChars`? Is `mode` still `observe`? |
+| `/jev mode assist` changed nothing | A project file field wins. Edit it, or delete it and run `/jev preset prune-local`. |
+| `backend: jev` but the log is not shortened | Over 96 blocks (about 800 short lines): not sent. Or every block was an error/warning, so Jev was not asked. |
+| A reason other than `ok` in `/jev status` | That is why the original was used (`missing_key`, `http_429`, `timeout`...). It also appears once as a notice. |
+| Stop it | One project: set `"enabled": false`. Everywhere: `claude plugin disable jev-agent-kit`. |
 
 ## Limits
 
-Not a security control. Not proven to save money (a 4-task smoke eval passed 32/32 in both arms at about $0.0031 vs $0.0040 per run; that is not evidence of a benefit). The loop detector only observes. Output that Claude Code itself cut at 30,000 characters is left alone. Windows is untested (see Cross-platform notes). Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.
+Not a security control, and secret redaction is best effort. Raw originals may contain secrets and are stored `0600` in `~/.cache/jev-agent-kit/`. Windows has never been run. Jev is early access and English-first. A small 4-task smoke test passed in both arms at about the same cost; that is not evidence of a benefit.
 
-## Documentation
+## More
 
 | Read this | For |
 |---|---|
-| [docs/TESTING.md](docs/TESTING.md) | Step-by-step tester checklist from install to read-back (Traditional Chinese) |
-| [docs/PRD.md](docs/PRD.md), [docs/EPICS.md](docs/EPICS.md) | What the product is for, requirements, and the epics (mirrored in Jira project JEV) |
-| [docs/compatibility.md](docs/compatibility.md) | What was actually run and what was not |
-| [docs/EVALUATION.md](docs/EVALUATION.md), [evals/README.md](evals/README.md) | How to measure whether it helps; the paired eval cases |
-| [CHANGELOG.md](CHANGELOG.md) | Version history and what changed in each release |
-| [CLAUDE.md](CLAUDE.md), [docs/HANDOVER.md](docs/HANDOVER.md) | Rules and current state for contributors and the next Claude session |
-| [docs/PLAN-node-ts.md](docs/PLAN-node-ts.md), [docs/sources.md](docs/sources.md) | The Node + TypeScript decision; other projects we read and what we may reuse |
+| [docs/REFERENCE.md](docs/REFERENCE.md) | Full detail: how pruning works, settings, key, CLI, privacy, evaluation, development |
+| [docs/TESTING.md](docs/TESTING.md) | 14-step tester checklist (Traditional Chinese) |
+| [docs/compatibility.md](docs/compatibility.md) | What was actually run, and what was not |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each version |
+| [docs/PRD.md](docs/PRD.md), [docs/EPICS.md](docs/EPICS.md) | Purpose, requirements, epics (mirrored in Jira project JEV) |
+| [CLAUDE.md](CLAUDE.md), [docs/HANDOVER.md](docs/HANDOVER.md) | Rules and current state for contributors |
+| [docs/PLAN-node-ts.md](docs/PLAN-node-ts.md), [docs/sources.md](docs/sources.md) | The Node + TypeScript decision; other projects reviewed |
 | [skills/operate/SKILL.md](skills/operate/SKILL.md), [examples/project-config.json](examples/project-config.json) | The skill shipped to users; an example project file |
-| [docs/REPO_HANDOVER.md](docs/REPO_HANDOVER.md), [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md), [SESSION.md](SESSION.md), [VALIDATION.md](VALIDATION.md) | v0.1 history (Python era), kept for reference; their commands no longer exist |
+| [docs/REPO_HANDOVER.md](docs/REPO_HANDOVER.md), [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md), [SESSION.md](SESSION.md), [VALIDATION.md](VALIDATION.md) | v0.1 history (Python era); their commands no longer exist |

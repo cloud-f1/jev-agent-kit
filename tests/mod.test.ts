@@ -449,6 +449,15 @@ test('/jev doctor tells an un-opted-in user exactly what to do', async ($, on) =
   expect(out.text).toContain('Enable in every project')
 })
 
+test('/jev doctor says how updates work: Claude Code does them, auto-update is opt-in, the plugin never checks the network', async ($, on) => {
+  const s = stubs(on)
+  const out = await jev($, 'doctor')
+  expect(out.text).toContain('Updates: Claude Code does them')
+  expect(out.text).toContain('Enable auto-update')
+  expect(out.text).toContain('claude plugin update jev-agent-kit@jev-agent-kit')
+  expect(s.requests.length).toBe(0)
+})
+
 // ---- Windows branch: exercised with stubs only; it has NOT been run on Windows.
 test('Windows: private writes use the file API, never sh', async ($, on) => {
   const s = stubs(on, { config: ASSIST, env: { OS: 'Windows_NT', HOME: '', USERPROFILE: 'C:\\Users\\u', JEV_STATE_DIR: 'C:\\state' } })
