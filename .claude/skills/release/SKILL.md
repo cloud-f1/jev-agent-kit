@@ -27,6 +27,10 @@ Installed plugins are cached **by version**, and an installed copy is the whole 
 11. **Jira**: move the matching JEV issues (see `docs/EPICS.md`) with `symphony-workflow call transition_issue` from `../symphony-workflow` (`uv run --env-file .env ...` there; that sibling project is Python). Statuses: To Do, In Progress, In Review, Done. Never print its `.env`. Comment on a ticket that stays open with what was and was not done.
 12. **Rollback**: users pin by reinstalling the previous tag; fix forward with a new patch version. Never move or delete a published tag.
 
+## Upgrade rule (users must not have to reconfigure)
+
+Plugin settings live in the user's `settings.json` under `pluginConfigs["jev-agent-kit@<marketplace>"]`, keyed by plugin, not version. Keep that true: never rename or remove a `userConfig` key, never add a required option without a `default`, never change a project-file field's meaning. A release that must break this needs a changelog warning and the user's explicit go-ahead. Not yet verified across a real version upgrade; check it once with the next release (install the old version with settings, update, run `/jev doctor`).
+
 ## Standing approval (given by the user on 2026-10-10)
 
 Releases may be done automatically: merge to `main`, tag, push, GitHub release, marketplace check, and moving the matching Jira tickets, **only when** the fresh read-only audit has no unfixed high finding and `release-check.ts --release` prints `OK to proceed`. Still stop and ask for: a failing gate or a high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran and what did not.
