@@ -10,7 +10,7 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 | E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
-| E7 (JEV-7) | Usability | 0.6.0 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |
+| E7 (JEV-7) | Usability | 0.6.5 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |
 | E10 (JEV-21) | Node + TypeScript alignment | 0.5.0 | Done; see [PLAN-node-ts.md](PLAN-node-ts.md) |
@@ -42,7 +42,8 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 - S6.4 (JEV-29) Open: split long logs into several Jev requests. A real `claude -p` session showed `budget_fallback_original` on a 27 KB log, so Jev is never asked above ~96 candidate blocks.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
-## E7 (JEV-7) Usability (done through 0.6.4)
+## E7 (JEV-7) Usability (Done in Jira; 0.6.5)
+- (JEV-32, 0.6.1 to 0.6.5) Patch releases: tester checklist and link check (0.6.1), skills and Jev size-limit docs (0.6.2), settings-path messages (0.6.3), JEV-30/31 (0.6.4), `/jev status` repeat summary and `jev_asked` honesty in status/savings (0.6.5).
 - (JEV-31, built and live-checked in 0.6.4) DX: `check-config` shows the source of every value, `doctor --verify` validates the key (`valid` / `invalid (401)` / `missing`), `/jev init` and `/jev preset` read back what they wrote and say how to switch when the file exists, README backend x mode data-flow table.
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
 - Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.
