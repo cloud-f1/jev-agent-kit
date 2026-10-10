@@ -431,7 +431,8 @@ test('redaction stays fast on hostile 60 KB inputs (no catastrophic backtracking
   const started = Date.now()
   for (const input of inputs) redact(input)
   // The real total is a few milliseconds; the bound only has to catch an exponential or quadratic regression.
-  expect(Date.now() - started).toBeLessThan(400)
+  // A regression costs seconds (the quadratic URL pattern took 1 to 4 s per input); a loaded machine inflates ~10 ms a few-fold.
+  expect(Date.now() - started).toBeLessThan(2500)
 })
 
 test('a pattern that swallows a newline cannot make a PEM key leak from a later block', async () => {
