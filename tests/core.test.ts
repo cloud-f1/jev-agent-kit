@@ -345,6 +345,8 @@ const FAKE_SECRETS: Array<[string, string]> = [
   ['-----begin private key-----', 'begin private key'],
   ['redis://:hunter2fakepw@10.0.0.9:6379', 'hunter2fakepw'],
   ['postgres://u:pa@ss-fake@host/db', 'ss-fake'],
+  ['token: "unterminated-fake-value', 'unterminated-fake-value'],
+  ["password: 'hunter2-fake-trunc", 'hunter2-fake-trunc'],
 ]
 
 test('redact masks the common credential formats (bare tokens, JWT, URL passwords, PEM, Chinese labels)', () => {

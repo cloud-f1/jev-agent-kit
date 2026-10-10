@@ -161,6 +161,7 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 |---|---|
 | `/jev` not found | Mod not loaded: update Claude Code, or check `claude --debug-file f.log` for `hooks module jev-agent-kit`. |
 | Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
+| `reason: redaction_unavailable` | Nothing was sent to Jev because the redaction pass could not run safely (it should not happen on real input); the original output was used. |
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
 | `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in the Configure form. |
 | `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |

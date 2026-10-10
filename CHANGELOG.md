@@ -30,6 +30,7 @@ A privacy fix, released on its own and promptly under the release cadence policy
 - With `backend: jev`, blocks are redacted before they are sent to `api.typesafe.ai`, but the redaction only masked `key=value`-style secrets and three token prefixes. These passed through unchanged (verified with fake values on 0.7.0): a bare Atlassian token (`ATATT3x...`), Stripe `sk_live_`/`rk_`/`pk_`, Google `AIza...`, Slack `xox*`, GitHub `github_pat_...`, a JWT, a password inside a URL (`scheme://user:password@host`), a PEM private key, and Chinese labels (`密碼：`). All are masked now.
 - A PEM key is masked line by line, and the whole log is redacted once before it is split into blocks, so a key that begins in one block and continues in the next is masked in every block. Line counts and block ids are unchanged.
 - A password inside a URL is replaced in place (`postgres://user:[REDACTED]@host/db`); the host stays readable. An empty user (`redis://:pw@host`) and a password holding `@` or `:` are covered; one holding `/` or a space is not.
+- A truncated quoted value (`token: "abc` with no closing quote) is masked too.
 - Also masked: GitHub `gho_`/`ghu_`/`ghs_`/`ghr_`, npm `npm_`, Hugging Face `hf_`, `aws_secret_access_key=`, and a lowercase PEM header.
 - If the PEM pass ever changed a log's line count (it should not), nothing is sent and the original output is kept (reason `redaction_unavailable`).
 

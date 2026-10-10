@@ -127,7 +127,7 @@ With `backend: jev`, each block and the goal text are passed through a redaction
 | A password inside a URL (also an empty user, or a password holding `@` or `:`) | `postgres://user:PASSWORD@host/db` becomes `postgres://user:[REDACTED]@host/db`; `redis://:PASSWORD@host` too |
 | PEM private keys, line by line, even when the key continues into the next block (a header with no END line masks everything after it, so a log that merely mentions the header loses the rest of its text to Jev) | `-----BEGIN ... PRIVATE KEY-----` through `-----END ...-----` |
 
-**Not masked:** email addresses, ID numbers, names and other personal data; a URL password that contains `/` or a space; `Cookie:` values; a two-part or truncated JWT; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
+**Not masked:** email addresses, ID numbers, names and other personal data; a URL password that contains `/` or a space; `Cookie:` and `Set-Cookie:` values; command-line style secrets with no `=` or `:` (`--password hunter2`, `mysql -phunter2`); a two-part or truncated JWT; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
 
 ## Limits
 

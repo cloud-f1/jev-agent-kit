@@ -38,7 +38,7 @@ export function collapseRepeats(text: string): string {
   return out.join('')
 }
 
-const SECRET_VALUE = `(?:"[^"\\n]*"|'[^'\\n]*'|(?:(?:bearer|basic)[ \\t]+)?[^ \\t\\n\\r\\f\\v"',;]+)`
+const SECRET_VALUE = `(?:"[^"\\n]*"|'[^'\\n]*'|"[^"\\n]*|'[^'\\n]*|(?:(?:bearer|basic)[ \\t]+)?[^ \\t\\n\\r\\f\\v"',;]+)`
 // Best effort, not a guarantee. Covered: key=value style secrets (English and Chinese labels, ASCII or full-width
 // colon), bearer/basic tokens, well-known token shapes (OpenAI-style sk-, GitHub ghp_ and github_pat_, AWS AKIA,
 // Atlassian ATATT3x, Stripe sk_/rk_/pk_ live/test, Google AIza, Slack xox*, JWT), a password inside a URL
