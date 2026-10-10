@@ -48,7 +48,7 @@ docs/                                          PRD, EPICS, TESTING, PLAN-node-ts
 - Core in TypeScript; Python retired in 0.5.0 (all Node + TypeScript). Python classic hook retired earlier; the plugin is Mod-only.
 - Ideas taken from reading other repos, no code copied: fast-jev-compaction (visible failures, `settings.env` key, model setting) and quicksilver (see `sources.md`). Whole-session compaction: not building.
 - Reference repos: `jev-harness` has no license (ideas only); MIT/BSD ones may be reused with notices (`sources.md`).
-- Releases are automatic under the conditions in the table above.
+- Releases are automatic under the conditions in the table above **and** the cadence policy in the `release` skill (2026-10-10: "release less often"; eleven versions in one day was too many). Batch changes; docs, skills, tests, tooling and wording never justify a release alone.
 
 ## Traps already hit (do not rediscover)
 
@@ -76,6 +76,19 @@ Project `JEV` on cloud-f1.atlassian.net mirrors [`EPICS.md`](EPICS.md): epics JE
 ## Independent audits (all 2026-10-10)
 
 One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high findings. The one high ever found (0.2.0): redaction let Bearer and JSON-quoted secrets reach the Jev API (fixed). Others fixed along the way: a project `settings.json` could supply the key; the pinned model was not required to answer as itself; `/jev savings` over-counting; `--env-file PATH` regression; the transport deadline not covering the body; a nonsense `BASH_MAX_OUTPUT_LENGTH` switching pruning off. Residual: `$.http.fetch` in the Mod may follow redirects (the key is only ever sent to the fixed endpoint). Details: [`CHANGELOG.md`](../CHANGELOG.md).
+
+## Unreleased backlog (the next batch; do not tag until the policy says so)
+
+Next planned version: **0.8.0** (a minor: new capability and a behavior change in what records hold). Work on a branch named `v0.8.0`; keep `## 0.8.0 (unreleased)` at the top of the changelog.
+
+| Item | Kind | Why |
+|---|---|---|
+| `latency_ms` is always 0 in session records (the Mod passes `now: () => 0` to the core); time the call in the Mod instead | fix | Found in a user's real shadow-mode run; bench measured 200 to 365 ms, records say 0 |
+| Per-record block counts: total, pinned, asked of Jev, kept by Jev (numbers only) | improvement | In `observe` you cannot see what Jev kept; counts show how selective it is |
+| JEV-29: split long logs into several Jev requests (above 96 candidate blocks it falls back to the original) | **capability** | Jev currently only sees 8,000 to 14,000 characters |
+| A real upgrade keeps saved settings (test with the batch's release) | verification | Undocumented by Claude Code, untested here |
+
+Release the batch when JEV-29 is done, or when at least three of the user-visible items are done and 3 days have passed since 0.7.0 (2026-10-10). Anything found meanwhile that is a safety, privacy or data-handling bug is released alone and promptly.
 
 ## Next steps
 

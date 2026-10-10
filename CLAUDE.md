@@ -46,5 +46,6 @@ No CI: the local gate is the gate. The plugin has no runtime dependencies and th
 - Work on a branch; merge to `main`; release from clean `main`. Do not push or publish without the user's go-ahead (the repo is public), except releases covered by the standing approval recorded in the `release` skill (audit clean + gate green).
 - Never put a real key in the repo, chat, or tests (tests use obvious fakes). Never read `.env.local`.
 - Verification claims: say exactly what ran. Mock/`log_proxy` results are not savings evidence; the live Jev API and long Agent-task benchmarks have **not** been run.
+- Release rarely: batch changes and tag only when the cadence policy in the `release` skill says so (promptly for safety/privacy/harmful-result bugs; otherwise a batch with a new capability or at least three user-visible improvements, at least 3 days after the last release, at most one release per day). Docs, skills, tests, tooling and wording never justify a release alone.
 - Claude Code caches installed plugins by version: bump the version (`core/contracts.ts`, `.claude-plugin/plugin.json`, `package.json`, plus CHANGELOG) for anything users must receive.
 - `claude -p` live tests: use a scratch project outside this repo, `--model haiku`, a throwaway `JEV_STATE_DIR`, and disable any installed copy of the plugin (same-name plugins collide).

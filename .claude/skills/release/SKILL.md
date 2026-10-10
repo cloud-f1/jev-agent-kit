@@ -12,6 +12,26 @@ Installed plugins are cached **by version**, and an installed copy is the whole 
 - Node 22.18+ and `npm ci` (typescript and @types/node are the only dependencies, dev-only).
 - Claude Code's generated types in `.claude-plugin/types/`: Claude Code writes them (and a root `tsconfig.json`, git-ignored) when a mod loads in an **interactive** session. Without them the plugin type-check step is SKIPPED, which fails a `--release` gate.
 
+## When to release (cadence policy, set by the user on 2026-10-10: "release less often")
+
+On 2026-10-10 eleven versions (0.6.1 to 0.7.0) were tagged in one day, most of them for docs, skills or wording. Each release costs the user an update notice, a restart and a new cache folder, and costs us an audit, a gate run, a marketplace check and Jira work. Cheap releases made it too easy to ship small ones. So:
+
+**Release promptly (patch, 0.X.Y), alone, when** a shipped version is wrong in a way that matters:
+- a safety, privacy or data-handling bug (something sent or stored that should not be, a key or secret exposed, an invariant in `CLAUDE.md` broken), or
+- a documented command gives a false or harmful result for ordinary use, and no workaround is simple.
+
+**Release when a batch is ready (minor, 0.X.0), not before:** the batch has at least one new user-visible capability or a behavior change (a threshold, model, setting, what is sent), **or** at least three user-visible fixes or improvements. And at least 3 days have passed since the last release, unless the batch contains the urgent kind above.
+
+**Never release for these alone** (they ride with the next release; they can wait on a branch or, with the user's go-ahead, be pushed to `main` untagged): documentation, README, `docs/`, the project-only skills, tests, gate or tooling changes, wording or message tweaks, Jira or housekeeping, a cosmetic display fix. The shipped `operate` skill is the one exception: fix it promptly only if it tells a model to do something harmful or false.
+
+**Cap:** at most one tagged release per day, and about two per week, even when changes are waiting. Waiting changes are not lost; they are the next batch.
+
+**Versioning (0.x semver):** `0.X.0` for a new capability, a behavior change or any change to what is sent or stored; `0.X.Y` only for fixes. Never use a patch version for a feature.
+
+**How to batch:** from the first change of a batch, work on a branch named for the planned next version (for example `v0.8.0`), bump the four version files once, and keep the top changelog heading as `## 0.8.0 (unreleased)` (the gate accepts it and refuses `--release` until it is dated). Keep a short "Unreleased" backlog in `docs/HANDOVER.md`. Run **one** independent audit on the cumulative diff just before the release instead of one per small change, plus the usual gate, live checks and marketplace verification. Delete the branch after tagging (a branch named like a tag makes git warn about an ambiguous refname).
+
+**Before tagging, ask:** would a user be glad to get this update? If the honest answer is "only the maintainer would notice", it is not a release.
+
 ## Procedure (stop at the first failure; never skip a step)
 
 1. **Branch state**: work on a branch, merge to `main` (fast-forward) first. Releases are cut from a clean `main`.
@@ -33,7 +53,7 @@ Plugin settings live in the user's `settings.json` under `pluginConfigs["jev-age
 
 ## Standing approval (given by the user on 2026-10-10)
 
-Releases may be done automatically: merge to `main`, tag, push, GitHub release, marketplace check, and moving the matching Jira tickets, **only when** the fresh read-only audit has no unfixed high finding and `release-check.ts --release` prints `OK to proceed`. Still stop and ask for: a failing gate or a high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran and what did not.
+Releases may be done automatically: merge to `main`, tag, push, GitHub release, marketplace check, and moving the matching Jira tickets, **only when the cadence policy above says a release is due, and when** the fresh read-only audit has no unfixed high finding and `release-check.ts --release` prints `OK to proceed`. Still stop and ask for: a failing gate or a high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran and what did not.
 
 ## Rules
 
