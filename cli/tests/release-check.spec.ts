@@ -117,3 +117,14 @@ test('run steps: a missing tool is SKIPPED, a failing command FAILs with its tai
   assert.match(failing.detail, /boom/)
   assert.equal(rc.runStep('x', [process.execPath, '-e', ''], dir, '').status, rc.PASS)
 })
+
+test('the node-tests step cannot pass on zero or skipped tests', () => {
+  const root = mkdtempSync(join(tmpdir(), 'jev-nt-'))
+  assert.equal(rc.nodeTests(root, []).status, rc.FAIL)
+  writeFileSync(join(root, 'none.spec.ts'), "import { test } from 'node:test'\ntest.skip('x', () => {})\n")
+  assert.equal(rc.nodeTests(root, ['none.spec.ts']).status, rc.FAIL)
+  writeFileSync(join(root, 'ok.spec.ts'), "import { test } from 'node:test'\ntest('x', () => {})\n")
+  assert.equal(rc.nodeTests(root, ['ok.spec.ts']).status, rc.PASS)
+  writeFileSync(join(root, 'bad.spec.ts'), "import { test } from 'node:test'\nimport assert from 'node:assert'\ntest('x', () => assert.equal(1, 2))\n")
+  assert.equal(rc.nodeTests(root, ['bad.spec.ts']).status, rc.FAIL)
+})

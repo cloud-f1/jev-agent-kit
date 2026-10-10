@@ -6,7 +6,7 @@ Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 
 | Item | Status | Evidence |
 |---|---|---|
-| Node CLI, state, metrics, release gate | Passed | 34 tests, `node --test cli/tests/*.spec.ts` |
+| Node CLI, state, metrics, release gate | Passed | 38 tests, `node --test cli/tests/*.spec.ts` |
 | Coexistence with fast-jev-compaction (MIT, other mod) | Passed at load + tool.call | `claude -p` with both `--plugin-dir`: both modules loaded, none skipped, our pruning ran. A real compaction with both active was **not** tested |
 | Plugin settings (`userConfig`) in a real session | Partly | `claude -p "/jev doctor"` shows the defaults filled in and their source; the `/config` screen itself and the sensitive-key prompt are interactive and **not yet seen** |
 | TypeScript core + Mod (stubbed host) | Passed | 96 tests, `claude plugin test` |

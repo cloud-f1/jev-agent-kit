@@ -53,7 +53,7 @@ Quality
 
 ## Success metrics
 
-Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 96 Mod/core + 34 Node tests pass.
+Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 96 Mod/core + 38 Node tests pass.
 
 Benefit (not measured): total cost per successful agent task, success rate, read-back rate. Defined in [EVALUATION.md](EVALUATION.md). Until that paired benchmark runs the status stays "mechanism works, benefit unproven".
 

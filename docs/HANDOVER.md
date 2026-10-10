@@ -23,7 +23,7 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens l
 - Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
 - Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
 - Local release gate: `node scripts/release-check.ts [--release]`. No CI exists (no quota).
-- Tests: **34 Node** (`node --test cli/tests/*.spec.ts`) and **96 Mod/core** (`claude plugin test`, offline).
+- Tests: **38 Node** (`node --test cli/tests/*.spec.ts`) and **96 Mod/core** (`claude plugin test`, offline).
 
 ### What v0.2.1 adds (on the unreleased branch)
 

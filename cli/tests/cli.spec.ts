@@ -89,3 +89,22 @@ test('exit codes: no verdict is 3 for a missing key, bad input is 2 and never ec
     console.log = original
   }
 })
+
+test('--env-file works in the space form, before or after the command', async () => {
+  const dir = tmp()
+  const file = join(dir, 'e.env')
+  writeFileSync(file, 'TYPESAFE_API_KEY=fake-key-123456789\n')
+  const original = console.log
+  for (const argv of [['--env-file', file, 'doctor'], ['doctor', '--env-file', file], [`--env-file=${file}`, 'doctor']]) {
+    const env: Record<string, string | undefined> = {}
+    const out: string[] = []
+    console.log = (line: string) => out.push(line)
+    try {
+      assert.equal(await main(argv, env), 0, argv.join(' '))
+    } finally {
+      console.log = original
+    }
+    assert.match(out.join('\n'), /"jev_key_present": true/)
+    assert.doesNotMatch(out.join('\n'), /fake-key-123456789/)
+  }
+})

@@ -167,6 +167,20 @@ export function runValidate(root: string): Result {
   }
 }
 
+// `node --test` with no files, or with only skipped tests, exits 0: that must not look green.
+export function nodeTests(root: string, specs: string[]): Result {
+  if (!specs.length) return result('node tests', FAIL, 'no cli/tests/*.spec.ts files found')
+  const env = { ...process.env }
+  delete env.NODE_TEST_CONTEXT // a nested run would otherwise report in a different format
+  const done = spawnSync(process.execPath, ['--test', ...specs], { cwd: root, encoding: 'utf8', env })
+  if (done.error) return result('node tests', SKIPPED, 'node unavailable')
+  const out = (done.stdout ?? '') + (done.stderr ?? '')
+  const count = (label: string) => Number(out.match(new RegExp('^# ' + label + ' (\\d+)', 'm'))?.[1] ?? NaN)
+  if (done.status !== 0) return result('node tests', FAIL, out.trim().split(/\r?\n/).slice(-3).join(' | '))
+  if (!(count('tests') > 0) || count('skipped') > 0 || count('todo') > 0) return result('node tests', FAIL, `ran ${count('tests')} tests, ${count('skipped')} skipped`)
+  return result('node tests', PASS, `${count('pass')} passed`)
+}
+
 export function evaluate(results: Result[], release: boolean): number {
   const bad = release ? [FAIL, SKIPPED] : [FAIL]
   return results.some((r) => bad.includes(r.status)) ? 1 : 0
@@ -179,7 +193,7 @@ export function main(argv: string[], root = join(dirname(fileURLToPath(import.me
   results.push(files ? scanSecrets(files) : result('no secrets in tracked files', SKIPPED, 'git unavailable'))
   if (release) results.push(...checkGitState(root))
   const specs = existsSync(join(root, 'cli', 'tests')) ? readdirSync(join(root, 'cli', 'tests')).filter((n) => n.endsWith('.spec.ts')).sort().map((n) => join('cli', 'tests', n)) : []
-  results.push(runStep('node tests', [process.execPath, '--test', ...specs], root, 'node unavailable'))
+  results.push(nodeTests(root, specs))
   results.push(runStep('mod tests (claude plugin test)', ['claude', 'plugin', 'test'], root, 'claude CLI not installed; mod tests NOT run'))
   results.push(runStep('golden fixture', [process.execPath, 'scripts/gen-golden.ts'], root, 'node unavailable'))
   results.push(runValidate(root))

@@ -108,19 +108,17 @@ function onPath(binary: string, env = process.env): boolean {
 }
 
 export async function main(argv: string[], env: Record<string, string | undefined> = process.env): Promise<number> {
-  const [cmd, ...rest] = argv.filter((a) => !a.startsWith('--env-file'))
-  const envFileArg = argv.find((a) => a.startsWith('--env-file='))?.slice('--env-file='.length)
-    ?? (argv.includes('--env-file') ? argv[argv.indexOf('--env-file') + 1] : undefined)
   try {
-    loadEnv(envFileArg ?? env.JEV_ENV_FILE, env)
     const opts = parseArgs({
-      args: rest.filter((a) => a !== envFileArg),
+      args: argv,
       allowPositionals: true,
       options: {
-        outdir: { type: 'string' }, live: { type: 'boolean' }, project: { type: 'string' },
+        'env-file': { type: 'string' }, outdir: { type: 'string' }, live: { type: 'boolean' }, project: { type: 'string' },
         manifest: { type: 'string' }, records: { type: 'string' },
       },
     })
+    loadEnv(opts.values['env-file'] ?? env.JEV_ENV_FILE, env)
+    const [cmd, ...positionals] = opts.positionals
     const project = opts.values.project ?? '.'
     if (cmd === 'doctor') {
       emit({
@@ -139,7 +137,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     } else if (cmd === 'check-config') {
       emit(loadProjectConfig(project, env))
     } else if (cmd === 'readback') {
-      process.stdout.write(readback(await rootFor(project, env), opts.positionals[0] ?? ''))
+      process.stdout.write(readback(await rootFor(project, env), positionals[0] ?? ''))
     } else if (cmd === 'status') {
       const folder = join(await rootFor(project, env), 'decisions')
       const names = existsSync(folder) ? readdirSync(folder).filter((n) => n.endsWith('.json')).sort() : []

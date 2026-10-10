@@ -61,28 +61,39 @@ export function httpTransport(key: string | undefined, timeoutSeconds = 3, fetch
     if (new TextEncoder().encode(encoded).length > MAX_BYTES) throw new JevError('request_too_large')
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutSeconds * 1000)
-    let response: Response
+    let text = ''
     try {
-      response = await fetchImpl(ENDPOINT, {
+      const response = await fetchImpl(ENDPOINT, {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
         body: encoded,
         redirect: 'error',
         signal: controller.signal,
       })
+      if (!response.ok) throw new JevError('http_' + response.status)
+      // The deadline also covers the body, and the size cap is applied while reading.
+      const reader = response.body?.getReader()
+      const aborted = new Promise<never>((_, reject) => {
+        controller.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })))
+      })
+      aborted.catch(() => {})
+      const chunks: Uint8Array[] = []
+      let size = 0
+      for (let part = await Promise.race([reader?.read(), aborted]); part && !part.done; part = await Promise.race([reader!.read(), aborted])) {
+        size += part.value.byteLength
+        if (size > MAX_BYTES) {
+          controller.abort()
+          throw new JevError('response_too_large')
+        }
+        chunks.push(part.value)
+      }
+      text = new TextDecoder().decode(Buffer.concat(chunks))
     } catch (error) {
+      if (error instanceof JevError) throw error
       throw new JevError((error as { name?: string })?.name === 'AbortError' ? 'timeout' : 'transport_or_json_error')
     } finally {
       clearTimeout(timer)
     }
-    if (!response.ok) throw new JevError('http_' + response.status)
-    let text: string
-    try {
-      text = await response.text()
-    } catch {
-      throw new JevError('transport_or_json_error')
-    }
-    if (new TextEncoder().encode(text).length > MAX_BYTES) throw new JevError('response_too_large')
     try {
       return JSON.parse(text)
     } catch {

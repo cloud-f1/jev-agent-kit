@@ -1,6 +1,6 @@
 #!/bin/sh
-# Optional maintainer type-check of hooks/ and core/ against Claude Code's own type file.
-# Not part of the release gate (needs Node). Claude Code writes the file itself; it is not
+# Optional maintainer type-check of hooks/ and core/ (not cli/ or scripts/) against Claude Code's own
+# type file. Not part of the release gate; fetches typescript with npx unless TSC is set. Claude Code writes the file itself; it is not
 # checked in. Generate it with Claude Code's /plugin-types command (or find the copy it writes
 # when a mod loads interactively: .claude-plugin/types/), then:
 #

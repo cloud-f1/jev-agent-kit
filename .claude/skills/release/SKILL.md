@@ -13,7 +13,7 @@ Installed plugins are cached **by version**: users only get a fix after the vers
 2. **Bump the version in all three places**: `core/contracts.ts` (`VERSION`), `.claude-plugin/plugin.json` (`version`), `package.json` (`version`). The gate also checks the top CHANGELOG heading and fails if any differ.
 3. **Changelog**: keep the `Version history` table at the top current and add `## X.Y.Z (YYYY-MM-DD)` at the top of `CHANGELOG.md`, grouped as fixed / changed / new / not done. Distinguish bug fixes from changes to questions, thresholds, models or data sent (those change behavior; say so).
 4. **Regenerate fixtures if pruning/hashing changed**: `node scripts/gen-golden.ts --write`, review the diff (without `--write` it only checks).
-4b. **Audit before release**: for any change to key handling, network, redaction or response validation, have a fresh read-only agent audit `git diff main..<branch>` (give it the code, not your conclusions), fix findings with a regression test, and mutate the fix once to see the test fail. If response validation changed, run `uv run --no-project jev.py smoke` once with the user's go-ahead before tagging.
+4b. **Audit before release**: for any change to key handling, network, redaction or response validation, have a fresh read-only agent audit `git diff main..<branch>` (give it the code, not your conclusions), fix findings with a regression test, and mutate the fix once to see the test fail. If response validation changed, run `node cli/jev.ts smoke` once with the user's go-ahead before tagging.
 5. **Gate**: `node scripts/release-check.ts --release`. It must print `OK to proceed`. A `SKIPPED` line is a failure (a check that could not run proves nothing).
 6. **Tag and publish** (ask the user first unless they just approved this release; this is public). Also keep `docs/PRD.md`, `docs/EPICS.md`, `docs/HANDOVER.md` and README test counts in step:
    `git tag vX.Y.Z && git push origin main --tags && gh release create vX.Y.Z --title vX.Y.Z --notes-file <changelog excerpt>`
@@ -24,7 +24,7 @@ Installed plugins are cached **by version**: users only get a fix after the vers
 
 ## Standing approval (given by the user on 2026-10-10)
 
-The user said releases may be done automatically from now on. That covers merge to `main`, tag, push, GitHub release, marketplace check and moving the matching Jira tickets, **only when** the read-only audit has no unfixed high finding and `release_check.py --release` prints `OK to proceed`. Still stop and ask for: a failing gate or high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran.
+The user said releases may be done automatically from now on. That covers merge to `main`, tag, push, GitHub release, marketplace check and moving the matching Jira tickets, **only when** the read-only audit has no unfixed high finding and `release-check.ts --release` prints `OK to proceed`. Still stop and ask for: a failing gate or high finding you cannot fix, deleting or moving a published tag, any call that sends real project data (not synthetic) to a third-party API, and any wording that claims cost or success benefit. Say afterwards exactly what ran.
 
 ## Rules
 

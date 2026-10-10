@@ -13,7 +13,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E7 (JEV-7) | Usability | 0.4.0 | Presets, savings, init, receipt released; interactive `/jev on|off|mode` and pane open (JEV-20) |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |
-| E10 | Node + TypeScript alignment | 0.5.0 | Done; see docs/PLAN-node-ts.md |
+| E10 (JEV-21) | Node + TypeScript alignment | 0.5.0 | Done; see docs/PLAN-node-ts.md |
 
 ## E1 (JEV-1) Core pruning with read-back (done)
 - Head/tail/error-block pruning with neighbours; originals stored `0600`, readback pointer.
@@ -57,7 +57,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 - (JEV-18, built in 0.3.0: script + typed `register`; `$: any` helpers remain) Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
 - (JEV-19, built in 0.4.0) Collapse repeated warning-only lines differing in digits; error-class lines never collapsed; both cores, golden regenerated.
 
-## E10 Node + TypeScript alignment (done in 0.5.0)
+## E10 (JEV-21) Node + TypeScript alignment (done in 0.5.0)
 - Port the maintainer CLI, release gate, golden check and tests from Python to Node + TypeScript; one pure core shared by the Mod and the CLI.
 - Differential check before deleting Python: 178 comparisons, 0 differences after ignoring float noise.
 - Open follow-ups: replace `$: any` helpers with real types and add `typescript` as an optional dev-only dependency; a built JS bundle if an `npx` install is ever wanted.

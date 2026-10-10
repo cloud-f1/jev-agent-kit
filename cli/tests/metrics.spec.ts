@@ -81,3 +81,14 @@ test('markdown states that proxy metrics are excluded and never claims savings o
   assert.match(markdown(report(manifest, rows, 30)), /log proxy metrics are excluded/)
   assert.match(markdown(report(manifest, rows.slice(0, -1))), /INCOMPLETE/)
 })
+
+test('a manifest without an experiment id or with bad gate values is rejected', () => {
+  let { manifest, rows } = fixture()
+  delete manifest.experiment_id
+  assert.throws(() => report(manifest, rows.map((r) => { const { experiment_id, ...rest } = r; return rest })), /invalid_manifest/)
+  ;({ manifest, rows } = fixture())
+  manifest.gates = { minimum_unique_tasks: -1 }
+  assert.throws(() => report(manifest, rows), /invalid_gates/)
+  manifest.gates = { minimum_cost_improvement: 'lots' }
+  assert.throws(() => report(manifest, rows), /invalid_gates/)
+})

@@ -95,3 +95,12 @@ test('the request goes to the fixed endpoint, with redirects disabled, and retur
   assert.equal(seen!.init.redirect, 'error')
   assert.equal((seen!.init.headers as Record<string, string>).Authorization, 'Bearer fake-key-123456789')
 })
+
+test('the deadline covers a stalled body and the size cap applies while reading', async () => {
+  const stalled = (async () => new Response(new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode('{"a":')) } /* never closes */ }))) as unknown as typeof fetch
+  assert.equal(await reason(() => httpTransport('fake-key-123456789', 0.1, stalled)({ model: 'jev-1.13.0' })), 'timeout')
+  let pulls = 0
+  const endless = (async () => new Response(new ReadableStream({ pull(c) { pulls += 1; c.enqueue(new Uint8Array(50_000)) } }))) as unknown as typeof fetch
+  assert.equal(await reason(() => httpTransport('fake-key-123456789', 3, endless)({ model: 'jev-1.13.0' })), 'response_too_large')
+  assert.ok(pulls < 20, 'stopped reading soon after the cap')
+})

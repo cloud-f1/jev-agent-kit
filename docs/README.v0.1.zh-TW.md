@@ -1,3 +1,5 @@
+> Historical (v0.1). The Python commands below were removed in 0.5.0; use `node cli/jev.ts` (see ../README.md).
+
 # Jev Agent Kit v0.1.0
 
 可執行的 Python 3.10+、零第三方依賴核心，包含 Claude Code **classic hook fallback**、Log 精簡／原文讀回、循環觀察、API smoke、offline/live Log 對照與真實任務配對報告。原生 Mod／模型分流留待目標 Claude Code 版本驗證後實作；不把 classic Hook 當作已完成 Mod。

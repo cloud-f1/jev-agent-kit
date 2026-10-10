@@ -57,6 +57,11 @@ export function report(manifest: Manifest, rows: Row[], draws = 2000): Record<st
       new Set(arms).size !== arms.length || !arms.includes(baseline) || !Number.isInteger(repeats) || repeats < 1) {
     throw new Error('invalid_manifest')
   }
+  if (typeof manifest.experiment_id !== 'string' || !manifest.experiment_id) throw new Error('invalid_manifest')
+  const gates = manifest.gates ?? {}
+  for (const g of ['minimum_unique_tasks', 'minimum_repeats', 'minimum_cost_improvement', 'pass_rate_noninferiority_margin', 'maximum_p95_increase']) {
+    if (g in gates && (typeof gates[g] !== 'number' || !Number.isFinite(gates[g]) || gates[g] < 0)) throw new Error('invalid_gates')
+  }
   const expected = new Set<string>()
   for (const t of tasks) for (let i = 0; i < repeats; i++) for (const a of arms) expected.add(key(t, i, a))
   const keyed = new Map<string, Row>()
@@ -96,7 +101,6 @@ export function report(manifest: Manifest, rows: Row[], draws = 2000): Record<st
   const summaries = Object.fromEntries(arms.map((arm) => [arm, summarize(byArm[arm])]))
   const comparisons: Record<string, any> = {}
   const rng = mulberry32(20261009)
-  const gates = manifest.gates ?? {}
   const minTasks = gates.minimum_unique_tasks ?? 100
   const minRepeats = gates.minimum_repeats ?? 3
   const base = summaries[baseline]
