@@ -4,7 +4,7 @@ tags: [bash-output, paired]
 runs: 1
 max_turns: 6
 timeout_seconds: 180
-allowed_tools: [Bash]
+allowed_tools: [Bash, Read]
 model: haiku
 ---
 Run the command below with the Bash tool and then answer in one line: what is the one real error, and which step produced it?

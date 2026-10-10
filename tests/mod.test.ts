@@ -738,3 +738,12 @@ test('the host cap follows BASH_MAX_OUTPUT_LENGTH', async ($, on) => {
   const out: any = await call($)
   expect(out.result.stdout).toBe(text)
 })
+
+for (const bad of ['-5', 'abc', '0', 'NaN']) {
+  test('a nonsense BASH_MAX_OUTPUT_LENGTH (' + bad + ') falls back to the default instead of switching pruning off', async ($, on) => {
+    const text = bigLog(25000)
+    stubs(on, { config: ASSIST, tool: withStdout(text), env: { BASH_MAX_OUTPUT_LENGTH: bad } })
+    const out: any = await call($)
+    expect(out.result.stdout).not.toBe(text)
+  })
+}

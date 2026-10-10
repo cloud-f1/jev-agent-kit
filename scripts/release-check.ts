@@ -61,6 +61,10 @@ export function checkVersions(root: string, release = false): Result[] {
     'package.json': packageVersion(root),
     'CHANGELOG.md': logVersion,
   }
+  if (existsSync(join(root, 'package-lock.json'))) {
+    const lock = readJson(join(root, 'package-lock.json'))
+    found['package-lock.json'] = lock.version === lock.packages?.['']?.version ? lock.version : `${lock.version}/${lock.packages?.['']?.version}`
+  }
   const values = Object.values(found)
   const results: Result[] = []
   if (values.some((v) => v === null || v === undefined) || new Set(values).size !== 1) {

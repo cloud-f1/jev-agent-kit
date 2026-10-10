@@ -15,7 +15,7 @@ const ARTIFACT_ID = /^[a-f0-9]{32}$/
 let pluginOptions: unknown = {}
 const stats = { seen: 0, pruned: 0, savedChars: 0, readbacks: 0 }
 const PANE_ID = 'jev-pane'
-const paneCache: { at: number; lines: string[] } = { at: -Infinity, lines: [] } // a drawing can repeat often: reread records at most every 3 s
+const paneCache: { at: number; root: string; lines: string[] } = { at: -Infinity, root: '', lines: [] } // a drawing can repeat often: reread records at most every 3 s
 const pausedRoots = new Set<string>() // projects where a read-back happened this session
 const fingerprints = new Map<string, number>()
 // Reasons already shown as a toast this session, so a persistent problem is told once, not per command.
@@ -335,11 +335,14 @@ async function savingsText($: Engine, limit = 500): Promise<string> {
 // The side pane: the same counted characters and recent decisions as /jev savings and /jev status.
 async function paneLines($: Engine): Promise<string[]> {
   const now = await $.clock.now()
-  if (now - paneCache.at < 3000) return paneCache.lines
+  const root = await projectRoot($, await $.session.cwd())
+  const age = now - paneCache.at
+  if (root === paneCache.root && age >= 0 && age < 3000) return paneCache.lines
   const saves = (await savingsText($, 200)).split('\n')
   const status = (await statusText($)).split('\n')
   paneCache.lines = [...saves, '', ...status, '', '/jev doctor | /jev savings | /jev pane close']
   paneCache.at = now
+  paneCache.root = root
   return paneCache.lines
 }
 
@@ -449,7 +452,8 @@ export function register(on: On, options?: PluginOptions) {
       // Claude Code cuts Bash output at BASH_MAX_OUTPUT_LENGTH (default 30000) before any hook runs and keeps
       // the complete text in its own file. At the cut we only see a head, so the original we would point to
       // is incomplete: leave the result alone (measured: rewriting it hid the tail from the model).
-      const cap = Number(await $.env.get('BASH_MAX_OUTPUT_LENGTH')) || 30000
+      const configured = Number(await $.env.get('BASH_MAX_OUTPUT_LENGTH'))
+      const cap = Number.isFinite(configured) && configured > 0 ? configured : 30000
       if (charLength(out.stdout) >= cap * 0.99) {
         await recordDecision($, root, { feature: 'host_truncation', reason: 'host_truncated_output', input_chars: charLength(out.stdout) })
         return res

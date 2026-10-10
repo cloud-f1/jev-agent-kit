@@ -15,7 +15,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
-The kit acts on Bash output between `minimumChars` and about 29,700 characters: Claude Code itself cuts output at 30,000 characters (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+The kit acts on Bash output between `minimumChars` and about 29,700 characters (assuming the default 30,000-character cap, or 99% of `BASH_MAX_OUTPUT_LENGTH` if it is set in the environment): Claude Code itself cuts output at that cap (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
 ## Install
 
@@ -65,7 +65,7 @@ The project file always wins over `/config` settings, including `"enabled": fals
 ### Then
 
 4. Run something noisy (a long test run), then `/jev status`. In `observe` the original is stored and the decision logged, but the output is unchanged.
-5. Switch Mode to `assist` (in `/config`, or `"mode": "assist"` in the file). The model now sees the pruned text plus `full original available via /jev readback <id>`. `/jev readback <id>` returns everything.
+5. Switch Mode to `assist` (in `/config`, or `"mode": "assist"` in the file). The model now sees the pruned text plus a note naming the file that holds the full original (it can read it with its Read tool) and `/jev readback <id>` for you. `/jev readback <id>` returns everything.
 6. Optional, **costs money and sends redacted log blocks to TypeSafe**: set Backend to `jev` and provide a key (below). Watch `/jev status` in `observe` first.
 
 ### Settings reference
@@ -147,13 +147,13 @@ Node refuses to strip types inside `node_modules`, so the CLI runs from a checko
 |---|---|
 | `/jev doctor` | Version, effective config for this project, whether a key is present (never the key). |
 | `/jev status` | Count and the last 10 decision records for this project. |
-| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output. Only 32 hex chars are accepted. After a read-back, `assist` stops rewriting for the rest of the session (the model needed the original, so pruning cost something). |
+| `/jev readback <id>` | Print the untouched original output for an id shown at the end of pruned output (the same text is in the file named there). Only 32 hex chars are accepted. After a read-back (this command, or any Bash command that mentions the stored artifacts folder), `assist` stops rewriting in that project for the rest of the session (the model needed the original, so pruning cost something). |
 | `/jev on` / `/jev off` / `/jev mode observe\|assist` | Try to change your plugin settings through Claude Code. **Seen live in headless `claude -p`: Claude Code exposes no `/config` row for this plugin there, so these report that and point you to `/config` or `claude plugin configure jev-agent-kit`.** They have not been seen working in an interactive session. |
 | `/jev init [observe\|assist]` | Create `.claude/jev-agent-kit.json` for this project (enabled). Never overwrites an existing file. Works in headless runs (seen live). |
 | `/jev preset <name>` | Same, from a preset: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. `/jev preset` lists them. Seen live. |
 | `/jev savings` | Counted characters: what `assist` removed, and what it would have removed in `observe`. Not a token, cost or success measurement. |
 
-Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 30000 -> 570 chars; full original available via /jev readback <id>]`. These are counted characters, not a token or cost claim.
+Pruned output ends with a measured receipt, e.g. `[Jev agent kit: pruned 12000 -> 570 chars. The full original is in the file <state>/artifacts/<id>.log (read it with your Read tool or cat); the user can run /jev readback <id>]` (the path shown to the model is your own state folder, so it contains your home path). These are counted characters, not a token or cost claim.
 
 **Shadow mode:** `mode: observe` with `backend: jev` asks Jev about each long log and records what it would have kept, but never rewrites anything. Note this sends (redacted) log blocks to the Jev API even though nothing is changed.
 

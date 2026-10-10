@@ -20,6 +20,8 @@ claude plugin eval . --scaffold --allow-tools Bash,Read --no-publish \
 - **Always pass `--no-publish`**: by default the HTML report (prompts, outputs) is published to claude.ai.
 - `--scaffold` runs `setup.sh` as you and `--allow-tools Bash` lets the agent run the command in each case; only use them on cases you wrote. `--trust-plugin` asserts you trust this repo's code.
 - `--keep-temp` keeps each run's trace (`tracePath` in the JSON) if you need to see what the model was shown.
+- Each run gets a throwaway `HOME`, so the kit's state (stored originals, records) stays in the sandbox and not in `~/.cache/jev-agent-kit`.
+- The cases declare `allowed_tools: [Bash, Read]`; the operator grant `--allow-tools Bash,Read` is what lets them run (Bash and Read are gated).
 - Only the agent's own cost is reported. Cases use the local rules backend, so there is no Jev cost; a Jev arm would need its own cases and a budget.
 
 Results so far are in CHANGELOG 0.6.0. The paired benchmark of `docs/EVALUATION.md` (many more tasks, real repositories, several repeats, the Jev arm) has not been run.

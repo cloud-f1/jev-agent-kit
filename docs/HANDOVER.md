@@ -18,12 +18,12 @@ Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens l
 - **One native Mod**: `hooks/register.ts` (TypeScript, loaded directly, no build) + pure core `core/*.ts`. `hooks/hooks.json` contains only `"modules"`. The release gate rejects classic `hooks` entries.
 - **Requires Claude Code 2.1.287+.** On 2.1.271 to 2.1.286 the plugin loads but does nothing (it needs 2.1.271 only because `/config` pickers use `options`).
 - **Everything is Node + TypeScript (0.5.0).** `cli/jev.ts` (maintainer/eval CLI, imports the same `core/*.ts`), `scripts/release-check.ts`, `scripts/gen-golden.ts` (checks the frozen `tests/fixtures/golden.ts`; `--write` only after an intentional behavior change). Python was removed after a 178-comparison differential found 0 differences; the last Python version is tag `v0.4.0`. Node 22.18+ runs `.ts` directly; Node will not strip types inside `node_modules`, so the CLI runs from a checkout.
-- Commands in a session: `/jev status | doctor | readback <id>` (no model turn).
+- Commands in a session (no model turn): `/jev status | doctor | savings | pane | readback <id> | preset <name> | init | on | off | mode` (`on|off|mode` work interactively only).
 - Settings screen: `userConfig` in `.claude-plugin/plugin.json` shows in `/config` (mode, backend, minimum length, keep threshold, retention days, enable-in-every-project, model) plus a sensitive API key in secure storage. Precedence: **defaults < plugin settings < project file `.claude/jev-agent-kit.json`**. A project cannot set the endpoint, key, credentials or model.
 - Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
 - Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
 - Local release gate: `node scripts/release-check.ts [--release]`. No CI exists (no quota).
-- Tests: **38 Node** (`node --test cli/tests/*.spec.ts`) and **96 Mod/core** (`claude plugin test`, offline).
+- Tests: **39 Node** (`node --test cli/tests/*.spec.ts`) and **109 Mod/core** (`claude plugin test`, offline).
 
 ### What v0.2.1 adds (on the unreleased branch)
 

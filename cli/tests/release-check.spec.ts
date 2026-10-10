@@ -128,3 +128,14 @@ test('the node-tests step cannot pass on zero or skipped tests', () => {
   writeFileSync(join(root, 'bad.spec.ts'), "import { test } from 'node:test'\nimport assert from 'node:assert'\ntest('x', () => assert.equal(1, 2))\n")
   assert.equal(rc.nodeTests(root, ['bad.spec.ts']).status, rc.FAIL)
 })
+
+test('a stale package-lock.json version fails the version check; no lockfile is fine', () => {
+  const root = makeRepo()
+  assert.equal(by(rc.checkVersions(root))['versions agree'], rc.PASS)
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ version: '0.2.0', packages: { '': { version: '0.2.0' } } }))
+  assert.equal(by(rc.checkVersions(root))['versions agree'], rc.PASS)
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ version: '0.1.0', packages: { '': { version: '0.2.0' } } }))
+  assert.equal(by(rc.checkVersions(root))['versions agree'], rc.FAIL)
+  writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ version: '0.1.0', packages: { '': { version: '0.1.0' } } }))
+  assert.equal(by(rc.checkVersions(root))['versions agree'], rc.FAIL)
+})

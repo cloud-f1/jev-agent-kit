@@ -4,7 +4,7 @@ tags: [bash-output, paired]
 runs: 1
 max_turns: 6
 timeout_seconds: 180
-allowed_tools: [Bash]
+allowed_tools: [Bash, Read]
 model: haiku
 ---
 Run the command below with the Bash tool and then answer in one line: which test failed, and what were the expected and actual values?
