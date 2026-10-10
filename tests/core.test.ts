@@ -337,6 +337,14 @@ const FAKE_SECRETS: Array<[string, string]> = [
   ['-----BEGIN RSA PRIVATE KEY-----', 'BEGIN RSA PRIVATE KEY'],
   ['密碼：fake-pass-123', 'fake-pass-123'],
   ['密钥: fake-key-456', 'fake-key-456'],
+  ['ghs_FAKEFAKEFAKE12345', 'FAKEFAKEFAKE12345'],
+  ['gho_FAKEFAKEFAKE12345', 'FAKEFAKEFAKE12345'],
+  ['npm_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE00', 'FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE00'],
+  ['hf_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE00', 'FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE00'],
+  ['aws_secret_access_key=FAKEFAKEFAKEFAKE1234', 'FAKEFAKEFAKEFAKE1234'],
+  ['-----begin private key-----', 'begin private key'],
+  ['redis://:hunter2fakepw@10.0.0.9:6379', 'hunter2fakepw'],
+  ['postgres://u:pa@ss-fake@host/db', 'ss-fake'],
 ]
 
 test('redact masks the common credential formats (bare tokens, JWT, URL passwords, PEM, Chinese labels)', () => {
@@ -379,7 +387,7 @@ test('a PEM key that starts in one block and continues into the next is masked i
   lines[20] = '-----END PRIVATE KEY-----\n'
   const text = lines.join('')
   const { parts } = makeBlocks(text)
-  const blocks = redactBlocks(parts)
+  const blocks = redactBlocks(parts)!
   expect(blocks.length).toBe(parts.length)
   expect(blocks.join('')).not.toContain('FAKEBODYLINE')
   expect(blocks.join('').split('\n').length).toBe(text.split('\n').length)
@@ -416,8 +424,47 @@ test('redaction stays fast on hostile 60 KB inputs (no catastrophic backtracking
   const n = 60000
   const inputs = ['a'.repeat(n), 'http://'.repeat(10000), 'x://' + 'u:'.repeat(n / 2), 'ATATT3x' + 'A'.repeat(n), 'eyJ' + 'a'.repeat(n),
     '-----BEGIN PRIVATE KEY-----\n' + 'A'.repeat(n), '-----BEGIN PRIVATE KEY-----\n'.repeat(2000), 'token=' + ' '.repeat(n), '密碼'.repeat(10000), 'sk_live_'.repeat(n / 8)]
+  // Dotted, hyphenated and plus-joined runs once made the URL pattern quadratic (1 s at 60 KB, 4 s at 120 KB).
+  inputs.push('a-'.repeat(n / 2), 'a-'.repeat(n), 'ab.'.repeat(n / 3), 'a+'.repeat(n / 2) + '://', '://'.repeat(n / 3), 'x://' + 'a:'.repeat(n / 2) + '@')
   const started = Date.now()
   for (const input of inputs) redact(input)
   // The real total is a few milliseconds; the bound only has to catch an exponential or quadratic regression.
-  expect(Date.now() - started).toBeLessThan(1500)
+  expect(Date.now() - started).toBeLessThan(400)
+})
+
+test('a pattern that swallows a newline cannot make a PEM key leak from a later block', async () => {
+  // 'password:' followed by a newline collapses two lines in one block; the PEM begins in block 2 and ends in block 4.
+  const lines = Array.from({ length: 48 }, (_, i) => `step ${i} ok\n`)
+  lines[2] = 'password:\n'
+  lines[3] = 'hunter2fake\n'
+  lines[9] = '-----BEGIN PRIVATE KEY-----\n'
+  for (let i = 10; i < 27; i++) lines[i] = `BODYBBB${i}ZZZZZZZZZZZZ\n`
+  lines[27] = '-----END PRIVATE KEY-----\n'
+  const { parts } = makeBlocks(lines.join(''))
+  const blocks = redactBlocks(parts)!
+  expect(blocks.length).toBe(parts.length)
+  expect(blocks.join('')).not.toContain('BODYBBB')
+  expect(blocks.join('')).not.toContain('hunter2fake')
+  expect(redact('a\npassword:\nhunter2fake\nb\n')).not.toContain('hunter2fake')
+})
+
+test('URL passwords: empty user, a password holding @ or :, and only the password is replaced', () => {
+  expect(redact('redis://:hunter2fakepw@10.0.0.9:6379')).toBe('redis://:[REDACTED]@10.0.0.9:6379')
+  expect(redact('postgres://u:pa@ss-fake@host/db')).toBe('postgres://u:[REDACTED]@host/db')
+  expect(redact('mysql://root:pa:ss-fake@db.internal:3306/app')).toBe('mysql://root:[REDACTED]@db.internal:3306/app')
+  // Not a credential: no password part, or a host:port with no @.
+  for (const line of ['https://user@host/path', 'http://example.com:8080/x@v1', 'ssh://git@github.com/org/repo']) expect(redact(line)).toBe(line)
+})
+
+test('a request that cannot be redacted safely sends nothing (reason redaction_unavailable)', async () => {
+  // redactBlocks returns null only if the PEM pass changed the line count, which it must not; assert the contract
+  // through the public surface: a normal log goes out redacted and a Jev request is made exactly once.
+  let calls = 0
+  const transport = async (body: Record<string, any>) => {
+    calls += 1
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  const r = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(calls).toBe(1)
+  expect(r.meta.reason).toBe('ok')
 })

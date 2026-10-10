@@ -123,11 +123,11 @@ With `backend: jev`, each block and the goal text are passed through a redaction
 | Masked | Examples (all fake) |
 |---|---|
 | Labeled secrets, English and Chinese labels, ASCII or full-width colon | `api_key=...`, `"token": "..."`, `password: ...`, `secret=...`, `Authorization: Bearer ...`, `密碼：...`, `密钥: ...` |
-| Well-known token shapes, even with no label | OpenAI-style `sk-...`, GitHub `ghp_...` and `github_pat_...`, AWS `AKIA...`, Atlassian `ATATT3x...`, Stripe `sk_live_` / `rk_` / `pk_` (live and test), Google `AIza...`, Slack `xoxb-...` and other `xox*`, JWTs (`eyJ....eyJ....sig`) |
-| A password inside a URL | `postgres://user:PASSWORD@host/db` becomes `postgres://user:[REDACTED]@host/db` |
-| PEM private keys, line by line, even when the key continues into the next block | `-----BEGIN ... PRIVATE KEY-----` through `-----END ...-----` |
+| Well-known token shapes, even with no label | OpenAI-style `sk-...`, GitHub `ghp_` / `gho_` / `ghu_` / `ghs_` / `ghr_` and `github_pat_...`, npm `npm_...`, Hugging Face `hf_...`, AWS `AKIA...` and `aws_secret_access_key=...`, Atlassian `ATATT3x...`, Stripe `sk_live_` / `rk_` / `pk_` (live and test), Google `AIza...`, Slack `xoxb-...` and other `xox*`, three-part JWTs (`eyJ....eyJ....sig`) |
+| A password inside a URL (also an empty user, or a password holding `@` or `:`) | `postgres://user:PASSWORD@host/db` becomes `postgres://user:[REDACTED]@host/db`; `redis://:PASSWORD@host` too |
+| PEM private keys, line by line, even when the key continues into the next block (a header with no END line masks everything after it, so a log that merely mentions the header loses the rest of its text to Jev) | `-----BEGIN ... PRIVATE KEY-----` through `-----END ...-----` |
 
-**Not masked:** email addresses, ID numbers, names and other personal data; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
+**Not masked:** email addresses, ID numbers, names and other personal data; a URL password that contains `/` or a space; `Cookie:` values; a two-part or truncated JWT; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
 
 ## Limits
 
