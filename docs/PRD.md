@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.6.1 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). How to try it: [TESTING.md](TESTING.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.6.2 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). How to try it: [TESTING.md](TESTING.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 
@@ -62,7 +62,7 @@ Benefit (not measured): total cost per successful agent task, success rate, read
 | Risk | Mitigation / state |
 |---|---|
 | Pruning drops needed evidence | Errors pinned; read-back; evidence-survival check on the backlog |
-| Live Jev behaviour differs from the stubs | Live smoke test; every Jev path was stub-tested only until then |
+| Live Jev behaviour differs from the stubs | Live smoke and a synthetic benchmark passed; but in a real session a 27 KB log exceeded the per-request limit (96 blocks / 60 KB) and Jev was not called (JEV-29) |
 | Windows branch is wrong | Stubbed tests only; needs a real Windows run |
 | Claude Code mods API changes | `any` types hide drift until runtime; optional `tsc` check on the backlog |
 | Key exposure | Key only in the request header; never recorded; user-level sources only |

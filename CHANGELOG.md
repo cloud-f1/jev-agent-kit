@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.2 | 2026-10-10 | Updated skills (operate, release) + new live-test skill; docs record that the Jev backend does not act on logs above ~96 blocks (found in a real session); no runtime change |
 | 0.6.1 | 2026-10-10 | Docs and gate only: tester checklist (`docs/TESTING.md`), rewritten handover, aligned links, markdown-link check in the gate; no runtime change |
 | 0.6.0 | 2026-10-10 | `/jev pane`, real types for the Mod, type-check in the gate, paired eval cases that found and fixed two real failures (unreadable read-back pointer; output cut by the host) |
 | 0.5.0 | 2026-10-10 | Node and TypeScript only: the maintainer CLI, release gate and tests are ported; Python removed; verified by a 178-comparison differential |
@@ -14,6 +15,17 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.6.2 (2026-10-10)
+
+No runtime change: `hooks/` and `core/` differ from 0.6.1 only in the version string. The shipped `operate` skill changed, so users need this release to get it.
+
+- Found (real `claude -p` session, `backend: jev`, `assist`, synthetic 27 KB log): Jev was **not called**; the result was `budget_fallback_original` and the output came back unchanged. The per-request limit is 96 non-pinned blocks of 8 lines, or 60 KB; measured: about 800 short lines (~14,000 characters) is the largest log Jev is asked about. Every earlier Jev test used 320-line logs and the eval suite uses the local rules backend, so this was never exercised. Not changed in code: documented everywhere it matters (README, TESTING, compatibility, operate skill) and tracked as Jira JEV-29 (split long logs into several requests, or accept the limit).
+- Changed: `skills/operate/SKILL.md` (shipped) rewritten for 0.6: all commands incl. `savings`, `pane`, `preset`, which ones work only interactively; the 30,000-character cut and the `minimumChars` window; the receipt naming a readable file and the read-back/pause rule; repeated-warning collapse; the Jev backend limit; "a project file field beats `/jev mode`"; more diagnosis rows; evals with `--no-publish`.
+- Changed: `.claude/skills/release/SKILL.md` (project-only) rewritten: prerequisites (`npm ci`, Claude-generated types), lockfile version, an audit for every release, docs written from observed behavior, the full gate step list, verification by walking `docs/TESTING.md` from a marketplace install and then uninstalling it, Jira statuses.
+- New: `.claude/skills/live-test/SKILL.md` (project-only): the three live layers (headless, paired evals, `expect` on the TUI), their safety rules and traps, and what cannot be verified here.
+- Verified live in the same session: under the limit, `backend: jev` works in a real `claude -p` session. A synthetic 600-line log (10,718 characters) gave `reason: ok`, `actual_model: jev-1.13.0`, 7,563 input tokens (about $0.0003), 10,718 -> 978 characters, and no key-like text in the record.
+- Not verified: the status line under the prompt and a narrow-terminal pane (a scripted attempt exited at the trust dialog and was not repeated), the sensitive-key prompt, the Jev backend in an interactive session, Windows.
 
 ## 0.6.1 (2026-10-10)
 

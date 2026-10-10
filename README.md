@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.1, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.6.2, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -15,7 +15,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
-The kit acts on Bash output between `minimumChars` and about 29,700 characters (assuming the default 30,000-character cap, or 99% of `BASH_MAX_OUTPUT_LENGTH` if it is set in the environment): Claude Code itself cuts output at that cap (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
+The kit acts on Bash output between `minimumChars` and about 29,700 characters (assuming the default 30,000-character cap, or 99% of `BASH_MAX_OUTPUT_LENGTH` if it is set in the environment): Claude Code itself cuts output at that cap (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. With `backend: jev`, Jev is asked about at most 96 non-pinned blocks (8 lines each) and 60 KB per request. A longer log is **not sent at all** and comes back unchanged (record reason `budget_fallback_original`). In practice that is roughly 800 short lines, about 14,000 characters, so a 27 KB log never reaches Jev (found in a real session; tracked as Jira JEV-29). Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
 ## Install
 
@@ -213,6 +213,8 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 | Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
 | `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in `/config`. |
+| `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
+| `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and `/config`; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
 
 ## Develop and verify

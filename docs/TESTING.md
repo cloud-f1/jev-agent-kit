@@ -1,4 +1,4 @@
-# 測試清單（v0.6.1，繁體中文）
+# 測試清單（v0.6.2，繁體中文）
 
 目的：用最安全的設定（只記錄、不傳資料）把 plugin 從安裝走到壓縮、讀回、側欄，確認每一步的結果。整份約 20 分鐘，不需要 Jev 金鑰。英文總覽見 [README](../README.md)，已驗證與未驗證的項目見 [compatibility.md](compatibility.md)。
 
@@ -32,7 +32,7 @@
 
 ## 選用：Jev API（會花錢，會把脫敏後的日誌片段送到 TypeSafe）
 
-先確認前面全部通過。在終端機執行 `claude plugin configure jev-agent-kit` 設定金鑰（不要貼到對話裡，也不要提交到 repo）。建議先 `/jev preset shadow-jev`（詢問 Jev 但不改輸出），看 `/jev status` 一陣子，再考慮 `prune-jev`。
+先確認前面全部通過。**注意長度上限：** Jev 一次最多只看 96 個候選區塊（約 800 行短行、約 14,000 字元）或 60 KB；更長的日誌不會送出，原樣放行（紀錄原因 `budget_fallback_original`，`/jev savings` 的 `fell back to the original` 會加一）。要實際看到 Jev 被詢問，請用這個較短的日誌（約 10,700 字元）：`node -e "for(let i=0;i<600;i++){console.log('progress item '+i); if(i===300)console.log('ERROR demo')}"`。我在無頭模式用這個日誌實測過：Jev 回答正常、輸出從約 10,700 縮到約 980 字元。在終端機執行 `claude plugin configure jev-agent-kit` 設定金鑰（不要貼到對話裡，也不要提交到 repo）。建議先 `/jev preset shadow-jev`（詢問 Jev 但不改輸出），看 `/jev status` 一陣子，再考慮 `prune-jev`。
 
 ## 回報問題時請附上
 
@@ -44,5 +44,5 @@
 
 - 啟用 plugin 時的金鑰輸入提示，以及 `/config` 畫面上的各項設定（我只看過畫面能開啟）。
 - 狀態列（輸入框下方的 `jev: N/M ...`）的實際顯示；窄螢幕時的側欄。
-- `backend: jev` 在真實長時間工作階段中的壓縮；Windows。
+- `backend: jev` 在**互動畫面**裡的實際表現（我只在無頭模式驗證過：600 行的合成日誌正常運作，27 KB 的日誌超過上限而退回原輸出）；Windows。
 - **省錢或提高成功率的效果尚未證實。** 小型合成測試（4 個任務、一個便宜模型）兩邊都 32/32 通過，每次平均成本 $0.0031 對 $0.0040，只能當作冒煙測試，不能當成證據。

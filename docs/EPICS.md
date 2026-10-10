@@ -39,6 +39,7 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 ## E6 (JEV-6) Live Jev validation (next)
 - S6.1 (JEV-10) Done 2026-10-10: `smoke` returned `api_validated` (Python CLI in 0.3.x; re-verified through the TypeScript CLI in 0.5.0).
 - S6.2 (JEV-11) Done: the pinned model answered as `jev-1.13.0`.
+- S6.4 (JEV-29) Open: split long logs into several Jev requests. A real `claude -p` session showed `budget_fallback_original` on a 27 KB log, so Jev is never asked above ~96 candidate blocks.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
 ## E7 (JEV-7) Usability (done through 0.6.0)

@@ -1,6 +1,6 @@
 # Compatibility and verification status
 
-Updated 2026-10-10 (v0.6.1). Records what was actually run and what was not. No CI exists; every row below was run locally.
+Updated 2026-10-10 (v0.6.2). Records what was actually run and what was not. No CI exists; every row below was run locally.
 
 Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 
@@ -26,9 +26,10 @@ Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 | `claude plugin eval` paired smoke (4 cases x 8 runs, haiku, local rules) | Passed 32/32 both arms (2026-10-10) | found two real failures first (see CHANGELOG 0.6.0); small synthetic sample: not benefit evidence |
 | `/jev pane` in a real interactive session | Passed | opened, drew counted characters from seeded records, closed; narrow terminals not seen |
 | Live Jev API `smoke` | Passed once (2026-10-10) | one synthetic sentence; `api_validated`, model `jev-1.13.0` answered as itself |
-| Live Jev API `bench-logs --live` and `backend: jev` in a real session | **Not run** | the pruning path with Jev is tested against stubs only |
+| Live Jev API `bench-logs --live` | Passed once (2026-10-10) | 5 synthetic 320-line fixtures, 5 of 5 valid decisions |
+| `backend: jev` in a real `claude -p` session | Run once (2026-10-10): **Jev was not called** | synthetic 27 KB log (188 blocks) hit `budget_fallback_original` and came back unchanged; limit is 96 candidate blocks / 60 KB per request (about 800 short lines). Under the limit it works: a synthetic 600-line log (10,718 chars) gave `reason: ok`, `actual_model: jev-1.13.0`, 7,563 input tokens (about $0.0003), 10,718 -> 978 chars, no key-like text in the record. Jira JEV-29 |
 | Cost or success-rate benefit | **Unproven** | no agent-task benchmark has been run; see `docs/EVALUATION.md` |
-| Interactive session | Partly | seen: hot reload on a settings change, `/jev` commands, the pane, the `/config` screen opening. Not seen: the sensitive-key prompt, the status line under the prompt, a narrow terminal |
+| Interactive session | Partly | seen: hot reload on a settings change, `/jev` commands, the pane, the `/config` screen opening. Not seen: the sensitive-key prompt, the status line under the prompt, a narrow terminal (a second scripted attempt for the status line and a narrow pane exited at the trust dialog and was not repeated) |
 | Windows | **Written, never run** | Mod has a Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) covered by stubbed tests on macOS only; the PowerShell script and real path behavior are unverified |
 | Python hook removed | Verified live | `Registered 0 hooks` in the debug log; Mod ran alone |
 | Model routing (`agent.spawn`, `turn.step`) | Not implemented | not planned |
