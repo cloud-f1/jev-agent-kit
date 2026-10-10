@@ -43,7 +43,7 @@ No CI: the local gate is the gate. The plugin has no runtime dependencies and th
 
 ## Working conventions
 
-- Work on a branch; merge to `main`; release from clean `main`. Do not push or publish without the user's go-ahead (the repo is public).
+- Work on a branch; merge to `main`; release from clean `main`. Do not push or publish without the user's go-ahead (the repo is public), except releases covered by the standing approval recorded in the `release` skill (audit clean + gate green).
 - Never put a real key in the repo, chat, or tests (tests use obvious fakes). Never read `.env.local`.
 - Verification claims: say exactly what ran. Mock/`log_proxy` results are not savings evidence; the live Jev API and long Agent-task benchmarks have **not** been run.
 - Claude Code caches installed plugins by version: bump the version (`core/contracts.ts`, `.claude-plugin/plugin.json`, `package.json`, plus CHANGELOG) for anything users must receive.

@@ -24,7 +24,7 @@ claude -p "Run exactly this command with the Bash tool ... <cmd>" --plugin-dir <
 ```
 
 - Put the prompt **before** `--allowedTools`: it takes several values and swallows a following prompt.
-- `/jev on|off|mode` fail here by design (no `/config` row headless). `/jev preset|init|doctor|status|savings|pane` work.
+- `/jev on|off|mode` fail here by design (no `/config` row headless). `/jev preset|init|doctor|status|savings` work headless; `/jev pane` was only verified interactively.
 - Records are JSON files under `$JEV_STATE_DIR/<hash>/decisions/`; read them to check fixed reason codes and that no key-like text appears.
 - Output between 8,000 and ~29,700 characters is what the kit acts on (`node -e` loops of `progress item N` lines: 1,500 lines is ~27 KB). `backend: jev` needs <= 96 candidate blocks (~800 short lines) or it falls back (`budget_fallback_original`).
 
