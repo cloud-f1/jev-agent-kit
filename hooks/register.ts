@@ -257,7 +257,7 @@ async function doctorText($: Engine): Promise<string> {
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   lines.push('API key: ' + (where ? `present in ${where} (not validated)` : 'missing (only needed for the jev backend)'))
   lines.push('Change settings in /plugin → Installed → Jev Agent Kit → Configure (or: claude plugin configure jev-agent-kit) or in the project file.')
-  lines.push('Updates: Claude Code does them. Auto-update is off by default for third-party marketplaces: /plugin → Marketplaces → jev-agent-kit → Enable auto-update, or run: claude plugin update jev-agent-kit@jev-agent-kit (then /reload-plugins or restart).')
+  lines.push('Updates: Claude Code does them. Per its docs, auto-update is off by default for third-party marketplaces: /plugin → Marketplaces → jev-agent-kit → Enable auto-update, or run: claude plugin update jev-agent-kit@jev-agent-kit (then /reload-plugins or restart).')
   return lines.join('\n')
 }
 

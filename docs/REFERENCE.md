@@ -12,7 +12,7 @@ The kit acts on Bash output between `minimumChars` and about 29,700 characters (
 
 Precedence: **built-in defaults < plugin settings (the Configure form, applies to you everywhere) < project file (`.claude/jev-agent-kit.json`)**. Claude Code fills untouched settings with their defaults, so `/jev doctor` labels those `plugin settings` too.
 
-| `/config` row | Project-file field | Default | Meaning |
+| Configure form row | Project-file field | Default | Meaning |
 |---|---|---|---|
 | Enable in every project | `enabled` | off | Must be on (or the project file must say `true`) or the kit does nothing. |
 | Mode | `mode` | observe | `observe` records only; `assist` rewrites output. |
@@ -44,7 +44,7 @@ State (originals, decision records) is under `~/.cache/jev-agent-kit/` (override
 
 ## The interface
 
-What you can see and touch today, and what is only a plan.
+What you can see and touch today.
 
 | Surface | Status | What it is |
 |---|---|---|
@@ -134,7 +134,7 @@ Shorter output is not the goal; lower **cost per successful task** at equal succ
 
 ### Upgrade, rollback, uninstall
 
-- Update: Claude Code's auto-update is off by default for third-party marketplaces; enable it in `/plugin` → Marketplaces → jev-agent-kit → Enable auto-update (it checks after the first message of a session, up to about 10 minutes later, and the new version loads on the next launch or after `/reload-plugins`), or run `claude plugin update jev-agent-kit@jev-agent-kit`. Installed plugins are cached by version, so a fix only arrives with a new `plugin.json` version (git tags alone do not trigger an update). A plugin cannot trigger or check for updates itself. Whether saved settings survive an update is not documented by Claude Code and is not yet tested here.
+- Update (per the Claude Code docs; not re-verified here): Claude Code's auto-update is off by default for third-party marketplaces; enable it in `/plugin` → Marketplaces → jev-agent-kit → Enable auto-update (it checks after the first message of a session, up to about 10 minutes later, and the new version loads on the next launch or after `/reload-plugins`), or run `claude plugin update jev-agent-kit@jev-agent-kit`. Installed plugins are cached by version, so a fix only arrives with a new `plugin.json` version (git tags alone do not trigger an update). A plugin cannot trigger or check for updates itself. Whether saved settings survive an update is not documented by Claude Code and is not yet tested here.
 - Roll back: reinstall the earlier tag, or remove and re-add the marketplace pinned to it. Project config files stay valid across 0.1 to 0.2 (`schemaVersion` 1).
 - Stop using it in one project: set `"enabled": false` (or delete the file). Everywhere: `claude plugin disable jev-agent-kit`, or `claude plugin uninstall jev-agent-kit`.
 - Remove stored data: delete `~/.cache/jev-agent-kit/` (or your `JEV_STATE_DIR`). Originals and records live only there.

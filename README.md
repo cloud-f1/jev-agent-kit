@@ -30,7 +30,7 @@ Needs Claude Code **2.1.287 or later**.
 The install opens a settings form. You can leave everything at its default and skip the API key.
 
 **Updates.** Claude Code does the updating; a plugin cannot update itself, and this one never checks the network for new versions.
-- **Automatic:** auto-update is **off by default for third-party marketplaces**. Turn it on in `/plugin` → Marketplaces → jev-agent-kit → Enable auto-update. Claude Code then checks after your first message in a session (after a random delay of up to 10 minutes), shows "Plugin updated ... Run /reload-plugins", and loads the new version on the next launch.
+- **Automatic** (per the Claude Code docs): auto-update is **off by default for third-party marketplaces**. Turn it on in `/plugin` → Marketplaces → jev-agent-kit → Enable auto-update. Claude Code then checks after your first message in a session (after a random delay of up to 10 minutes), shows "Plugin updated ... Run /reload-plugins", and loads the new version on the next launch.
 - **By hand:** `claude plugin update jev-agent-kit@jev-agent-kit`, then restart or run `/reload-plugins`.
 - **Your data:** project files (`.claude/jev-agent-kit.json`) are never touched by an update. Claude Code does not document whether saved plugin settings survive an update, and we have not tested a real upgrade; if a setting looks reset, run `/jev doctor` and set it again. This project's rule is never to rename or remove a setting, or add a required one.
 - `/jev doctor` shows the version you are running and these steps.
