@@ -267,13 +267,28 @@ const PRESETS: Record<string, { mode: 'observe' | 'assist'; backend: 'rules' | '
   'prune-jev': { mode: 'assist', backend: 'jev', about: 'rewrite using Jev relevance (needs a key; falls back to the original)' },
 }
 
+// Reads the project file back and reports only the three fixed fields, and only known values.
+async function projectFileSummary($: Engine, path: string): Promise<string> {
+  try {
+    const raw = JSON.parse(await $.fs.read(path))
+    const pick = (field: string, allowed: string[]) => (typeof raw?.[field] === 'string' && allowed.includes(raw[field]) ? String(raw[field]) : '?')
+    const enabled = typeof raw?.enabled === 'boolean' ? String(raw.enabled) : '?'
+    return `enabled=${enabled}, mode=${pick('mode', ['observe', 'assist'])}, backend=${pick('backend', ['rules', 'jev'])}`
+  } catch {
+    return 'unreadable'
+  }
+}
+
 // Creates the project opt-in file with fixed fields only; never overwrites one that exists.
 async function writeProject($: Engine, mode: 'observe' | 'assist', backend: 'rules' | 'jev'): Promise<string> {
   try {
     const path = (await $.session.cwd()) + '/.claude/jev-agent-kit.json'
-    if (await $.fs.exists(path)) return 'Project file already exists; not changed. Edit .claude/jev-agent-kit.json yourself.'
+    if (await $.fs.exists(path)) {
+      return 'Project file already exists; not changed (it says ' + (await projectFileSummary($, path)) + '). To switch, edit "mode" or "backend" in .claude/jev-agent-kit.json, or delete the file and run /jev preset <name>. /jev doctor shows the effective values.'
+    }
     await $.fs.write(path, JSON.stringify({ schemaVersion: 1, enabled: true, mode, backend }, null, 2) + '\n')
-    return 'Created .claude/jev-agent-kit.json (enabled, mode=' + mode + ', backend=' + backend + '). Takes effect on the next Bash call. /jev doctor shows the result.'
+    const sends = backend === 'jev' ? ' backend=jev sends redacted log blocks to api.typesafe.ai (needs an API key).' : ' Nothing leaves this machine (backend=rules).'
+    return 'Created .claude/jev-agent-kit.json. Read back: ' + (await projectFileSummary($, path)) + '.' + sends + ' Takes effect on the next Bash call. /jev doctor shows the effective values.'
   } catch {
     return 'Could not create the project file. Create .claude/jev-agent-kit.json by hand (see README).'
   }

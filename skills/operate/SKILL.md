@@ -16,7 +16,7 @@ Jev Agent Kit shortens long Bash output with a local rules engine, optionally as
 | `/jev savings` | Counted characters: what `assist` removed, and what it would have removed in `observe`. Not tokens, cost or success |
 | `/jev pane` / `/jev pane close` | Side pane with the same numbers |
 | `/jev readback <id>` | The untouched original; also pauses rewriting for this project (see below) |
-| `/jev preset <name>` | Create the project file: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. Never overwrites |
+| `/jev preset <name>` | Create the project file: `observe-local`, `shadow-jev`, `prune-local`, `prune-jev`. Prints what it wrote (read back) and whether data leaves the machine. Never overwrites: if the file exists it prints the current values and says to edit `mode`/`backend` or delete the file first |
 | `/jev init [observe\|assist]` | Create the project file (local rules). Never overwrites |
 | `/jev on` / `off` / `mode observe\|assist` | Change the user-level plugin settings. **Work in an interactive session only**; headless (`claude -p`) answers "Could not change the setting": use `/config` or `claude plugin configure jev-agent-kit` |
 
@@ -41,7 +41,7 @@ Optional maintainer CLI: `node "${CLAUDE_PLUGIN_ROOT}/cli/jev.ts" <command>` (No
 
 ## Settings and precedence
 
-Defaults < plugin settings (`/config`, user-wide) < project file `.claude/jev-agent-kit.json`. **A field present in the project file wins over `/jev mode`, `/jev on` and the Configure form.** To change a project's mode, edit the file, or delete it and run `/jev preset <name>`. `/jev doctor` labels every value `project file` or `plugin settings`.
+Defaults < plugin settings (Configure form, user-wide) < project file `.claude/jev-agent-kit.json`. **A field present in the project file wins over `/jev mode`, `/jev on` and the Configure form.** To change a project's mode, edit the file, or delete it and run `/jev preset <name>`. `/jev doctor` labels every value `project file` or `plugin settings`.
 
 Config fields: `schemaVersion` (1), `enabled`, `mode`, `backend` (`rules`|`jev`), `minimumChars`, `timeoutSeconds`, `keepThreshold`, `retentionDays`. Projects cannot set the endpoint, key, credential paths or model. The key comes from `TYPESAFE_API_KEY`, the plugin's secure setting, the user's `settings.json` env (never a project's), or `JEV_ENV_FILE`. The `Jev model` setting is plugin-level only; a pinned model must answer as itself (else `model_mismatch`), `jev-latest` may resolve to another `jev-*` name.
 

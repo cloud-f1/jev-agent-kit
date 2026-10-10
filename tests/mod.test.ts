@@ -590,7 +590,11 @@ test('/jev init creates the project file once and never overwrites it', async ($
 
 test('/jev init leaves an existing project file alone', async ($, on) => {
   const t = stubs(on, { config: JEV_ASSIST })
-  expect((await jev($, 'init')).text).toContain('already exists')
+  const text = (await jev($, 'init')).text
+  expect(text).toContain('already exists')
+  expect(text).toContain('it says enabled=true, mode=assist, backend=jev')
+  expect(text).toContain('edit "mode" or "backend"')
+  expect(text).toContain('/jev preset <name>')
   expect(t.fsWrites.length).toBe(0)
 })
 
@@ -625,8 +629,23 @@ test('/jev preset writes fixed fields only, lists names, rejects unknown names',
   expect((await jev($, 'preset __proto__')).text).toContain('Usage')
   expect((await jev($, 'preset constructor')).text).toContain('Usage')
   expect(s.fsWrites.length).toBe(0)
-  expect((await jev($, 'preset shadow-jev')).text).toContain('Created')
+  const created = (await jev($, 'preset shadow-jev')).text
+  expect(created).toContain('Created')
+  expect(created).toContain('Read back: enabled=true, mode=observe, backend=jev')
+  expect(created).toContain('sends redacted log blocks to api.typesafe.ai')
   expect(JSON.parse(s.written[CWD + '/.claude/jev-agent-kit.json']!)).toEqual({ schemaVersion: 1, enabled: true, mode: 'observe', backend: 'jev' })
+})
+
+test('/jev preset with the local rules says nothing leaves the machine', async ($, on) => {
+  stubs(on, {})
+  expect((await jev($, 'preset observe-local')).text).toContain('Nothing leaves this machine')
+})
+
+test('an existing project file with odd values is summarized with ? and never echoed', async ($, on) => {
+  stubs(on, { config: { enabled: true, mode: 'FAKE-SECRET-VALUE', backend: 'jev' } })
+  const text = (await jev($, 'init')).text
+  expect(text).toContain('mode=?')
+  expect(text).not.toContain('FAKE-SECRET-VALUE')
 })
 
 test('/jev savings reports counted characters for observe and never claims tokens or cost', async ($, on) => {

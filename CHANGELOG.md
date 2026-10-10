@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.4 | 2026-10-10 | CLI `--help`, `doctor --verify`, config sources, read-back after `/jev init` and `/jev preset`, backend data-flow table, Node wrapper (JEV-30, JEV-31) |
 | 0.6.3 | 2026-10-10 | Messages and docs point to the real settings path (`/plugin` → Configure), Node 22.17 note, README status brought up to date; found from a real interactive install |
 | 0.6.2 | 2026-10-10 | Updated skills (operate, release) + new live-test skill; docs record that the Jev backend does not act on logs above ~96 blocks (found in a real session); no runtime change |
 | 0.6.1 | 2026-10-10 | Docs and gate only: tester checklist (`docs/TESTING.md`), rewritten handover, aligned links, markdown-link check in the gate; no runtime change |
@@ -16,6 +17,30 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
+
+## 0.6.4 (2026-10-10)
+
+From two maintainer-filed tickets: JEV-30 (CLI help and Node 22 invocation) and JEV-31 (config confirmation and key validation).
+
+### New
+- `node cli/jev.ts --help`, `-h` and `help` exit 0 with one line per command, and mark the commands that use the network (`smoke`, `bench-logs --live`, `doctor --verify`). `--version` prints the version. Before, `--help` exited 2 with an error.
+- `scripts/jev.sh` (and `npm run jev -- <command>`) runs the CLI with `--experimental-strip-types` on Node 22.6 to 22.17 and without it on newer Node.
+- `doctor --verify` sends one synthetic sentence and reports `key_check`: `valid`, `invalid (401)`, `missing` or `error (<reason>)`. Plain `doctor` stays offline. Exit 3 unless `valid`.
+- `check-config` also prints a `sources` map: where each value came from (default, plugin settings via `CLAUDE_PLUGIN_OPTION_*`, project file). The existing fields are unchanged.
+- `/jev init` and `/jev preset <name>` read the file back and print the resulting `enabled`, `mode`, `backend`, and say whether anything leaves the machine. When the file already exists they print its current values and how to switch (edit `mode` or `backend`, or delete it and run `/jev preset <name>`). Only known values are shown; anything else prints `?`.
+- README: a backend x mode table of what is sent to the API.
+
+### Changed
+- Messages in `hooks/register.ts` only (the two commands above); no pruning, threshold, model, request or data-sent change. `core/` differs from 0.6.3 only in the version string.
+
+### Verified
+- 47 Node tests and 111 Mod tests pass; the release gate is green.
+- Live, with the real key: `doctor --verify` gave `valid`; a deliberately fake key gave `invalid (401)` (one request with a fake key, no real data). In a real headless `claude -p` session `/jev preset shadow-jev` printed the read-back and the data-sent note, and a second preset printed the current values and the switch hint without overwriting the file.
+
+### Not done
+- A `--force` overwrite flag (deliberately not added: overwriting a project file is easy to do by hand and hard to undo).
+- `check-config` shows only plugin settings passed as `CLAUDE_PLUGIN_OPTION_*`; the real merge with Claude Code's stored settings is `/jev doctor` in a session.
+- Windows, the pane in a narrow terminal, and the sensitive-key field's masking are still unseen.
 
 ## 0.6.3 (2026-10-10)
 

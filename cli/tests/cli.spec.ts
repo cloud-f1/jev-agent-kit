@@ -5,7 +5,9 @@ import { join } from 'node:path'
 import { test } from 'node:test'
 import golden from '../../tests/fixtures/golden.ts'
 import { build } from '../../scripts/gen-golden.ts'
-import { loadProjectConfig, logBench, main, optionsFromEnv } from '../jev.ts'
+import { spawnSync } from 'node:child_process'
+import { JevError } from '../../core/contracts.ts'
+import { HELP, loadProjectConfig, loadProjectEffective, logBench, main, optionsFromEnv, verifyKey } from '../jev.ts'
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'jev-cli-'))
 function project(file?: unknown) {
@@ -107,4 +109,85 @@ test('--env-file works in the space form, before or after the command', async ()
     assert.match(out.join('\n'), /"jev_key_present": true/)
     assert.doesNotMatch(out.join('\n'), /fake-key-123456789/)
   }
+})
+
+async function run(argv: string[], env: Record<string, string | undefined> = {}) {
+  const out: string[] = []
+  const original = console.log
+  const write = process.stdout.write.bind(process.stdout)
+  console.log = (line: string) => out.push(String(line))
+  process.stdout.write = ((chunk: string) => (out.push(String(chunk)), true)) as typeof process.stdout.write
+  try {
+    return { code: await main(argv, env), text: out.join('\n') }
+  } finally {
+    console.log = original
+    process.stdout.write = write
+  }
+}
+
+test('--help, -h and help exit 0 with one line per command and the network commands marked', async () => {
+  for (const argv of [['--help'], ['-h'], ['help'], ['doctor', '--help']]) {
+    const { code, text } = await run(argv)
+    assert.equal(code, 0, argv.join(' '))
+    assert.equal(text, HELP)
+  }
+  for (const command of ['doctor', 'smoke', 'bench-logs', 'check-config', 'status', 'readback', 'report']) assert.match(HELP, new RegExp('^  ' + command, 'm'))
+  assert.match(HELP, /smoke\s+\[network\]/)
+  assert.match(HELP, /--live \[network\]/)
+  assert.match(HELP, /22\.6 to 22\.17/)
+  assert.doesNotMatch(HELP, /fake-key/)
+})
+
+test('--version prints the version; no command and unknown commands still exit 2', async () => {
+  assert.match((await run(['--version'])).text, /^\d+\.\d+\.\d+$/)
+  assert.equal((await run([])).code, 2)
+  assert.equal((await run(['nonsense'])).code, 2)
+})
+
+test('check-config reports the source of every value', async () => {
+  const dir = project({ backend: 'jev', enabled: true })
+  const env = { CLAUDE_PLUGIN_OPTION_MODE: 'assist', CLAUDE_PLUGIN_OPTION_RETENTION_DAYS: '14' }
+  const { sources } = loadProjectEffective(dir, env)
+  assert.equal(sources.backend, 'project file')
+  assert.equal(sources.enabled, 'project file')
+  assert.equal(sources.mode, 'plugin settings')
+  assert.equal(sources.retentionDays, 'plugin settings')
+  assert.equal(sources.minimumChars, 'default')
+  const out = JSON.parse((await run(['check-config', '--project', dir], env)).text)
+  assert.equal(out.backend, 'jev')
+  assert.equal(out.sources.backend, 'project file')
+  assert.equal(out.sources.mode, 'plugin settings')
+})
+
+test('doctor stays offline without --verify and has no key_check', async () => {
+  const { code, text } = await run(['doctor'], { TYPESAFE_API_KEY: 'fake-key-123456789' })
+  assert.equal(code, 0)
+  assert.doesNotMatch(text, /key_check/)
+  assert.doesNotMatch(text, /fake-key-123456789/)
+})
+
+test('verifyKey maps outcomes to fixed words and never echoes the key', async () => {
+  const good = () => async () => ({ model: 'jev-1.13.0', answers: { failed: { type: 'noul', noul: 0.96 } }, usage: { input_tokens: 1, output_tokens: 1 } })
+  const fail = (reason: string) => () => async () => { throw new JevError(reason) }
+  assert.equal(await verifyKey(undefined, good), 'missing')
+  assert.equal(await verifyKey('REPLACE_ME', good), 'missing')
+  assert.equal(await verifyKey('fake-key-123456789', good), 'valid')
+  assert.equal(await verifyKey('fake-key-123456789', fail('http_401')), 'invalid (401)')
+  assert.equal(await verifyKey('fake-key-123456789', fail('http_403')), 'invalid (403)')
+  assert.equal(await verifyKey('fake-key-123456789', fail('http_429')), 'error (http_429)')
+  assert.equal(await verifyKey('fake-key-123456789', () => async () => { throw new Error('secret fake-key-123456789 in text') }), 'error (invalid_input_or_local_io)')
+})
+
+test('doctor --verify with no key reports missing and exits 3 without any network call', async () => {
+  const { code, text } = await run(['doctor', '--verify'], {})
+  assert.equal(code, 3)
+  assert.match(text, /"key_check": "missing"/)
+})
+
+test('scripts/jev.sh runs the CLI and passes its arguments through', { skip: process.platform === 'win32' }, () => {
+  const help = spawnSync('sh', ['scripts/jev.sh', '--help'], { encoding: 'utf8' })
+  assert.equal(help.status, 0, help.stderr)
+  assert.equal(help.stdout, HELP)
+  const version = spawnSync('sh', ['scripts/jev.sh', '--version'], { encoding: 'utf8' })
+  assert.match(version.stdout, /^\d+\.\d+\.\d+\n$/)
 })

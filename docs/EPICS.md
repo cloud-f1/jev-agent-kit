@@ -42,7 +42,8 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 - S6.4 (JEV-29) Open: split long logs into several Jev requests. A real `claude -p` session showed `budget_fallback_original` on a 27 KB log, so Jev is never asked above ~96 candidate blocks.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
-## E7 (JEV-7) Usability (done through 0.6.0)
+## E7 (JEV-7) Usability (done through 0.6.4)
+- (JEV-31, built and live-checked in 0.6.4) DX: `check-config` shows the source of every value, `doctor --verify` validates the key (`valid` / `invalid (401)` / `missing`), `/jev init` and `/jev preset` read back what they wrote and say how to switch when the file exists, README backend x mode data-flow table.
 - Built in 0.3.0 (JEV-13): `/jev on|off|mode` via `$.config.set`, `/jev init`.
 - Corrected in 0.4.0: `/jev on|off|mode` do not work in headless runs (no /config row); interactive unverified.
 - Built in 0.4.0: `/jev preset`, `/jev savings` (seen live / stubbed).
@@ -58,7 +59,8 @@ Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md).
 - (JEV-18, built in 0.3.0: script + typed `register`; `$: any` helpers remain) Optional `tsc` type-check against Claude Code's `claude-code.d.ts` (maintainers only, outside the release gate).
 - (JEV-19, built in 0.4.0) Collapse repeated warning-only lines differing in digits; error-class lines never collapsed; both cores, golden regenerated.
 
-## E10 (JEV-21) Node + TypeScript alignment (done in 0.5.0)
+## E10 (JEV-21) Node + TypeScript alignment (done in 0.5.0; follow-up in 0.6.4)
+- (JEV-30, 0.6.4) CLI `--help` / `-h` / `help` (network commands marked), `--version`, `scripts/jev.sh` wrapper for Node 22.6 to 22.17, README commands documented with the flag.
 - Port the maintainer CLI, release gate, golden check and tests from Python to Node + TypeScript; one pure core shared by the Mod and the CLI.
 - Differential check before deleting Python: 178 comparisons, 0 differences after ignoring float noise.
 - Done (JEV-28, 0.6.0): `$` is `EngineInterface`, `typescript` + `@types/node` dev-only, type-check in the gate.

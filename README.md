@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.3, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
+> **Status: v0.6.4, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
 
 ## What it does
 
@@ -13,7 +13,7 @@ Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 | Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
 | `/jev` command + plugin settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and a settings form under `/plugin` → Installed → Jev Agent Kit → Configure. |
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
-| CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
+| CLI (`cli/jev.ts`, Node) | `--help`, `doctor [--verify]`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
 The kit acts on Bash output between `minimumChars` and about 29,700 characters (assuming the default 30,000-character cap, or 99% of `BASH_MAX_OUTPUT_LENGTH` if it is set in the environment): Claude Code itself cuts output at that cap (and keeps the complete text in its own file) before any hook runs, so output at that cut is left alone. With `backend: jev`, Jev is asked about at most 96 non-pinned blocks (8 lines each) and 60 KB per request. A longer log is **not sent at all** and comes back unchanged (record reason `budget_fallback_original`). In practice that is roughly 800 short lines, about 14,000 characters, so a 27 KB log never reaches Jev (found in a real session; tracked as Jira JEV-29). Pruning keeps the head, the tail, and every block containing errors/warnings/tracebacks (plus neighbours). One exception, new in 0.4.0: a run of 6 or more consecutive warning lines that differ only in their numbers is shown as the first 2, a `[N similar lines omitted (original lines a-b)]` marker, and the last 1. Any line with an error-class word (error, fail, exception, traceback, assert, expected, actual, timeout, denied, not found, a stack frame or a `File` line) is never collapsed; the full original stays available through `/jev readback`. With `backend: jev`, Jev scores the remaining blocks and keeps relevant ones; error blocks are never up to Jev. Any failure returns the original output.
 
@@ -165,14 +165,17 @@ Optional maintainer and evaluation tool; end users do not need it.
 
 | Command | Does | Needs key |
 |---|---|---|
-| `doctor` | Node version, Claude CLI, key presence, endpoint, model. | no |
-| `check-config --project DIR` | Validate `.claude/jev-agent-kit.json`. | no |
+| `doctor` | Node version, Claude CLI, key presence, endpoint, model. Offline. | no |
+| `doctor --verify` | Same, plus one synthetic request that reports `key_check`: `valid`, `invalid (401)`, `missing` or `error (<reason>)`. Exit 3 unless `valid`. | yes |
+| `check-config --project DIR` | Validate `.claude/jev-agent-kit.json` and print the effective config with a `sources` map (default, plugin settings, project file). | no |
 | `status --project DIR` | Recent decision records. | no |
 | `readback ID --project DIR` | Print a stored original. | no |
 | `bench-logs --outdir DIR` | Offline demo on 5 synthetic logs with a mock Jev. **Not** a quality or billing result. | no |
 | `smoke` | One synthetic request to the real API; exit 3 = no verdict (missing key, 401, 429, timeout...). | yes |
 | `bench-logs --live --outdir DIR` | Same fixtures against the real API (synthetic text only). | yes |
 | `report --manifest M --records R --outdir DIR` | Paired agent-task comparison report. | no |
+
+`node cli/jev.ts --help` (also `-h`, `help`) lists every command and marks the ones that use the network. On Node 22.6 to 22.17 run `sh scripts/jev.sh <command>` (or `npm run jev -- <command>`), which adds `--experimental-strip-types` for you.
 
 Add `--env-file PATH` before the command to load `TYPESAFE_API_KEY` from a local dotenv file for that run only.
 
@@ -198,10 +201,16 @@ Shorter output is not the goal; lower **cost per successful task** at equal succ
 
 ### Privacy and data flow
 
-| Backend | Leaves your machine? |
-|---|---|
-| `rules` | Nothing. |
-| `jev` | Redacted log blocks (secrets pattern-masked, best effort), the goal text, and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. |
+What leaves your machine depends on `backend`, not on `mode`:
+
+| `backend` | `mode` | Sent to `api.typesafe.ai`? | Output changed? |
+|---|---|---|---|
+| `rules` | `observe` | **Nothing.** | No (records only). |
+| `rules` | `assist` | **Nothing.** | Yes, pruned locally. |
+| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output. | No (records what Jev would keep). |
+| `jev` | `assist` | **Yes**, same as above. | Yes, pruned with Jev relevance; falls back to the original on any failure. |
+
+For `jev`, redacted log blocks (secrets pattern-masked, best effort), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.
 
 Decision records hold counts, reason codes, timing, token usage and an artifact id. They never hold code, prompts, commands, full logs, keys, response bodies or exception text. Optionally put a one-line task description in `.claude/jev-goal.txt` to tell Jev what evidence is relevant (it is redacted before sending).
 

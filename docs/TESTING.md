@@ -17,7 +17,7 @@
 |---|---|---|---|
 | 1 | 安裝：`/plugin marketplace add cloud-f1/jev-agent-kit`，再 `/plugin install jev-agent-kit --marketplace cloud-f1/jev-agent-kit`。終端機版：`claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`。然後重啟 Claude Code | 安裝成功；會提示 `8 userConfig options not yet set`（全部選填，可忽略） | ☐ |
 | 2 | `/jev doctor`（尚未啟用） | 第一行 `Jev Agent Kit 0.6.1`；有一行 `This project is NOT opted in` | ☐ |
-| 3 | `/jev preset observe-local` | `Created .claude/jev-agent-kit.json`。再打一次 → `already exists; not changed` | ☐ |
+| 3 | `/jev preset observe-local` | `Created .claude/jev-agent-kit.json. Read back: enabled=true, mode=observe, backend=rules. Nothing leaves this machine`。再打一次 → `already exists; not changed (it says …)`，並說明怎麼切換 | ☐ |
 | 4 | `/jev doctor` | `enabled=true (project file)`、`mode=observe`、`backend=rules` | ☐ |
 | 5 | 請 Claude 執行：`node -e "for(let i=0;i<1500;i++){console.log('progress item '+i); if(i===700)console.log('ERROR demo: expected 1 got 2')}"`（約 27,000 字元） | 輸出**完整、沒有被改**（observe 只記錄） | ☐ |
 | 6 | `/jev status`，再 `/jev savings` | status 有一筆 `prune · ok · 27xxx → 1xxx chars`；savings 的 `observe:` 顯示 `1 logs` 和 assist 會移除的字元數 | ☐ |

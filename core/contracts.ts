@@ -1,6 +1,6 @@
 // Shared constants and types for the Jev Agent Kit TypeScript core. Pure: no mods API.
 
-export const VERSION = '0.6.3'
+export const VERSION = '0.6.4'
 export const QUESTION_VERSION = 'log-keep-v1'
 export const ENDPOINT = 'https://api.typesafe.ai/v1/systemone'
 export const MODEL = 'jev-1.13.0' // default request model: pinned so decisions stay calibrated

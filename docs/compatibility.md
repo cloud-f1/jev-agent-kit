@@ -1,6 +1,6 @@
 # Compatibility and verification status
 
-Updated 2026-10-10 (v0.6.2). Records what was actually run and what was not. No CI exists; every row below was run locally.
+Updated 2026-10-10 (v0.6.4). Records what was actually run and what was not. No CI exists; every row below was run locally.
 
 Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 

@@ -44,11 +44,51 @@ export function optionsFromEnv(env: Record<string, string | undefined>): Record<
   return out
 }
 
-export function loadProjectConfig(project: string, env: Record<string, string | undefined> = process.env) {
+// The effective config and where each value came from (default, plugin settings via
+// CLAUDE_PLUGIN_OPTION_* env, or the project file).
+export function loadProjectEffective(project: string, env: Record<string, string | undefined> = process.env) {
   const path = join(project, '.claude', 'jev-agent-kit.json')
   const raw = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined
-  return mergeConfig(optionsFromEnv(env), raw).config
+  return mergeConfig(optionsFromEnv(env), raw)
 }
+
+export function loadProjectConfig(project: string, env: Record<string, string | undefined> = process.env) {
+  return loadProjectEffective(project, env).config
+}
+
+const SMOKE_BODY = { model: MODEL, state: 'A unit test failed.', questions: { failed: { type: 'noul', instructions: 'Does the state say that a unit test failed?' } } }
+
+// One synthetic request that says whether the key is accepted. Reason codes only, never a body.
+export async function verifyKey(key: string | undefined, transport: (key: string | undefined) => Transport = httpTransport): Promise<string> {
+  if (!key || key === 'REPLACE_ME') return 'missing'
+  try {
+    validateResponse(await transport(key)(SMOKE_BODY), MODEL)
+    return 'valid'
+  } catch (error) {
+    if (error instanceof JevError) return error.reason === 'http_401' || error.reason === 'http_403' ? `invalid (${error.reason.slice(5)})` : `error (${error.reason})`
+    return 'error (invalid_input_or_local_io)'
+  }
+}
+
+export const HELP = `jev-agent-kit CLI ${VERSION}: maintainer and evaluation tool (the plugin itself is hooks/register.ts)
+
+usage: node cli/jev.ts [--env-file PATH] <command> [options]
+
+Commands. [network] sends one synthetic request to ${ENDPOINT}; the rest stay on this machine.
+  doctor [--verify]             Node, kit version, whether a key is set. --verify [network] checks the key.
+  smoke                         [network] One synthetic sentence to Jev; prints api_validated, the answering model and token counts.
+  bench-logs [--live] [--outdir D]
+                                Synthetic log fixtures. Mock Jev by default; --live [network] uses the real API.
+  check-config [--project P]    Effective config plus the source of each value (default, plugin settings, project file).
+  status [--project P]          The last 10 decision records for a project.
+  readback ID [--project P]     Print a stored original output (ID is the 32-character artifact id).
+  report --manifest M --records R [--outdir D]
+                                Paired agent-task report from your own run records.
+  help, --help, -h              This text.   --version   Print the version.
+
+Exit codes: 0 ok, 2 bad input or local I/O, 3 no verdict or key problem, 4 report incomplete.
+Node: 22.18+ runs this file directly. On 22.6 to 22.17 run scripts/jev.sh (adds --experimental-strip-types) or pass the flag yourself.
+`
 
 const nowMs = () => performance.now()
 
@@ -109,33 +149,46 @@ function onPath(binary: string, env = process.env): boolean {
 
 export async function main(argv: string[], env: Record<string, string | undefined> = process.env): Promise<number> {
   try {
+    if (argv[0] === 'help' || argv.includes('--help') || argv.includes('-h')) {
+      process.stdout.write(HELP)
+      return 0
+    }
+    if (argv.includes('--version')) {
+      console.log(VERSION)
+      return 0
+    }
     const opts = parseArgs({
       args: argv,
       allowPositionals: true,
       options: {
         'env-file': { type: 'string' }, outdir: { type: 'string' }, live: { type: 'boolean' }, project: { type: 'string' },
-        manifest: { type: 'string' }, records: { type: 'string' },
+        manifest: { type: 'string' }, records: { type: 'string' }, verify: { type: 'boolean' },
       },
     })
     loadEnv(opts.values['env-file'] ?? env.JEV_ENV_FILE, env)
     const [cmd, ...positionals] = opts.positionals
     const project = opts.values.project ?? '.'
     if (cmd === 'doctor') {
+      const keyCheck = opts.values.verify ? await verifyKey(env.TYPESAFE_API_KEY) : undefined
       emit({
         node: process.versions.node, claude_cli_available: onPath('claude', env as NodeJS.ProcessEnv),
         jev_key_present: Boolean(env.TYPESAFE_API_KEY), kit_version: VERSION, endpoint: ENDPOINT, model: MODEL,
-        note: 'Key presence is not authentication validation. This reports the CLI side only; the native Mod ships in hooks/register.ts (use /jev doctor in a session).',
+        ...(keyCheck !== undefined ? { key_check: keyCheck } : {}),
+        note: keyCheck !== undefined
+          ? 'key_check sent one synthetic sentence to the Jev API. The native Mod ships in hooks/register.ts (use /jev doctor in a session).'
+          : 'Key presence is not authentication validation; run doctor --verify (sends one synthetic sentence) or smoke. This reports the CLI side only; the native Mod ships in hooks/register.ts (use /jev doctor in a session).',
       })
+      if (keyCheck !== undefined && keyCheck !== 'valid') return 3
     } else if (cmd === 'smoke') {
-      const body = { model: MODEL, state: 'A unit test failed.', questions: { failed: { type: 'noul', instructions: 'Does the state say that a unit test failed?' } } }
-      const obj = await httpTransport(env.TYPESAFE_API_KEY)(body)
+      const obj = await httpTransport(env.TYPESAFE_API_KEY)(SMOKE_BODY)
       const { usage, model } = validateResponse(obj, MODEL)
       emit({ status: 'api_validated', answers: validateNouls(obj, ['failed']), model, usage })
     } else if (cmd === 'bench-logs') {
       const live = Boolean(opts.values.live)
       return await logBench(opts.values.outdir ?? 'results/logs', live, live ? httpTransport(env.TYPESAFE_API_KEY) : undefined)
     } else if (cmd === 'check-config') {
-      emit(loadProjectConfig(project, env))
+      const { config, sources } = loadProjectEffective(project, env)
+      emit({ ...config, sources })
     } else if (cmd === 'readback') {
       process.stdout.write(readback(await rootFor(project, env), positionals[0] ?? ''))
     } else if (cmd === 'status') {
@@ -154,7 +207,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
       emit({ report: join(dir, 'agent-report.md'), status: obj.status })
       return obj.status === 'COMPLETE' ? 0 : 4
     } else {
-      console.error('usage: node cli/jev.ts [--env-file PATH] doctor | smoke | bench-logs [--live] [--outdir D] | status | readback ID | check-config [--project P] | report --manifest M --records R [--outdir D]')
+      console.error('usage: node cli/jev.ts [--env-file PATH] doctor [--verify] | smoke | bench-logs [--live] [--outdir D] | status | readback ID | check-config [--project P] | report --manifest M --records R [--outdir D] | help (node cli/jev.ts --help lists what each command does and which ones use the network)')
       return 2
     }
   } catch (error) {
