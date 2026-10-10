@@ -269,6 +269,19 @@ test('/jev status lists recent decision records', async ($, on) => {
   await call($)
   const out = await jev($, 'status')
   expect(out.text).toContain('records for this project')
+  expect(out.text).toMatch(/\d+ → \d+ chars/)
+})
+
+test('/jev status summarizes failed-command repeats on one line instead of empty rows', async ($, on) => {
+  stubs(on, { config: ASSIST, tool: { result: { stdout: 'x', stderr: '' }, isError: true, text: 'same failure' } })
+  await call($)
+  await call($)
+  await call($)
+  const out = (await jev($, 'status')).text
+  expect(out).toContain('3 records for this project')
+  expect(out).toContain('failed-command repeats: 3 records, highest repeat count 3 (recorded only, output unchanged)')
+  expect(out).not.toMatch(/→\s+chars/)
+  expect(out).not.toContain('loop ·')
 })
 
 test('/jev with no or unknown subcommand prints usage', async ($, on) => {

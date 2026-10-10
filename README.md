@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.4, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
+> **Status: v0.6.5, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
 
 ## What it does
 

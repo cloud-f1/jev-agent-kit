@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.5 | 2026-10-10 | `/jev status` no longer prints empty `loop · observe ·  →  chars` rows; failed-command repeats are one summary line |
 | 0.6.4 | 2026-10-10 | CLI `--help`, `doctor --verify`, config sources, read-back after `/jev init` and `/jev preset`, backend data-flow table, Node wrapper (JEV-30, JEV-31) |
 | 0.6.3 | 2026-10-10 | Messages and docs point to the real settings path (`/plugin` → Configure), Node 22.17 note, README status brought up to date; found from a real interactive install |
 | 0.6.2 | 2026-10-10 | Updated skills (operate, release) + new live-test skill; docs record that the Jev backend does not act on logs above ~96 blocks (found in a real session); no runtime change |
@@ -17,6 +18,22 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
+
+## 0.6.5 (2026-10-10)
+
+Found by looking at a real interactive session: `/jev status` listed ten rows of `loop · observe ·  →  chars`.
+
+### Fixed
+- Failed-command repeat records (`loop`) carry a repeat count, not character counts, so the generic row format printed empty fields. `/jev status` now shows the last 10 real records and one line for repeats: `failed-command repeats: N records, highest repeat count M (recorded only, output unchanged)`. A record with no character counts prints no arrow. It reads the last 200 records (the header still shows the total).
+
+### Changed
+- Display text of `/jev status` only (`hooks/register.ts`); no pruning, threshold, model, request or data-sent change. `core/` differs from 0.6.4 only in the version string.
+
+### Verified
+- 112 Mod tests pass; the new test fails if the loop branch is disabled. Gate green.
+
+### Not verified
+- The pane's recent-decisions list was not changed or re-checked for the same row shape. Windows, the sensitive-key field's masking.
 
 ## 0.6.4 (2026-10-10)
 

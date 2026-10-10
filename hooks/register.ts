@@ -216,15 +216,26 @@ async function statusText($: Engine): Promise<string> {
     // No decisions directory yet.
   }
   const lines: string[] = []
-  for (const name of names.slice(-10)) {
+  let loops = 0
+  let highestRepeat = 0
+  for (const name of names.slice(-200)) {
     try {
       const row = JSON.parse(await $.fs.read(root + '/decisions/' + name))
-      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? ''} · ${row.input_chars ?? ''} → ${row.output_chars ?? ''} chars`)
+      if (row.feature === 'loop') {
+        // Failed-command repeat records carry a count, not character counts: summarize them on one line.
+        loops += 1
+        if (typeof row.repeated_count === 'number' && Number.isFinite(row.repeated_count)) highestRepeat = Math.max(highestRepeat, row.repeated_count)
+        continue
+      }
+      const counts = typeof row.input_chars === 'number' && typeof row.output_chars === 'number' ? ` · ${row.input_chars} → ${row.output_chars} chars` : ''
+      lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}`)
     } catch {
       lines.push('(unreadable record ' + name + ')')
     }
   }
-  return `Jev Agent Kit ${VERSION}: ${names.length} records for this project\n` + (lines.join('\n') || '(none yet)')
+  const shown = lines.slice(-10)
+  if (loops > 0) shown.push(`failed-command repeats: ${loops} records, highest repeat count ${highestRepeat} (recorded only, output unchanged)`)
+  return `Jev Agent Kit ${VERSION}: ${names.length} records for this project\n` + (shown.join('\n') || '(none yet)')
 }
 
 async function doctorText($: Engine): Promise<string> {
