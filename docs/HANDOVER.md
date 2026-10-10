@@ -83,7 +83,7 @@ Next planned version: **0.8.0** (a minor: behavior change in the goal sent to Je
 
 Built on the branch: broad default goal (held-out test: 0.0 to 5.0 of 12 quiet cues kept, reduction 95% to 74%), omitted-lines count in the marker (golden regenerated), measured `latency_ms`, block counts in records and in `/jev status`, goal line in `/jev doctor`, `scripts/quiet-cues-experiment.ts`, README/REFERENCE/operate-skill risk text.
 
-Not built, on purpose: JEV-29 (split long logs). Reason in the changelog. Jira JEV-34 tracks the batch.
+Not built, on purpose: JEV-29 (split long logs). Reason in the changelog. Jira JEV-36 tracks the batch.
 
 Still to do before tagging 0.8.0: one independent audit of the cumulative diff, a live check of the Mod on a real session (a mixed log, observe and assist), a real upgrade-keeps-settings check, and the policy conditions below.
 
