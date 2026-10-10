@@ -20,7 +20,7 @@ Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 | Native Mod in a real session | Passed | `claude -p` + `--model haiku` in a scratch project: module loaded alone, pruned text and the receipt reached the model; eval traces show the receipt naming a readable file and the model reading it |
 | `/jev doctor`, `/jev status` | Passed live | `claude -p "/jev doctor"` |
 | `/jev readback <id>` | Tested with stubs only | not run live |
-| Install from the GitHub marketplace | Passed for 0.2.0, 0.2.1, 0.3.0, 0.4.0, 0.5.0 and 0.6.0 | `marketplace add`, `install`/`update` in a scratch project; `claude -p "/jev doctor"` ran from the installed copy. Install prints `8 userConfig options not yet set` (all optional). The test installs were uninstalled afterwards |
+| Install from the GitHub marketplace | Passed for 0.2.0, 0.2.1, 0.3.0, 0.4.0, 0.5.0, 0.6.0 and 0.6.1 | `marketplace add`, `install`/`update` in a scratch project; `claude -p "/jev doctor"` ran from the installed copy. Install prints `8 userConfig options not yet set` (all optional). The test installs were uninstalled afterwards |
 | `/jev preset`, `/jev init`, `/jev savings` in `claude -p` | Passed (2026-10-10) | project file created and read back by `/jev doctor` |
 | `/jev on|off|mode` | Works interactively, not headless | interactive (expect-driven, 2026-10-10): "Set mode = assist (your plugin settings, every project)" and hooks reloaded; note a project file still overrides; headless `claude -p`: no /config row for this plugin |
 | `claude plugin eval` paired smoke (4 cases x 8 runs, haiku, local rules) | Passed 32/32 both arms (2026-10-10) | found two real failures first (see CHANGELOG 0.6.0); small synthetic sample: not benefit evidence |
@@ -42,6 +42,8 @@ Environment: macOS arm64, Node 22.22, Claude Code 2.1.296.
 - Claude Code writes `.claude-plugin/types/` (and a root `tsconfig.json`) when a mod loads in an **interactive** session, not under `claude -p`; both are git-ignored and `npm run typecheck` needs them.
 - Claude Code cuts Bash output at 30,000 characters, keeps the complete text in its own file, and shows the model a preview; the kit leaves output at that cut alone.
 - A model cannot run slash commands, so the receipt names a file it can read.
+
+| Tester checklist [`TESTING.md`](TESTING.md) steps 1 to 8 on 0.6.1 | Passed (2026-10-10, headless `claude -p`, fresh folder, installed from the marketplace) | not-opted-in message, preset created then refused to overwrite, observe left the output unchanged, `prune · ok · 27418 → 1063 chars`, assist added the receipt naming the stored file, `/jev savings` matched. Steps 9 to 14 (pane, read-back, 30,000-char cut, restart) were covered by earlier runs, not re-walked on 0.6.1 |
 
 ## Manual interactive check
 
