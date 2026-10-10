@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.1 | 2026-10-10 | Docs and gate only: tester checklist (`docs/TESTING.md`), rewritten handover, aligned links, markdown-link check in the gate; no runtime change |
 | 0.6.0 | 2026-10-10 | `/jev pane`, real types for the Mod, type-check in the gate, paired eval cases that found and fixed two real failures (unreadable read-back pointer; output cut by the host) |
 | 0.5.0 | 2026-10-10 | Node and TypeScript only: the maintainer CLI, release gate and tests are ported; Python removed; verified by a 178-comparison differential |
 | 0.4.0 | 2026-10-10 | `/jev preset`, `/jev savings`, repeated-warning collapse (errors never collapsed), honest `/jev on|off|mode` |
@@ -13,6 +14,16 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.6.1 (2026-10-10)
+
+No runtime change: `hooks/` and `core/` are byte-identical to 0.6.0. Released so that an installed copy (which is the whole repository at the tag) carries the corrected documentation.
+
+- New: `docs/TESTING.md`, a one-page tester checklist (Traditional Chinese): install, opt in, observe, assist, pane, read-back, the 30,000-character cut, a non-error needle, clean-up, what to report. Written against what was actually observed; the read-back rule is stated precisely (a Bash command or `/jev readback` counts, the Read tool alone does not).
+- Changed: `docs/HANDOVER.md` rewritten to the real current state (it still described v0.2.1 as unreleased); `docs/compatibility.md` brought to 0.6.0 (header, test counts, install rows, interactive status, the two things learned about Claude Code's output cut and slash commands); README gained a documentation map and a pointer to the checklist; PRD, EPICS, CLAUDE.md and the release skill link to each other.
+- New: the release gate fails on a broken relative Markdown link (`markdown links` step, with a test). 40 Node tests.
+- Housekeeping done on the maintainer machine: the stale 0.2.0 local-scope install and the test install of 0.6.0 were uninstalled. Old version folders remain in Claude Code's plugin cache; they are inert and Claude Code has no prune command for them.
+- Tests: 40 Node + 109 Mod/core tests.
 
 ## 0.6.0 (2026-10-10)
 

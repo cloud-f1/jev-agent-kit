@@ -1,6 +1,6 @@
 # Epics
 
-Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.net/browse/JEV, team-managed software, created 2026-10-10) mirrors this file: E1 to E9 are JEV-1 to JEV-9, stories are JEV-10 to JEV-19. Jira status was set from this file once; keep both in step when an epic changes. Status is what has actually run, per [compatibility.md](compatibility.md).
+Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md). Jira project **JEV** (https://cloud-f1.atlassian.net/browse/JEV, team-managed software, created 2026-10-10) mirrors this file: E1 to E9 are JEV-1 to JEV-9, stories are JEV-10 to JEV-19. Jira status was set from this file once; keep both in step when an epic changes. Status is what has actually run, per [compatibility.md](compatibility.md).
 
 | Epic | Theme | Version | State |
 |---|---|---|---|
@@ -13,7 +13,7 @@ Derived from [PRD.md](PRD.md). Jira project **JEV** (https://cloud-f1.atlassian.
 | E7 (JEV-7) | Usability | 0.6.0 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |
-| E10 (JEV-21) | Node + TypeScript alignment | 0.5.0 | Done; see docs/PLAN-node-ts.md |
+| E10 (JEV-21) | Node + TypeScript alignment | 0.5.0 | Done; see [PLAN-node-ts.md](PLAN-node-ts.md) |
 
 ## E1 (JEV-1) Core pruning with read-back (done)
 - Head/tail/error-block pruning with neighbours; originals stored `0600`, readback pointer.

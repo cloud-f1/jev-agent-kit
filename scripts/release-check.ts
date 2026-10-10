@@ -124,6 +124,22 @@ export function trackedFiles(root: string): Record<string, string> | null {
   return files
 }
 
+// Every relative Markdown link in tracked files must point at a file that exists.
+export function checkLinks(root: string, files: Record<string, string> | null = trackedFiles(root)): Result {
+  if (!files) return result('markdown links', SKIPPED, 'git unavailable')
+  const broken: string[] = []
+  for (const [path, text] of Object.entries(files)) {
+    if (!path.endsWith('.md')) continue
+    for (const match of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
+      const target = match[1] ?? ''
+      if (/^(https?:|mailto:|#)/.test(target)) continue
+      const resolved = join(root, dirname(path), target.split('#')[0] ?? '')
+      if (!existsSync(resolved)) broken.push(`${path}: ${target}`)
+    }
+  }
+  return result('markdown links', broken.length ? FAIL : PASS, broken.slice(0, 3).join(' | '))
+}
+
 export function checkGitState(root: string): Result[] {
   const git = (args: string[]) => spawnSync('git', args, { cwd: root, encoding: 'utf8' })
   const probe = git(['rev-parse', '--abbrev-ref', 'HEAD'])
@@ -195,6 +211,7 @@ export function main(argv: string[], root = join(dirname(fileURLToPath(import.me
   const results: Result[] = [...checkVersions(root, release), ...checkManifests(root)]
   const files = trackedFiles(root)
   results.push(files ? scanSecrets(files) : result('no secrets in tracked files', SKIPPED, 'git unavailable'))
+  results.push(checkLinks(root, files))
   if (release) results.push(...checkGitState(root))
   const specs = existsSync(join(root, 'cli', 'tests')) ? readdirSync(join(root, 'cli', 'tests')).filter((n) => n.endsWith('.spec.ts')).sort().map((n) => join('cli', 'tests', n)) : []
   results.push(nodeTests(root, specs))

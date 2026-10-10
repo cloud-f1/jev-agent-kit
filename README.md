@@ -4,7 +4,7 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.0, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.6.1, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
 
 ## What it does
 
@@ -29,7 +29,7 @@ Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python,
 Or from a shell: `claude plugin marketplace add cloud-f1/jev-agent-kit && claude plugin install jev-agent-kit@jev-agent-kit`.
 Local development: `claude --plugin-dir /absolute/path/to/jev-agent-kit`.
 
-Installing changes nothing by itself. **Each project opts in** with a config file.
+Installing changes nothing by itself. **Each project opts in** with a config file. Want to try it end to end? [docs/TESTING.md](docs/TESTING.md) is a 20-minute checklist (Traditional Chinese) that uses only the safe settings and needs no key.
 
 ## Use it: five minutes
 
@@ -235,4 +235,17 @@ Works alongside [fast-jev-compaction](https://github.com/tamaratran/fast-jev-com
 
 ## Limits
 
-Not a security control. Not proven to save money. The loop detector only observes. Windows is untested (see Cross-platform notes). Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.
+Not a security control. Not proven to save money (a 4-task smoke eval passed 32/32 in both arms at about $0.0031 vs $0.0040 per run; that is not evidence of a benefit). The loop detector only observes. Output that Claude Code itself cut at 30,000 characters is left alone. Windows is untested (see Cross-platform notes). Jev is early access and English-first; evaluate Chinese or mixed code/prose logs separately.
+
+## Documentation
+
+| Read this | For |
+|---|---|
+| [docs/TESTING.md](docs/TESTING.md) | Step-by-step tester checklist from install to read-back (Traditional Chinese) |
+| [docs/PRD.md](docs/PRD.md), [docs/EPICS.md](docs/EPICS.md) | What the product is for, requirements, and the epics (mirrored in Jira project JEV) |
+| [docs/compatibility.md](docs/compatibility.md) | What was actually run and what was not |
+| [docs/EVALUATION.md](docs/EVALUATION.md), [evals/README.md](evals/README.md) | How to measure whether it helps; the paired eval cases |
+| [CHANGELOG.md](CHANGELOG.md) | Version history and what changed in each release |
+| [CLAUDE.md](CLAUDE.md), [docs/HANDOVER.md](docs/HANDOVER.md) | Rules and current state for contributors and the next Claude session |
+| [docs/PLAN-node-ts.md](docs/PLAN-node-ts.md), [docs/sources.md](docs/sources.md) | The Node + TypeScript decision; other projects we read and what we may reuse |
+| [docs/REPO_HANDOVER.md](docs/REPO_HANDOVER.md), [docs/README.v0.1.zh-TW.md](docs/README.v0.1.zh-TW.md) | v0.1 history (Python era), kept for reference |

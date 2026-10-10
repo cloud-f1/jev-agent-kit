@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Guidance for Claude Code working in `jev-agent-kit` (public repo, MIT). Read `docs/HANDOVER.md` first when picking up work.
+Guidance for Claude Code working in `jev-agent-kit` (public repo, MIT). Read [`docs/HANDOVER.md`](docs/HANDOVER.md) first when picking up work; the document map is at the end of the [README](README.md).
 
 ## What this is
 
@@ -14,6 +14,7 @@ claude plugin test                      # TS core + Mod tests (offline; needs Cl
 claude plugin validate --strict .       # manifests + Mod static analysis (its one warning, root CLAUDE.md not loaded as plugin context, is expected: this file is the dev guide)
 node scripts/release-check.ts           # full local gate; --release for tagging (also: npm run gate)
 npm run typecheck                       # tsc over cli/scripts/core and hooks/core/tests (needs `npm ci`; plugin types come from Claude Code)
+# the gate also fails on a broken relative Markdown link
 node scripts/gen-golden.ts              # checks the frozen golden fixture; --write only after an INTENTIONAL behavior change
 node cli/jev.ts doctor                  # maintainer CLI (smoke, bench-logs, status, readback, check-config, report)
 ```

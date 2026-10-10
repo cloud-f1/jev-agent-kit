@@ -1,6 +1,6 @@
 # PRD: Jev Agent Kit
 
-Status: v0.6.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). Verified vs not: [compatibility.md](compatibility.md).
+Status: v0.6.0 (released 2026-10-10) (see [CHANGELOG.md](../CHANGELOG.md)). Epics and their state: [EPICS.md](EPICS.md). How to try it: [TESTING.md](TESTING.md). Verified vs not: [compatibility.md](compatibility.md).
 
 ## Problem
 
@@ -53,7 +53,7 @@ Quality
 
 ## Success metrics
 
-Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 109 Mod/core + 39 Node tests pass.
+Mechanism (measured): pruned length, errors preserved, fail-open on every injected failure. Today: a 30,000-character log became 570 in a real session; 109 Mod/core + 40 Node tests pass.
 
 Benefit (not measured): total cost per successful agent task, success rate, read-back rate. Defined in [EVALUATION.md](EVALUATION.md). Until that paired benchmark runs the status stays "mechanism works, benefit unproven".
 

@@ -139,3 +139,21 @@ test('a stale package-lock.json version fails the version check; no lockfile is 
   writeFileSync(join(root, 'package-lock.json'), JSON.stringify({ version: '0.1.0', packages: { '': { version: '0.1.0' } } }))
   assert.equal(by(rc.checkVersions(root))['versions agree'], rc.FAIL)
 })
+
+test('markdown links: a missing target fails, external links and anchors are ignored, a null file list is SKIPPED', () => {
+  const root = mkdtempSync(join(tmpdir(), 'jev-links-'))
+  mkdirSync(join(root, 'docs'))
+  writeFileSync(join(root, 'docs', 'real.md'), '# real\n')
+  const files = {
+    'README.md': 'See [real](docs/real.md#top), [web](https://example.com/x), [anchor](#here), [mail](mailto:a@b.c).',
+    'docs/a.md': 'Back to [readme](../README.md).',
+    'not-markdown.txt': '[ignored](nowhere.md)',
+  }
+  assert.equal(rc.checkLinks(root, files).status, rc.FAIL) // ../README.md is not on disk in this temp repo
+  writeFileSync(join(root, 'README.md'), '# r\n')
+  assert.equal(rc.checkLinks(root, files).status, rc.PASS)
+  const broken = rc.checkLinks(root, { ...files, 'docs/b.md': 'Bad [link](missing.md).' })
+  assert.equal(broken.status, rc.FAIL)
+  assert.ok(broken.detail.includes('docs/b.md: missing.md'))
+  assert.equal(rc.checkLinks(root, null).status, rc.SKIPPED)
+})

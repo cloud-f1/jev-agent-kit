@@ -1,38 +1,30 @@
-# Handover: jev-agent-kit (updated 2026-10-10, after v0.6.0 was released)
+# Handover: jev-agent-kit (updated 2026-10-10, state after v0.6.1)
 
-For the next Claude Code session. Read in this order: `CLAUDE.md` (rules), this file (state), `docs/compatibility.md` (what is verified and what is not), `docs/sources.md` (what we may reuse from other repos). The v0.1 research background is `docs/REPO_HANDOVER.md`.
+For the next Claude Code session. Read in this order: [`CLAUDE.md`](../CLAUDE.md) (rules), this file (state), [`compatibility.md`](compatibility.md) (what is verified and what is not), [`sources.md`](sources.md) (what may be reused from other repos). Product scope: [`PRD.md`](PRD.md) and [`EPICS.md`](EPICS.md). Tester checklist: [`TESTING.md`](TESTING.md) (Traditional Chinese). Background of v0.1: [`REPO_HANDOVER.md`](REPO_HANDOVER.md).
 
 ## Where things stand (read first)
 
 | Item | State |
 |---|---|
-| v0.2.0 | **Released.** `main` + tag `v0.2.0` + GitHub release: https://github.com/cloud-f1/jev-agent-kit/releases/tag/v0.2.0. Installing it from the real marketplace was verified. |
-| v0.2.1 to v0.6.0 | **Released** (tags `v0.2.1`..`v0.6.0`). 0.3 `/jev on|off|mode|init`, receipt, pause after read-back; 0.4 `/jev preset`, `/jev savings`, repeated-warning collapse; 0.5 Node + TypeScript only; 0.6 `/jev pane`, typed `$`, type-check in the gate. Open Jira: JEV-14 (paired benchmark: small eval cases exist, a real benchmark needs a budget decision), JEV-17 (needs a Windows machine). |
-| Done this session | User approved audit, release and smoke test. Audit fixes applied; live `smoke` passed once (`api_validated`, `jev-1.13.0`); v0.2.1 merged, tagged and released (see CHANGELOG). Post-release check done: v0.2.1 installed from the real marketplace in a scratch project and `/jev doctor` reported 0.2.1. `claude plugin list` also shows a stale 0.2.0 local-scope entry that was not cleaned up. |
-| Public claim status | Mechanism works; **cost or success benefit is unproven.** Do not claim savings anywhere. |
+| Latest release | **v0.6.1** (docs and gate only on top of 0.6.0; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.6.0` all exist; the changelog has a version-history table. |
+| Release approval | The user gave a standing approval for releases (see `.claude/skills/release/SKILL.md`): fresh read-only audit with no unfixed high finding + green `node scripts/release-check.ts --release`. Still ask for: deleting or moving a tag, sending real (non-synthetic) project data to a third party, benefit claims, a failing gate or audit. |
+| Open work | Jira **JEV-14** (the real paired benchmark: needs a budget decision from the user) and **JEV-17** (a run on real Windows: needs a Windows machine). Everything else in `EPICS.md` is done. |
+| Installs on this machine | None: the stale 0.2.0 entry and the test install of 0.6.0 were uninstalled (2026-10-10). Old version folders remain in `~/.claude/plugins/cache/jev-agent-kit/`; they are inert (no install references them) and Claude Code has no command to prune them. |
+| Public claim status | Mechanism works; **cost or success benefit is unproven.** A 4-task smoke eval passed 32/32 in both arms (agent cost per run $0.0031 with vs $0.0040 without); it is a smoke result, never write it up as savings. |
 
 ## What the product is
 
 Public repo `cloud-f1/jev-agent-kit` (MIT). A Claude Code plugin that shortens long Bash output before the model sees it, always keeping the original recoverable. Unofficial; not affiliated with TypeSafe AI.
 
-- **One native Mod**: `hooks/register.ts` (TypeScript, loaded directly, no build) + pure core `core/*.ts`. `hooks/hooks.json` contains only `"modules"`. The release gate rejects classic `hooks` entries.
-- **Requires Claude Code 2.1.287+.** On 2.1.271 to 2.1.286 the plugin loads but does nothing (it needs 2.1.271 only because `/config` pickers use `options`).
-- **Everything is Node + TypeScript (0.5.0).** `cli/jev.ts` (maintainer/eval CLI, imports the same `core/*.ts`), `scripts/release-check.ts`, `scripts/gen-golden.ts` (checks the frozen `tests/fixtures/golden.ts`; `--write` only after an intentional behavior change). Python was removed after a 178-comparison differential found 0 differences; the last Python version is tag `v0.4.0`. Node 22.18+ runs `.ts` directly; Node will not strip types inside `node_modules`, so the CLI runs from a checkout.
-- Commands in a session (no model turn): `/jev status | doctor | savings | pane | readback <id> | preset <name> | init | on | off | mode` (`on|off|mode` work interactively only).
-- Settings screen: `userConfig` in `.claude-plugin/plugin.json` shows in `/config` (mode, backend, minimum length, keep threshold, retention days, enable-in-every-project, model) plus a sensitive API key in secure storage. Precedence: **defaults < plugin settings < project file `.claude/jev-agent-kit.json`**. A project cannot set the endpoint, key, credentials or model.
-- Key lookup order: `TYPESAFE_API_KEY` env, plugin setting, Claude Code `settings.json` env block (v0.2.1), `JEV_ENV_FILE`.
-- Skills: `skills/operate` (shipped to users), `.claude/skills/release` (project only).
-- Local release gate: `node scripts/release-check.ts [--release]`. No CI exists (no quota).
-- Tests: **39 Node** (`node --test cli/tests/*.spec.ts`) and **109 Mod/core** (`claude plugin test`, offline).
-
-### What v0.2.1 adds (on the unreleased branch)
-
-Ideas from reading `tamaratran/fast-jev-compaction` (MIT, commit `e3f262a`) at source level; **no code was copied**:
-1. Failures are visible: a toast once per fallback reason per session (fixed reason codes only, never response text) plus a debug-log line for every decision.
-2. API key also read from Claude Code's `settings.json` `env` block.
-3. `Jev model` setting: default stays pinned `jev-1.13.0`; `jev-latest` allowed; responses may name any `jev-*` model; records hold `requested_model` and `actual_model`.
-
-Also verified: that plugin and ours load together in one real session without interference (modules in separate worker environments, no hook skipped). **Not tested:** a real compaction with both active.
+- **One native Mod**: `hooks/register.ts` (TypeScript, loaded directly, no build) + pure core `core/*.ts`. `hooks/hooks.json` contains only `"modules"`. The release gate rejects classic `hooks` entries. `$` is typed `EngineInterface`.
+- **Requires Claude Code 2.1.287+.** On 2.1.271 to 2.1.286 the plugin loads but does nothing.
+- **Everything is Node + TypeScript** (since 0.5.0). `cli/jev.ts` is the maintainer/eval CLI (imports the same `core/*.ts`), `scripts/release-check.ts` the gate, `scripts/gen-golden.ts` checks the frozen `tests/fixtures/golden.ts` (`--write` only after an intentional behavior change). Python was removed after a 178-comparison differential found 0 differences; the last Python version is tag `v0.4.0`. Node 22.18+ runs `.ts` directly; Node will not strip types inside `node_modules`, so the CLI runs from a checkout.
+- **Commands in a session** (no model turn): `/jev status | doctor | savings | pane | readback <id> | preset <name> | init | on | off | mode` (`on|off|mode` work in an interactive session only; headless `claude -p` has no `/config` row for the plugin).
+- **What it acts on**: Bash output between `minimumChars` (default 8,000) and about 29,700 characters. Claude Code cuts output at 30,000 before any hook runs, so output at that cut is left alone (`host_truncated_output`). The receipt names a file the model can read; reading it (or `/jev readback`) pauses rewriting for that project.
+- **Settings**: `userConfig` in `.claude-plugin/plugin.json` shows in `/config` plus a sensitive API key in secure storage. Precedence: defaults < plugin settings < project file `.claude/jev-agent-kit.json`. A project cannot set the endpoint, key, credentials or model.
+- **Key lookup**: `TYPESAFE_API_KEY` env, plugin setting, the *user* `settings.json` env block (never a project's), `JEV_ENV_FILE`.
+- **Tests and gate**: 40 Node specs (`node --test cli/tests/*.spec.ts`), 109 Mod/core tests (`claude plugin test`), two `tsc` projects (`npm run typecheck`), plugin validate, golden check. `npm ci` once; plugin types come from Claude Code (it writes `.claude-plugin/types/` when a mod loads in an interactive session; git-ignored). No CI exists (no quota).
+- **Evals**: `evals/` has four paired `claude plugin eval` cases ([`evals/README.md`](../evals/README.md)). Always pass `--no-publish` (the default publishes the report to claude.ai).
 
 ## File map
 
@@ -41,64 +33,52 @@ Also verified: that plugin and ours load together in one real session without in
 hooks/register.ts                              ONLY file that calls the mods API ($)
 hooks/hooks.json                               {"modules": ["./register.ts"]}
 core/*.ts                                      pure: contracts, config (+settings layer), hash, prune
-cli/jev.ts, cli/io.ts, cli/metrics.ts          maintainer CLI (doctor, smoke, bench-logs, status, readback, check-config, report); imports core/*.ts
-scripts/release-check.ts, gen-golden.ts        local release gate; golden-fixture check (--write to regenerate)
-tests/*.test.ts (claude plugin test), cli/tests/*.spec.ts (node --test)
+cli/jev.ts, io.ts, metrics.ts                  maintainer CLI; cli/tests/*.spec.ts are its node:test specs
+scripts/release-check.ts, gen-golden.ts        local release gate; golden-fixture check
+tests/*.test.ts                                Mod/core tests (claude plugin test); tests/fixtures/golden.ts frozen contract
+evals/                                         paired claude-plugin-eval cases
 skills/operate/SKILL.md                        shipped skill      .claude/skills/release/SKILL.md   maintainer skill
-docs/                                          compatibility.md, sources.md, EVALUATION.md, REPO_HANDOVER.md (v0.1 research), README.v0.1.zh-TW.md, this file
+tsconfig.node.json, tsconfig.plugin.json       the two type-check projects (tsconfig.json at the root is generated by Claude Code and ignored)
+docs/                                          PRD, EPICS, TESTING, PLAN-node-ts, EVALUATION, compatibility, sources, this file; REPO_HANDOVER and README.v0.1.zh-TW are v0.1 history
 ```
-
-## Verified, and what is NOT
-
-Verified live (Claude Code 2.1.295, `claude -p --model haiku`, scratch project): module loads alone (`Registered 0 hooks`), a 30,000-character log became 570, the model received the pruned text plus the readback line, `/jev doctor` and `/jev status` work, state files `0600` and directories `0700`, the project hash equals the Python core's, v0.2.0 installs from the real marketplace.
-
-**Not verified:**
-- The live Jev API beyond one `smoke` call: `backend: jev` in a real session and `bench-logs --live` are not run. (`/jev doctor` shows a key present in this machine's environment; its value was never read.)
-- Windows: the Mod's Windows branch (file-API writes, PowerShell retention, `USERPROFILE`, drive/UNC paths) has only stub tests on macOS.
-- The interactive `/config` screen and the sensitive-key prompt (only seen through `claude -p`), `/jev readback` live, the status line, hot reload.
-- Compaction with fast-jev-compaction active.
-- **Any cost or success-rate benefit.** The paired agent-task benchmark (`docs/EVALUATION.md`) has not been run and needs a budget decision from the user.
 
 ## Decisions the user made
 
-- Repo `cloud-f1/jev-agent-kit`, public, MIT.
-- **Core ported to TypeScript**; Python was the reference until 0.5.0, then retired (user decision 2026-10-10: all Node + TypeScript).
-- **Python classic hook retired** (2026-10-10); plugin is Mod-only.
-- Make the Mod cross-platform (done in code, unrun on Windows).
-- Release skill is project-only; GitHub Actions removed (no quota).
-- Adopt from the reference repo: visible failures, `settings.env` key, model setting (all three built). Coexistence with fast-jev-compaction: test only (done at load level). Whole-session compaction: not building.
-- Reference repos: `jev-harness` has no license (ideas only); MIT/BSD ones may be reused with notices (see `docs/sources.md`).
+- Repo `cloud-f1/jev-agent-kit`, public, MIT. Release skill is project-only; GitHub Actions removed (no quota).
+- Core in TypeScript; Python retired in 0.5.0 (all Node + TypeScript). Python classic hook retired earlier; the plugin is Mod-only.
+- Ideas taken from reading other repos, no code copied: fast-jev-compaction (visible failures, `settings.env` key, model setting) and quicksilver (see `sources.md`). Whole-session compaction: not building.
+- Reference repos: `jev-harness` has no license (ideas only); MIT/BSD ones may be reused with notices (`sources.md`).
+- Releases are automatic under the conditions in the table above.
 
 ## Traps already hit (do not rediscover)
 
 - `defaultEnabled: false` in `plugin.json` makes a `--plugin-dir` load register no module and no hooks. The gate rejects it.
-- An installed copy and a `--plugin-dir` copy share the name `jev-agent-kit`; disable the installed one before scratch tests (`claude plugin disable jev-agent-kit --scope local`).
-- `claude plugin test` runs every `*.test.ts` under the folder, so Node-only tests are named `*.spec.ts` under `cli/tests/`. The golden fixture is `.ts` only (it cannot import `.json`).
+- An installed copy and a `--plugin-dir` copy share the name `jev-agent-kit`; disable or uninstall the installed one before scratch tests.
+- `claude plugin test` runs every `*.test.ts` under the folder, so Node-only tests are `*.spec.ts` under `cli/tests/`. In Mod tests, register all stubs before the first call on `$`.
 - The test host normalizes `fs.write` paths against the macOS cwd, so Windows-path assertions use `includes`, not `startsWith`.
 - `$.fs` has no chmod, delete or mkdir; the POSIX path writes via `sh -c 'umask 077; ...'` with stdin, retention via `find`.
-- Claude Code caps Bash output near 30,000 characters before any hook sees it.
-- Python regex flags matter when comparing implementations (`re.A`); the Python core is gone, the differential harness lived in the session scratchpad.
-- macOS has no `timeout` command; give long `claude -p` runs a tool timeout instead.
-- zsh treats a bare `=====` as a command; quote separators in shell one-liners.
-- The release gate's secret scan once silently skipped everything because an edit deleted `return files`; a test covers it. Secret-shaped fakes are allowed only under `tests/`, `cli/tests/` and `scripts/gen-golden.ts`. The scanner also flags code shaped like `KEY : value` (e.g. a ternary after `.TYPESAFE_API_KEY`); reshape the code (`['TYPESAFE_API_KEY']`) rather than weakening the gate.
-- Installed plugins are cached by version: a fix reaches users only after bumping the version in **three** places (`core/contracts.ts`, `.claude-plugin/plugin.json`, `package.json`) plus `CHANGELOG.md`. The gate checks they agree.
+- **Claude Code truncates Bash output at 30,000 characters before any hook sees it and keeps the complete text in its own file.** Rewriting that head hid the tail from the model (found by the eval suite); the guard leaves such output alone.
+- **A model cannot run slash commands.** Anything the model must be able to do (read the original) has to be a path or a tool it has.
+- `$.config.set` finds no `/config` row for the plugin in headless `claude -p`; it works interactively.
+- `claude plugin eval` publishes its report to claude.ai unless `--no-publish`; it needs `--scaffold`, `--allow-tools Bash,Read` and `--trust-plugin` for these cases; each run uses a throwaway `HOME`.
+- Interactive TUI testing with `expect` needs the user's explicit grant (the harness blocks it otherwise). Recipe: match the trust prompt with `Yes,.*trust`, send `\033OB` then `\r`, replace `sleep` with draining `expect` waits, send a command and its `\r` separately.
+- The release gate's secret scan once silently skipped everything because an edit deleted `return files`; a test covers it. Secret-shaped fakes are allowed only under `tests/`, `cli/tests/` and `scripts/gen-golden.ts`.
+- Installed plugins are cached by version: a fix reaches users only after bumping the version in **three** places (`core/contracts.ts`, `.claude-plugin/plugin.json`, `package.json`; the gate also checks the lockfile and the CHANGELOG heading).
 - Live-test recipe: scratch project outside this repo, `--model haiku`, throwaway `JEV_STATE_DIR`, `--debug-file`, grep the log for `hooks module jev-agent-kit`.
+- macOS has no `timeout`; zsh treats a bare `=====` as a command and expands `--include=*.md` (quote it).
 - Commit identity is repo-local `cloud-f1 <cloud-f1@users.noreply.github.com>` on purpose (keeps the machine hostname out of public history).
 
 ## Jira
 
-Project `JEV` on cloud-f1.atlassian.net mirrors `docs/EPICS.md` (JEV-1..9 epics, JEV-10..19 stories). Created and populated 2026-10-10 through symphony-workflow's `.env` credentials (never read or printed). symphony-workflow cannot create projects (done by REST call); it can create issues and transition them. `decompose` / `sync-decomposition` were not used (LLM cost); stories were created from the bullets in EPICS.md. After a release, move the matching Jira issues and update EPICS.md.
+Project `JEV` on cloud-f1.atlassian.net mirrors [`EPICS.md`](EPICS.md): epics JEV-1 to JEV-9 and JEV-21, stories JEV-10 to JEV-20 and JEV-22 to JEV-28. Credentials live in `../symphony-workflow/.env` (never read or printed; use `uv run --env-file .env symphony-workflow call ...`). symphony-workflow cannot create projects, only issues and transitions. After a release, move the matching issues and update `EPICS.md`.
 
-## Independent audit (done 2026-10-10)
+## Independent audits (all 2026-10-10)
 
-13 findings; one high (redaction let Bearer and JSON-quoted secrets reach the Jev API). All fixed with regression tests; see `CHANGELOG.md` 0.2.0. Residual: `$.http.fetch` may follow redirects (the Authorization header is only ever sent to the fixed endpoint). A second read-only audit of v0.2.1 (2026-10-10) found: project `settings.json` could supply the key (fixed, user source only), the pinned model was not required to answer as itself (fixed, `model_mismatch`), internal-error toast had no debug line (fixed). See `docs/PRD.md`, `docs/EPICS.md` for product scope and epics, and `docs/sources.md` for the quicksilver review.
+One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high findings. The one high ever found (0.2.0): redaction let Bearer and JSON-quoted secrets reach the Jev API (fixed). Others fixed along the way: a project `settings.json` could supply the key; the pinned model was not required to answer as itself; `/jev savings` over-counting; `--env-file PATH` regression; the transport deadline not covering the body; a nonsense `BASH_MAX_OUTPUT_LENGTH` switching pruning off. Residual: `$.http.fetch` in the Mod may follow redirects (the key is only ever sent to the fixed endpoint). Details: [`CHANGELOG.md`](../CHANGELOG.md).
 
-## Next steps, in order
+## Next steps
 
-1. Ask the user the two pending questions above. If yes to release: merge `v0.2.1` to `main` (fast-forward), run `node scripts/release-check.ts --release`, follow `.claude/skills/release/SKILL.md` (tag, `gh release create`, then install from the real marketplace in a scratch project and run `/jev doctor`).
-2. If yes to the live smoke test: `TYPESAFE_API_KEY` is already in the environment; run `node cli/jev.ts smoke` (synthetic sentence only), then optionally `bench-logs --live`. Report exit code 3 honestly; never paste or log the key.
-3. v0.3 usability: `/jev on|off|mode` via `$.config.set`, `/jev init`, `/jev savings` (what `assist` would have saved, from `observe` data), optional `/jev` pane (tabs + Select), presets.
-4. Test the Mod on a real Windows machine and fix what breaks.
-5. Done in 0.6.0: type-check (`npm run typecheck`) is a gate step; `$` is `EngineInterface`.
-6. Adoption backlog in `docs/sources.md` (shadow mode for the Jev decision, evidence-survival check, stop pruning after a read-back).
-7. Only with a budget: run the paired benchmark (10 to 20 smoke tasks, then 100+). Until then the honest status is "mechanism works, benefit unproven".
+1. If the user supplies a budget: run the real paired benchmark ([`EVALUATION.md`](EVALUATION.md), JEV-14): many tasks, real repositories, several repeats, the Jev arm. Until then the honest status is "mechanism works, benefit unproven".
+2. Run the Mod on a real Windows machine and fix what breaks (JEV-17).
+3. Not yet seen: the sensitive-key prompt on enabling the plugin, `backend: jev` pruning in a real long session, a narrow terminal for the pane, a real compaction with fast-jev-compaction active.
+4. Backlog ideas in [`sources.md`](sources.md) (shadow-mode comparison reports, a receipt that also counts lines, an `npx` bundle if ever wanted).

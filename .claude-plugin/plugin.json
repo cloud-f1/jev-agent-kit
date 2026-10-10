@@ -1,7 +1,7 @@
 {
   "name": "jev-agent-kit",
   "displayName": "Jev Agent Kit",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "Measured Jev log pruning and loop observation for Claude Code; native Mod with classic-hook fallback and original-log read-back",
   "author": {
     "name": "cloud-f1"
