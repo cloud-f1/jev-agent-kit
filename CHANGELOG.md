@@ -17,7 +17,7 @@ Not done in any version: Jev pruning in a real session, `bench-logs --live`, and
 
 ## 0.6.1 (2026-10-10)
 
-No runtime change: `hooks/` and `core/` are byte-identical to 0.6.0. Released so that an installed copy (which is the whole repository at the tag) carries the corrected documentation.
+No runtime change: `hooks/` and `core/` differ from 0.6.0 only in the version string (`git diff v0.6.0 -- hooks core` is one line). Released so that an installed copy (which is the whole repository at the tag) carries the corrected documentation.
 
 - New: `docs/TESTING.md`, a one-page tester checklist (Traditional Chinese): install, opt in, observe, assist, pane, read-back, the 30,000-character cut, a non-error needle, clean-up, what to report. Written against what was actually observed; the read-back rule is stated precisely (a Bash command or `/jev readback` counts, the Read tool alone does not).
 - Changed: `docs/HANDOVER.md` rewritten to the real current state (it still described v0.2.1 as unreleased); `docs/compatibility.md` brought to 0.6.0 (header, test counts, install rows, interactive status, the two things learned about Claude Code's output cut and slash commands); README gained a documentation map and a pointer to the checklist; PRD, EPICS, CLAUDE.md and the release skill link to each other.
