@@ -234,7 +234,7 @@ async function doctorText($: Engine): Promise<string> {
     const { config: cfg, sources } = await loadEffective($, cwd)
     const show = (name: keyof Config) => `${name}=${cfg[name]} (${sources[name]})`
     lines.push('effective config: ' + (['enabled', 'mode', 'backend', 'minimumChars', 'keepThreshold', 'retentionDays'] as const).map(show).join(', '))
-    if (!cfg.enabled) lines.push('This project is NOT opted in: add .claude/jev-agent-kit.json with "enabled": true, or turn on "Enable in every project" in /config.')
+    if (!cfg.enabled) lines.push('This project is NOT opted in: add .claude/jev-agent-kit.json with "enabled": true, or turn on "Enable in every project" in /plugin → Installed → Jev Agent Kit → Configure.')
   } catch (error) {
     lines.push('config: INVALID (' + (error instanceof Error ? error.message : 'unknown') + '); output is left untouched')
   }
@@ -242,7 +242,7 @@ async function doctorText($: Engine): Promise<string> {
   const where = direct ? 'environment' : pluginKey(pluginOptions) ? 'plugin settings (secure storage)' : (await settingsEnvKey($)) ? 'Claude Code settings.json env' : (await $.env.get('JEV_ENV_FILE')) ? 'JEV_ENV_FILE' : undefined
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   lines.push('API key: ' + (where ? `present in ${where} (not validated)` : 'missing (only needed for the jev backend)'))
-  lines.push('Change settings with /config (plugin options) or the project file.')
+  lines.push('Change settings in /plugin → Installed → Jev Agent Kit → Configure (or: claude plugin configure jev-agent-kit) or in the project file.')
   return lines.join('\n')
 }
 
@@ -251,12 +251,12 @@ async function doctorText($: Engine): Promise<string> {
 async function setOption($: Engine, field: 'mode' | 'enable_all_projects', value: string | boolean): Promise<string> {
   try {
     const res = await $.config.set({ key: 'jev-agent-kit.' + field, value })
-    if (res?.deny !== undefined) return 'Not changed: Claude Code refused it (a locked or managed setting). Use /config.'
+    if (res?.deny !== undefined) return 'Not changed: Claude Code refused it (a locked or managed setting). Use /plugin → Installed → Jev Agent Kit → Configure.'
     const scope = field === 'enable_all_projects' && value === true ? 'Pruning is now ON for ALL projects without their own project file. ' : ''
     return scope + 'Set ' + field + ' = ' + String(value) + ' (your plugin settings, every project). /jev doctor shows the effective values; a project file still overrides.'
   } catch {
     // Seen live (headless claude -p): Claude Code exposes no /config row for this plugin there.
-    return 'Could not change the setting from here (Claude Code refused or has no matching /config row; headless runs have none). Use /config, or see and save options with: claude plugin configure jev-agent-kit'
+    return 'Could not change the setting from here (Claude Code refused or has no matching /config row; headless runs have none). Use /plugin → Installed → Jev Agent Kit → Configure, or: claude plugin configure jev-agent-kit'
   }
 }
 

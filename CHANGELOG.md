@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.6.3 | 2026-10-10 | Messages and docs point to the real settings path (`/plugin` → Configure), Node 22.17 note, README status brought up to date; found from a real interactive install |
 | 0.6.2 | 2026-10-10 | Updated skills (operate, release) + new live-test skill; docs record that the Jev backend does not act on logs above ~96 blocks (found in a real session); no runtime change |
 | 0.6.1 | 2026-10-10 | Docs and gate only: tester checklist (`docs/TESTING.md`), rewritten handover, aligned links, markdown-link check in the gate; no runtime change |
 | 0.6.0 | 2026-10-10 | `/jev pane`, real types for the Mod, type-check in the gate, paired eval cases that found and fixed two real failures (unreadable read-back pointer; output cut by the host) |
@@ -15,6 +16,24 @@
 | 0.1.0 | | Python core, classic hook, log pruning with read-back, smoke, bench, paired report |
 
 Not done in any version: Jev pruning in a real session, `bench-logs --live`, and a paired agent-task benchmark. Cost or success benefit is unproven.
+
+## 0.6.3 (2026-10-10)
+
+Found by watching a real interactive install (screenshots from the maintainer's machine).
+
+### Fixed
+- `/jev doctor`, the opt-in hint and the `/jev on|off|mode` failure text told people to use `/config`. In the real interactive session `/config` showed no plugin rows (it toggled a Claude Code setting). They now name `/plugin` → Installed → Jev Agent Kit → Configure, which the install flow also opens. README, TESTING and the operate skill say the same.
+- README status line said `bench-logs --live` and the Jev backend had never run; both were run (synthetic text) in earlier versions. It now says what was run and what was not.
+- README lists the Node 22.6 to 22.17 invocation (`node --experimental-strip-types cli/jev.ts`) for the maintainer CLI (a real user hit this on 22.17).
+
+### Changed
+- Only message strings in `hooks/register.ts`; no pruning, threshold, model or data-sent change.
+
+### Verified
+- Live smoke through the CLI: `api_validated`, `jev-1.13.0` answered as itself, 281 input / 20 output tokens (synthetic sentence only).
+
+### Not verified
+- How the sensitive key field masks typed input; whether `/jev on|off|mode` works in the interactive session of the installed 0.6.x (checked interactively only on 0.5.0); running next to fast-jev-compaction in a real long session.
 
 ## 0.6.2 (2026-10-10)
 

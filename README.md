@@ -4,14 +4,14 @@ Shorten long `Bash` output in [Claude Code](https://claude.com/claude-code) befo
 
 Unofficial community project, not affiliated with TypeSafe AI. MIT licensed.
 
-> **Status: v0.6.2, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised once with a synthetic sentence (`smoke`: `api_validated`, model `jev-1.13.0`); the full `backend: jev` pruning path in a real session and `bench-logs --live` have not been run.
+> **Status: v0.6.3, measured-in-pieces, not proven end to end.** Pruning works in a real Claude Code session (30,000 → 570 characters in one test). Whether it lowers your *total cost per successful task* is **unproven**; run the evaluation in [docs/EVALUATION.md](docs/EVALUATION.md) before relying on it. The live Jev API was exercised with synthetic text only: `smoke` (`api_validated`, model `jev-1.13.0`), `bench-logs --live` (5 synthetic logs, all valid) and one headless `claude -p` session where `backend: jev` pruned a 600-line log. The Jev path in an interactive session and any agent-task benefit are not verified.
 
 ## What it does
 
 | Piece | What |
 |---|---|
 | Native Mod (`hooks/register.ts`) | Wraps Bash tool results. In `assist` mode replaces `stdout` with pruned text + a read-back pointer. Never touches `stderr`, interrupted runs, images, failed or denied calls. |
-| `/jev` command + `/config` settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and settings rows in `/config`. |
+| `/jev` command + plugin settings | `/jev status`, `/jev doctor`, `/jev readback <id>` (no model turn spent), and a settings form under `/plugin` → Installed → Jev Agent Kit → Configure. |
 | Operate skill | Teaches Claude to set up, diagnose and explain the kit. |
 | CLI (`cli/jev.ts`, Node) | `doctor`, `smoke`, `bench-logs`, `status`, `readback`, `check-config`, `report`. |
 
@@ -19,7 +19,7 @@ The kit acts on Bash output between `minimumChars` and about 29,700 characters (
 
 ## Install
 
-Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node; only the optional maintainer CLI needs Node 22.18+. On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
+Requires **Claude Code 2.1.287 or later** (the Mod). The plugin needs no Python, uv or Node; only the optional maintainer CLI needs Node 22.18+ (on 22.6 to 22.17 run it as `node --experimental-strip-types cli/jev.ts ...`). On 2.1.271 to 2.1.286 it loads but does nothing: update Claude Code.
 
 ```
 /plugin marketplace add cloud-f1/jev-agent-kit
@@ -37,7 +37,7 @@ Installing changes nothing by itself: a project must be opted in. Two ways, pick
 
 ### Option A: settings screen (no files)
 
-1. Open `/config` in Claude Code and find the **jev-agent-kit** rows:
+1. In Claude Code open `/plugin` → Installed → **Jev Agent Kit** → Configure (the same form appears when you install it; some versions also list the rows in `/config`):
 
    ```text
    Mode                      observe  [observe | assist]
@@ -65,7 +65,7 @@ The project file always wins over `/config` settings, including `"enabled": fals
 ### Then
 
 4. Run something noisy (a long test run), then `/jev status`. In `observe` the original is stored and the decision logged, but the output is unchanged.
-5. Switch Mode to `assist` (in `/config`, or `"mode": "assist"` in the file). The model now sees the pruned text plus a note naming the file that holds the full original (it can read it with its Read tool) and `/jev readback <id>` for you. `/jev readback <id>` returns everything.
+5. Switch Mode to `assist` (in the Configure form, or `"mode": "assist"` in the file). The model now sees the pruned text plus a note naming the file that holds the full original (it can read it with its Read tool) and `/jev readback <id>` for you. `/jev readback <id>` returns everything.
 6. Optional, **costs money and sends redacted log blocks to TypeSafe**: set Backend to `jev` and provide a key (below). Watch `/jev status` in `observe` first.
 
 ### Settings reference
@@ -115,7 +115,7 @@ What you can see and touch today, and what is only a plan.
 | `/jev status` | **Available** | Record count and the last 10 decisions. |
 | `/jev readback <id>` | **Available** | Prints the untouched original. |
 | Status line under the prompt | **Available** | `jev: 3/5 long logs pruned · 61204 chars saved` (assist) or `jev (observe): 5 long logs seen` (observe). |
-| `/jev init`, `/jev on`, `/jev off`, `/jev mode` | Planned (v0.3) | Change settings from the prompt via `$.config.set` instead of opening `/config`. |
+| `/jev init`, `/jev on`, `/jev off`, `/jev mode` | Shipped (v0.3/v0.4) | Change settings from the prompt via `$.config.set`; interactive sessions only. |
 | `/jev pane` / `/jev pane close` | Open or close a side pane with the same counted characters and recent decisions as `/jev savings` and `/jev status` (refreshes at most every 3 s). On a narrow terminal it waits until the terminal widens. Seen working in a real interactive session. |
 | `/jev savings` | Planned (v0.3) | From `observe` data, what `assist` would have saved, so you decide with numbers. |
 
@@ -212,7 +212,7 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 | `/jev` not found | Mod not loaded: update Claude Code, or check `claude --debug-file f.log` for `hooks module jev-agent-kit`. |
 | Nothing is pruned | `/jev doctor` (is `enabled=true`?), output under `minimumChars`, or `observe` mode. |
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
-| `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in `/config`. |
+| `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in the Configure form. |
 | `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
 | `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and `/config`; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |

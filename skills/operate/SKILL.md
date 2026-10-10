@@ -56,7 +56,7 @@ Rollout: `rules`+`observe` first (`/jev preset observe-local`), then `assist` wi
 | Output not shortened | Under `minimumChars`; `observe` mode; at/over the 30,000-character cut (`host_truncated_output`); rewriting paused after a read-back; or the record shows a fallback `reason` |
 | `backend: jev` but no savings on a long log | `budget_fallback_original`: more than 96 candidate blocks (see above) |
 | `/jev mode assist` "worked" but nothing changed | The project file's `mode` overrides it: check `/jev doctor` |
-| `/jev mode`/`on`/`off`: "Could not change the setting" | Headless session; use `/config` or `claude plugin configure` |
+| `/jev mode`/`on`/`off`: "Could not change the setting" | Headless session; use `/plugin` → Installed → Jev Agent Kit → Configure, or `claude plugin configure` |
 | Need the full log | The file named in the receipt, or `/jev readback <id>` |
 | Plugin edits ignored | Installed plugins are cached by version; develop with `--plugin-dir` |
 | Two copies of the plugin | An installed copy and a `--plugin-dir` copy share the name; uninstall or disable one |
