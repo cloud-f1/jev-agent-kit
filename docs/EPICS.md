@@ -2,12 +2,14 @@
 
 Derived from [PRD.md](PRD.md); the tester checklist is [TESTING.md](TESTING.md). Jira project **JEV** (https://cloud-f1.atlassian.net/browse/JEV, team-managed software, created 2026-10-10) mirrors this file: E1 to E9 are JEV-1 to JEV-9, stories are JEV-10 to JEV-19. Jira status was set from this file once; keep both in step when an epic changes. Status is what has actually run, per [compatibility.md](compatibility.md).
 
+The Jira structure (epic -> story -> subtask) and its rules are in [JIRA.md](JIRA.md); the current card status is the snapshot [jira/board.md](jira/board.md). The tables and sections below describe each epic's theme and history.
+
 | Epic | Theme | Version | State |
 |---|---|---|---|
-| E1 (JEV-1) | Core pruning with read-back | 0.1.0 / 0.2.0 | Done; verified in a real session |
+| E1 (JEV-1) | Core pruning with read-back | 0.1.0 / 0.2.0 / 0.8.0 | Core done and verified; the default-goal fix (JEV-35) is on the unreleased `v0.8.0` branch |
 | E2 (JEV-2) | Native TypeScript Mod | 0.2.0 | Done; Windows branch unrun |
 | E3 (JEV-3) | Settings and `/jev` commands | 0.2.0 | Done; interactive `/config` screen not seen |
-| E4 (JEV-4) | Safety and audit | 0.2.0 / 0.2.1 | Two read-only audits done and fixed |
+| E4 (JEV-4) | Safety and audit | 0.2.0 to 0.7.1 | Audits done and fixed; redaction fix released in 0.7.1 (JEV-34); open: refuse-to-send and optional PII masking (JEV-47, JEV-48) |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
 | E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
 | E7 (JEV-7) | Usability | 0.6.5 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |

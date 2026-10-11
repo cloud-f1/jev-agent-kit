@@ -1,0 +1,222 @@
+{
+ "JEV-10": [
+  "Send one synthetic sentence to the Jev endpoint with the real key",
+  "Validate the answers, model and usage in the response",
+  "Return exit 3 with a fixed reason code on any failure",
+  "Tests: smoke returns api_validated against the live API and fails closed on 401"
+ ],
+ "JEV-11": [
+  "Pin jev-1.13.0 as the default request model",
+  "Reject an answer from a different model (model_mismatch), except for jev-latest",
+  "Tests: pinned and jev-latest cases in the core, plus a live smoke"
+ ],
+ "JEV-12": [
+  "Build five synthetic log fixtures with planted evidence",
+  "Run bench-logs --live against the real API",
+  "Report evidence kept and character reduction per arm",
+  "Tests: the mock-Jev bench is deterministic (CLI spec)"
+ ],
+ "JEV-13": [
+  "Add /jev on, /jev off and /jev mode through the settings API",
+  "Add /jev init and /jev preset, never overwriting a project file",
+  "Add /jev savings with counted characters only",
+  "Tests: stubbed Mod tests, plus a live claude -p run of preset and savings"
+ ],
+ "JEV-14": [
+  "Get a benchmark budget decision from the owner",
+  "Write 10 to 20 smoke tasks with ground truth and a negative control",
+  "Run the baseline, rules and Jev arms with --no-publish and a cost ceiling",
+  "Report success rate and cost per successful task with the report command",
+  "Tests: the report gate returns GO, NO_GO or INCOMPLETE correctly on the results"
+ ],
+ "JEV-15": [
+  "Document observe with backend jev as shadow mode",
+  "Pause assist rewriting after a read-back",
+  "Check that error blocks always survive pruning",
+  "Tests: shadow-mode and pause cases in the Mod tests"
+ ],
+ "JEV-16": [
+  "Append 'pruned N -> M chars' to rewritten output",
+  "Make the receipt name a readable file path (found by the paired eval)",
+  "Tests: receipt format, and no tokens-saved claim anywhere"
+ ],
+ "JEV-17": [
+  "Get access to a real Windows machine",
+  "Run the Mod and the CLI on Windows",
+  "Fix what breaks",
+  "Tests: record the Windows run in docs/compatibility.md"
+ ],
+ "JEV-18": [
+  "Type the register signature and fix the core hash type error",
+  "Replace $: any with Claude Code's generated EngineInterface",
+  "Add both tsc projects as gate steps",
+  "Tests: a deliberate typo fails to compile"
+ ],
+ "JEV-19": [
+  "Design the collapse so error-class lines are never merged",
+  "Implement the collapse in both cores and regenerate the golden fixture",
+  "Run a 3,000-input fuzz between the cores",
+  "Tests: golden cases and the error-line safety test"
+ ],
+ "JEV-20": [
+  "Verify /jev on|off|mode in a real interactive session",
+  "Build /jev pane with the savings and recent decisions",
+  "Watch the pane in a real interactive session",
+  "Tests: the pane command and render hook (stubbed)"
+ ],
+ "JEV-22": [
+  "Add package.json (Node >=22.18, no runtime dependencies)",
+  "Choose the node:test layout",
+  "Tests: npm test runs the Node and Mod suites"
+ ],
+ "JEV-23": [
+  "Port doctor, smoke and bench-logs to cli/jev.ts",
+  "Port status, readback, check-config and report",
+  "Compare the old and new CLI outputs",
+  "Tests: CLI specs and a live smoke through the new CLI"
+ ],
+ "JEV-24": [
+  "Port the release gate to scripts/release-check.ts",
+  "Port the golden fixture check to scripts/gen-golden.ts",
+  "Tests: the gate fails off main and on drift"
+ ],
+ "JEV-25": [
+  "Port the Python tests to node:test",
+  "Run a 178-comparison differential between the old and new implementations",
+  "Tests: 0 differences before the Python is deleted"
+ ],
+ "JEV-26": [
+  "Delete jevkit, jev.py and pyproject.toml",
+  "Rewrite the README, CLAUDE.md, skills, handover, PRD and epics",
+  "Write docs/PLAN-node-ts.md",
+  "Tests: the gate is green with no Python"
+ ],
+ "JEV-27": [
+  "Write the pinned expect script",
+  "Drive /jev mode assist in a real interactive session",
+  "Record the result and restore the setting",
+  "Tests: the interactive run shows the mode change and the plugin reload"
+ ],
+ "JEV-28": [
+  "Generate Claude Code's types in an interactive session",
+  "Type the Mod's engine parameter and fix both tsc projects",
+  "Add both type-checks to the gate",
+  "Tests: a deliberate typo is a compile error"
+ ],
+ "JEV-29": [
+  "Decide whether to build it, after quiet-line retention is understood (JEV-36)",
+  "Split candidate blocks into requests of at most 96 blocks and 60 KB",
+  "Cap the requests per log and fall back to the original on any failure",
+  "Tests: chunking, the request cap and the fall-back, plus a live synthetic check"
+ ],
+ "JEV-30": [
+  "Reproduce: --help exited 2 and Node 22.17 could not run the CLI",
+  "Add --help, -h, help and --version, with network commands marked",
+  "Add scripts/jev.sh for Node 22.6 to 22.17",
+  "Tests: help text, version, and the wrapper with a stub node for each version"
+ ],
+ "JEV-31": [
+  "Print the source of every value in check-config",
+  "Add doctor --verify (valid, invalid or missing)",
+  "Read back what /jev init and /jev preset wrote, and say how to switch",
+  "Document what each backend sends in a README table",
+  "Tests: CLI specs, Mod tests and a live check with a real and a fake key"
+ ],
+ "JEV-32": [
+  "Ship the tester checklist and the markdown link check (0.6.1)",
+  "Rewrite the operate and release skills and add live-test (0.6.2)",
+  "Point messages to the real settings path (0.6.3)",
+  "Summarize failed-command repeats in /jev status and record jev_asked (0.6.5)",
+  "Tests: the gate and suites green for each release"
+ ],
+ "JEV-33": [
+  "Reproduce: /jev doctor --verify printed the plain doctor text",
+  "Implement --verify in the Mod through the shared core/verify.ts",
+  "Tests: key from env, plugin setting and settings.json; 401, 403 and 500; plain doctor makes no request"
+ ],
+ "JEV-34": [
+  "Reproduce the leak with the 17 fake samples (9 leaked)",
+  "Mask bare tokens, JWTs, URL passwords, PEM keys and Chinese labels",
+  "Fix the audit findings: a quadratic regex and a newline fallback that leaked a PEM key",
+  "Document what is and is not masked",
+  "Run two independent audits and a live synthetic check",
+  "Tests: every sample, PEM across blocks, slow inputs and the real request body"
+ ],
+ "JEV-35": [
+  "Reproduce: the old default goal dropped quiet root-cause lines",
+  "Run the held-out goal-by-threshold experiment",
+  "Switch the default goal and document the trade-off",
+  "Release it in 0.8.0 under the cadence policy",
+  "Tests: the default goal sent to Jev, and the experiment's goal-drift check"
+ ],
+ "JEV-36": [
+  "Run the held-out quiet-cue experiment on the real API",
+  "Switch the default goal to the broad one and record the trade-off",
+  "Measure latency_ms and add block counts to records and /jev status",
+  "Document the risk in the README, REFERENCE and operate skill",
+  "Release 0.8.0 under the cadence policy",
+  "Tests: latency, block counts, default goal and the experiment's goal-drift check"
+ ],
+ "JEV-37": [
+  "Keep the first and last block and every error/warning block with its neighbours",
+  "Replace omitted spans with a marker and a recoverable original",
+  "Tests: golden cases and the error-line safety tests"
+ ],
+ "JEV-38": [
+  "Write originals as 0600 files under a per-project state folder",
+  "Expire originals and records after retentionDays",
+  "Tests: file modes and retention"
+ ],
+ "JEV-39": [
+  "Wrap Bash results in the native Mod",
+  "Reject classic hook entries in the gate",
+  "Tests: Mod tests for every result shape (stderr, interrupted, image, failed, denied)"
+ ],
+ "JEV-40": [
+  "Choose every OS-specific branch in one place",
+  "Cover each branch with a stubbed test",
+  "Tests: the Windows branch is stubbed only and documented as never run"
+ ],
+ "JEV-41": [
+  "Declare the settings in the plugin manifest",
+  "Merge defaults, plugin settings and the project file in one place",
+  "Tests: precedence and rejection of unknown fields"
+ ],
+ "JEV-42": [
+  "Add /jev status and /jev doctor",
+  "Add /jev readback with strict id validation",
+  "Tests: command output and a bad id"
+ ],
+ "JEV-43": [
+  "Reject endpoint, key, credential path and model in a project file",
+  "Read settings.json env from the user source only",
+  "Tests: a cloned repo's settings never supply a key"
+ ],
+ "JEV-44": [
+  "Show one notice per reason per session with a fixed reason code",
+  "Write a debug-log line per decision",
+  "Tests: once-per-reason and no body or key text in any notice"
+ ],
+ "JEV-45": [
+  "Look up the key in the environment, plugin settings, user settings.json and a key file, in that order",
+  "Make /jev doctor say which source is used, never the value",
+  "Tests: each source and the order"
+ ],
+ "JEV-46": [
+  "Add the Jev model setting with a pinned default",
+  "Record the requested and the answering model",
+  "Tests: pinned versus jev-latest and the mismatch rule"
+ ],
+ "JEV-47": [
+  "Decide the rule: what counts as secret-like after redaction",
+  "Fall back to the local rules with a fixed reason code and send nothing",
+  "Document it in the README and REFERENCE",
+  "Tests: a block that still looks secret-like never reaches the transport"
+ ],
+ "JEV-48": [
+  "Decide the default (off) and the setting name",
+  "Mask email addresses and ID numbers when the setting is on",
+  "Document what is and is not masked",
+  "Tests: masked when on, untouched when off, no false positives on log text"
+ ]
+}

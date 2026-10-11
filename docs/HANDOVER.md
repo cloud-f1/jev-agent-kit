@@ -6,7 +6,7 @@ For the next Claude Code session. Read in this order: [`CLAUDE.md`](../CLAUDE.md
 
 | Item | State |
 |---|---|
-| Latest release | **v0.7.0** (`/jev doctor --verify` works in a session via shared `core/verify.ts`, JEV-33, on top of 0.6.6's shorter README and update hint; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.6.6` all exist; the changelog has a version-history table. |
+| Latest release | **v0.7.1** (privacy fix: stronger redaction before the Jev call, JEV-34; on top of 0.7.0's in-session `/jev doctor --verify`; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.7.0` all exist; the changelog has a version-history table. |
 | Release approval | The user gave a standing approval for releases (see `.claude/skills/release/SKILL.md`): fresh read-only audit with no unfixed high finding + green `node scripts/release-check.ts --release`. Still ask for: deleting or moving a tag, sending real (non-synthetic) project data to a third party, benefit claims, a failing gate or audit. |
 | Open work | Jira **JEV-14** (the real paired benchmark: needs a budget decision from the user), **JEV-17** (a run on real Windows: needs a Windows machine) and **JEV-29** (the Jev backend sends nothing for logs above 96 candidate blocks, about 14 KB of short lines: needs a decision on splitting into several requests). Everything else in `EPICS.md` is done. |
 | Installs on this machine | None: the stale 0.2.0 entry and the test install of 0.6.0 were uninstalled (2026-10-10). Old version folders remain in `~/.claude/plugins/cache/jev-agent-kit/`; they are inert (no install references them) and Claude Code has no command to prune them. |
@@ -71,8 +71,7 @@ docs/                                          PRD, EPICS, TESTING, PLAN-node-ts
 
 ## Jira
 
-Project `JEV` on cloud-f1.atlassian.net mirrors [`EPICS.md`](EPICS.md): epics JEV-1 to JEV-9 and JEV-21, stories JEV-10 to JEV-20 and JEV-22 to JEV-28. Credentials live in `../symphony-workflow/.env` (never read or printed; use `uv run --env-file .env symphony-workflow call ...`). symphony-workflow cannot create projects, only issues and transitions. After a release, move the matching issues and update `EPICS.md`.
-
+Project `JEV` on cloud-f1.atlassian.net, **Epic -> Story -> Subtask**, everything assigned to alex hsieh: rules and tools in [JIRA.md](JIRA.md), structure in [jira/plan.json](jira/plan.json), a dated snapshot in [jira/board.md](jira/board.md). `symphony-workflow audit JEV --assignee-me` should print 0 errors (it did on 2026-10-10: 10 epics, 38 stories, 144 subtasks). Credentials live in `../symphony-workflow/.env` (never read or printed). Open: JEV-14 (benchmark budget), JEV-17 (Windows), JEV-29 (deferred), JEV-35 and JEV-36 (done on the unreleased `v0.8.0` branch, release subtask open), JEV-47 and JEV-48 (follow-ups from the redaction fix).
 ## Independent audits (all 2026-10-10)
 
 One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high findings. The one high ever found (0.2.0): redaction let Bearer and JSON-quoted secrets reach the Jev API (fixed). Others fixed along the way: a project `settings.json` could supply the key; the pinned model was not required to answer as itself; `/jev savings` over-counting; `--env-file PATH` regression; the transport deadline not covering the body; a nonsense `BASH_MAX_OUTPUT_LENGTH` switching pruning off. Residual: `$.http.fetch` in the Mod may follow redirects (the key is only ever sent to the fixed endpoint). Details: [`CHANGELOG.md`](../CHANGELOG.md).
