@@ -62,7 +62,7 @@ Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 4. Start with `/jev preset shadow-jev`: it asks Jev and records what it would keep, but never changes your output.
 
 Limits worth knowing:
-- A long log is sent to Jev in up to 4 requests (each at most 96 blocks / 60 KB), about 380 candidate blocks or roughly 3,000 short lines. Longer than that is **not sent** and comes back unchanged. Each extra request adds cost and latency, and Jev keeps few quiet (non-error) lines, so reaching longer logs also prunes more of them.
+- A long log is sent to Jev in up to 4 requests (each at most 96 blocks / 60 KB), about 380 candidate blocks or roughly 3,000 short lines. Longer than that is **not sent** and comes back unchanged. Each extra request adds cost and latency (the timeout applies per request, so the worst case is 4 times the timeout, 12 s by default), and Jev keeps few quiet (non-error) lines, so reaching longer logs also prunes more of them.
 - A log where every block contains an error or warning word is never sent either. To see Jev answer in a real session, the log needs ordinary lines as well as error lines, and must stay under the limit above. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
 
 ## What pruning can lose

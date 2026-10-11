@@ -707,5 +707,31 @@ test('a single block too large for a request keeps the original and sends nothin
   let calls = 0
   const r = await prune(rows.join(''), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async () => { calls += 1; return {} } })
   expect(calls).toBe(0)
-  expect(['budget_fallback_original', 'input_too_large'].includes(r.meta.reason)).toBe(true)
+  expect(r.meta.reason).toBe('budget_fallback_original')
+  expect(r.output).toBe(rows.join(''))
+})
+
+test('the 60 KB cap splits a log by size before the 96-block cap does', async () => {
+  // 8 lines per block, each line ~230 bytes: about 1.9 KB per block, so about 31 blocks fit in 60 KB.
+  const rows = Array.from({ length: 640 }, (_, i) => `line ${i} ` + 'w'.repeat(220) + '\n') // 80 blocks, ~150 KB
+  const { transport, sizes, bytes } = recordingTransport()
+  const r = await prune(rows.join(''), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.reason).toBe('ok')
+  expect(sizes.length).toBeGreaterThanOrEqual(3)
+  expect(sizes.length).toBeLessThanOrEqual(4)
+  for (const n of sizes) expect(n).toBeLessThan(96) // cut by bytes, not by the block count
+  for (const b of bytes) expect(b).toBeLessThanOrEqual(60_000)
+  expect(sizes.reduce((a, b) => a + b, 0)).toBe(r.meta.jev_blocks_asked)
+})
+
+test('a failed request is not counted in jev_requests', async () => {
+  let n = 0
+  const transport = async (body: Record<string, any>) => {
+    n += 1
+    const answers = Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: n === 2 ? 7 : 0.01 }]))
+    return { model: MODEL, usage, answers }
+  }
+  const r = await prune(longPlain(2400), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.reason).not.toBe('ok')
+  expect(r.meta.jev_requests).toBe(1)
 })

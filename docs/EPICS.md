@@ -41,7 +41,7 @@ The Jira structure (epic -> story -> subtask) and its rules are in [JIRA.md](JIR
 ## E6 (JEV-6) Live Jev validation (next)
 - S6.1 (JEV-10) Done 2026-10-10: `smoke` returned `api_validated` (Python CLI in 0.3.x; re-verified through the TypeScript CLI in 0.5.0).
 - S6.2 (JEV-11) Done: the pinned model answered as `jev-1.13.0`.
-- S6.4 (JEV-29) Built in 0.8.0 (unreleased until tagged): a long log is split into up to 4 Jev requests of at most 96 blocks / 60 KB; any request that fails keeps the original. Trade-off recorded: more logs reach Jev, which keeps few quiet lines, and each request costs time and money.
+- S6.4 (JEV-29) Built in 0.8.0: a long log is split into up to 4 Jev requests of at most 96 blocks / 60 KB; any request that fails keeps the original. Trade-off recorded: more logs reach Jev, which keeps few quiet lines, and each request costs time and money.
 - S6.3 (JEV-12) Done 2026-10-10: `bench-logs --live`, 5/5 valid decisions (synthetic planted-evidence proxy, not agent-task evidence).
 
 ## E7 (JEV-7) Usability (Done in Jira; 0.6.5)

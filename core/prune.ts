@@ -335,8 +335,8 @@ export async function prune(text: string, options: PruneOptions): Promise<{ outp
             const obj = await options.transport(bodyFor(chunk))
             const { usage, model: actual } = validateResponse(obj, model)
             meta.actual_model = actual
-            meta.jev_requests = (meta.jev_requests ?? 0) + 1
             const probabilities = validateNouls(obj, chunk.map((i) => parts[i]!.id))
+            meta.jev_requests = (meta.jev_requests ?? 0) + 1
             for (const i of chunk) {
               if ((probabilities[parts[i]!.id] ?? 0) >= options.threshold) {
                 kept += 1

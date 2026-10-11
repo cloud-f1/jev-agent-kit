@@ -22,7 +22,7 @@ Precedence: **built-in defaults < plugin settings (the Configure form, applies t
 | Keep stored logs (days) | `retentionDays` | 7 | How long originals and records are kept. |
 | Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). A pinned model must answer as itself (otherwise `model_mismatch` and the original output is kept); `jev-latest` may resolve to any `jev-*` name. A project file cannot set it. `/jev status` records the model that actually answered. |
 | Mask personal data before Jev | (settings only) `mask_pii` | off | Also masks emails, Taiwan IDs, SSN-shaped numbers and Luhn-valid card numbers before a block is sent. A project file cannot set it. |
-| (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
+| (file only) | `timeoutSeconds` | 3 | Deadline per Jev request; on timeout the original is used. A long log takes up to 4 sequential requests, so the Bash result can wait up to 4 times this (12 s at the default, 40 s at the maximum of 10). |
 
 Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad plugin-setting value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
 
