@@ -90,6 +90,10 @@ Still to do before tagging 0.8.0: one independent audit of the cumulative diff, 
 
 Release the batch when the policy says: it has a behavior change (yes) and at least 3 days have passed since 0.7.0 (2026-10-10), i.e. not before 2026-10-13. A safety, privacy or data-handling bug found meanwhile is released alone and promptly.
 
+## Next session: real-case testing and feedback
+
+The user will run the plugin on real work and report back. Start from `docs/TESTING.md` and `/jev savings`, `/jev status`. Ask for: mode and backend used, what `/jev status` showed, any case where the model needed `/jev readback`, and anything surprising. Fold fixes into the 0.8.0 batch on branch `v0.8.0` (JEV-35, 36, 47, 48 built; not due for a tag before 2026-10-13; release only per the cadence policy). Check out `v0.8.0` for the new behavior; the marketplace install is still 0.7.1.
+
 ## Next steps
 
 1. JEV-29 (split long logs): deferred, see the changelog. Quiet-line retention first.
