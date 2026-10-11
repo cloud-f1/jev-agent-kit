@@ -51,6 +51,7 @@ export interface PruneMeta {
   blocks_total?: number // 8-line blocks in the log
   blocks_pinned?: number // kept locally (error/warning words, first and last, and neighbours)
   blocks_withheld?: number // blocks kept locally and never sent because they still looked secret-like after redaction
+  jev_requests?: number // requests sent to Jev for this log (1 for a short log, up to 4 for a long one)
   jev_blocks_asked?: number // blocks put to Jev (jev backend, request answered)
   jev_blocks_kept?: number // of those, how many Jev rated at or above the keep threshold
   latency_ms?: number

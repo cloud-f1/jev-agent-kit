@@ -4,6 +4,7 @@
 
 | Version | Date | Headline |
 |---|---|---|
+| 0.8.0 | 2026-10-11 | Long logs go to Jev in up to 4 requests (JEV-29); broad default goal (JEV-35); omitted-lines count, measured latency and block counts in records (JEV-36); secret-like blocks withheld (JEV-47); optional `mask_pii` setting (JEV-48) |
 | 0.7.1 | 2026-10-10 | Privacy fix: redaction before the Jev API call now masks bare Atlassian/Stripe/Google/Slack/GitHub-PAT tokens, JWTs, URL passwords, PEM keys and Chinese labels (JEV-34) |
 | 0.7.0 | 2026-10-10 | `/jev doctor --verify` works in a session (it was CLI-only and silently ignored; JEV-33); shared `core/verify.ts` |
 | 0.6.6 | 2026-10-10 | README rewritten shorter (detail moved to `docs/REFERENCE.md`); `/jev doctor` says how updates work and how to turn on auto-update |
@@ -22,18 +23,19 @@
 
 Not done in any version: Jev pruning in an interactive session, and a paired agent-task benchmark on real repositories. Cost or success benefit is unproven.
 
-## 0.8.0 (unreleased)
+## 0.8.0 (2026-10-11)
 
 Driven by a user's own shadow-mode and `assist` tests on 0.6.5 (summarized in Jira JEV-31) and a held-out experiment run to check them.
 
 ### Changed (behavior)
-- **Default goal sent to Jev.** Was "Diagnose the current test or build failure"; now a broad goal that asks to keep quiet lines about a setting, mode, version, fallback or environment that differs from what was intended. Reason: in a held-out test (12 quiet cues in a 31 KB synthetic log, 3 shuffled runs, real API) the old default kept 0 of 12 (same as local rules alone), the new one 5 of 12 (reduction 95% to 74%). A project goal file `.claude/jev-goal.txt` still replaces it. `keepThreshold` default is unchanged (0.8).
-- **Omitted marker.** `[omitted original lines; use readback for the full log]` became `[omitted N lines; use readback for the full log]` with the exact number of lines left out (it never claimed a position, because block positions are counted after repeated-warning collapse). The golden fixture was regenerated for this; inputs, reasons and which lines are kept are unchanged.
+- **Default goal sent to Jev.** Was "Diagnose the current test or build failure"; now a broad goal that asks to keep quiet lines about a setting, mode, version, fallback or environment that differs from what was intended. Reason: in a held-out test (12 quiet cues in a 31 KB synthetic log, 3 shuffled runs, real API) the old default kept 0 of 12 (same as local rules alone), the new one 5 of 12 (reduction 95% to 74%; one synthetic log shape, three seeds, one model version). A project goal file `.claude/jev-goal.txt` still replaces it. `keepThreshold` default is unchanged (0.8).
+- **Omitted marker.** `[omitted original lines; use readback for the full log]` became `[omitted N lines; use readback for the full log]` with the number of lines left out (it never claimed a position, because block positions are counted after repeated-warning collapse). The golden fixture was regenerated for this; inputs, reasons and which lines are kept are unchanged (the regenerated file also writes `timeoutSeconds` as `3` instead of `3.0`, the same JSON value, and its header comment changed).
 
 ### Added
+- **JEV-29: long logs are split.** The non-pinned blocks go to Jev in up to 4 sequential requests (each at most 96 blocks and 60 KB) instead of falling back above 96 blocks. Any failing, mismatched or invalid answer keeps the whole original and applies nothing partial; one block too large for a request, or more than 4 requests, falls back with `budget_fallback_original`. Records gain `jev_requests`; token and cost estimates are summed; `/jev status` shows `(N requests)`. Live (real API, synthetic text only): an 18,462-character log with a planted error line and a planted quiet line (a wrong cluster) went in 2 requests, 181 blocks asked, 1 kept, 18,462 to 1,123 characters, 20,506 input tokens, 634 ms, both planted lines kept. **Trade-off:** reaching longer logs also prunes more quiet lines (Jev kept few of them in the held-out test), and each request adds cost and latency; this is one synthetic run, not evidence of benefit. Tests: 6 core, 1 Mod; removing the 96-block split makes 4 of them fail.
 - **JEV-47: secret-like blocks are withheld.** After redaction, a block that still has a long mixed-case alphanumeric run (32+ characters, upper and lower case, at least three digits) or an AWS/Google key id is kept locally and never sent to Jev; the other blocks are still asked. The record gets `blocks_withheld`. It is a safety net for token shapes `redact` does not know, not a guarantee.
 - **JEV-48: optional personal-data masking.** New plugin setting `mask_pii` (off by default; plugin settings only, a project file cannot set it). When on, emails, valid Taiwan national IDs, SSN-shaped numbers and Luhn-valid 15/16-digit card numbers are masked in blocks and goal before the request. `/jev doctor` shows the setting. Names, addresses and phone numbers are not masked.
-- Tests: 158 Mod tests and 50 Node tests pass; 14 of them are new (core and Mod), including look-alikes that must not be masked (timestamps, epoch numbers, versions, bad checksums) and a hostile-input timing test. Mutation checks: removing the withhold filter or ignoring the setting makes tests fail.
+- Tests: 14 new in core and Mod for these two features, including look-alikes that must not be masked (timestamps, epoch numbers, versions, bad checksums) and a hostile-input timing test. Mutation checks: removing the withhold filter or ignoring the setting makes tests fail.
 
 ### Fixed
 - `latency_ms` was always 0 in session records (the Mod handed the core a clock that returned 0). It is now measured around the prune call, including the Jev request.
@@ -45,10 +47,9 @@ Driven by a user's own shadow-mode and `assist` tests on 0.6.5 (summarized in Ji
 - README and the shipped `operate` skill state the quiet-line risk with the numbers; `docs/REFERENCE.md` has the full tables and limits.
 
 ### Verified
-- 133 Mod tests and 50 Node tests pass. The latency test uses the mock clock and asserts exactly 37 ms; it fails if the measurement is removed. The old-vs-new default result was re-run through the committed script.
+- 167 Mod tests and 50 Node tests pass. The latency test uses the mock clock and asserts exactly 37 ms; it fails if the measurement is removed. The old-vs-new default result was re-run through the committed script.
 
 ### Not done
-- JEV-29 (split logs above 96 blocks across several Jev requests) was deliberately **not** built: the evidence above says Jev is weak on quiet lines, so sending it more logs would prune more of them. Revisit only if retention is shown to be acceptable.
 - One log shape, three seeds, one model version; multi-line cues are untested. Windows, the sensitive-key field's masking, and a real upgrade keeping settings are still unverified.
 
 ## 0.7.1 (2026-10-10)

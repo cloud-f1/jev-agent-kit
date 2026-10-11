@@ -149,7 +149,7 @@ What leaves your machine depends on `backend`, not on `mode`:
 |---|---|---|---|
 | `rules` | `observe` | **Nothing.** | No (records only). |
 | `rules` | `assist` | **Nothing.** | Yes, pruned locally. |
-| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output that reaches Jev (not below `minimumChars`, not at the host cap, not over the 96-block / 60 KB budget, not without a key). | No (records what Jev would keep). |
+| `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output that reaches Jev (not below `minimumChars`, not at the host cap, not over the 4-request budget of 96 blocks / 60 KB each, not without a key). | No (records what Jev would keep). |
 | `jev` | `assist` | **Yes**, same as above. | Yes, pruned with Jev relevance; falls back to the original on any failure. |
 
 For `jev`, redacted log blocks (secrets pattern-masked, best effort; emails and ID numbers only with `mask_pii`; a block that still looks like a secret is withheld), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.
@@ -165,7 +165,7 @@ Decision records hold counts, reason codes, timing, token usage and an artifact 
 | `reason: redaction_unavailable` | Nothing was sent to Jev because the redaction pass could not run safely (it should not happen on real input); the original output was used. |
 | `/jev status` shows a `reason` other than `ok` | That is the fallback cause (`missing_key`, `http_429`, `timeout`, ...); the original was used. The same code appears once as a toast. |
 | `http_404` or `invalid_model` after TypeSafe retires a model | Set the Jev model to `jev-latest` in the Configure form. |
-| `backend: jev` but nothing is shortened on a long log | The log has more than 96 candidate blocks (about 800 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
+| `backend: jev` but nothing is shortened on a long log | The log needs more than 4 requests (over about 380 candidate blocks, roughly 3,000 short lines): reason `budget_fallback_original`, nothing was sent. The local rules still work for it (`backend: rules`) |
 | `/jev mode assist` changed nothing | A field in the project file wins over `/jev mode` and the Configure form; check `/jev doctor`, then edit the file or delete it and `/jev preset <name>` |
 | Edits to the installed plugin ignored | Installed plugins are cached by version; develop with `--plugin-dir`. |
 
@@ -215,6 +215,6 @@ Not a security control. Not proven to save money (a 4-task smoke eval passed 32/
 
 **Goal file.** `.claude/jev-goal.txt` (first 1,200 characters, redacted before sending) replaces the built-in goal for that project. `/jev doctor` prints which one is in effect. Name the kinds of quiet evidence you care about; a wider goal keeps more and shrinks less.
 
-**What the model sees.** Each dropped span is one line, `[omitted N lines; use readback for the full log]`, with the exact number of lines left out. The model can read the original file named in the receipt.
+**What the model sees.** Each dropped span is one line, `[omitted N lines; use readback for the full log]`, with the number of lines left out as the pruner counts them (every line terminator the Python-style `splitlines` knows, not only `\n`). The model can read the original file named in the receipt.
 
 **Records.** A decision record now also holds `latency_ms` (measured in the Mod; it was always 0 before 0.8.0) and block counts: `blocks_total`, `blocks_pinned` (kept locally), and for the Jev backend `jev_blocks_asked` and `jev_blocks_kept`. `/jev status` prints `Jev kept K of A blocks it was asked about` and the latency, so even in `observe` you can see how selective Jev is. Numbers only, never content.

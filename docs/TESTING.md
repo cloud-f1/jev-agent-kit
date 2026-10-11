@@ -32,7 +32,7 @@
 
 ## 選用：Jev API（會花錢，會把脫敏後的日誌片段送到 TypeSafe）
 
-先確認前面全部通過。**注意長度上限：** Jev 一次最多只看 96 個候選區塊（約 800 行短行、約 14,000 字元）或 60 KB；更長的日誌不會送出，原樣放行（紀錄原因 `budget_fallback_original`，`/jev savings` 的 `fell back to the original` 會加一）。要實際看到 Jev 被詢問，請用這個較短的日誌（約 10,700 字元）：`node -e "for(let i=0;i<600;i++){console.log('progress item '+i); if(i===300)console.log('ERROR demo')}"`。我在無頭模式用這個日誌實測過：Jev 回答正常、輸出從約 10,700 縮到約 980 字元。在終端機執行 `claude plugin configure jev-agent-kit` 設定金鑰（不要貼到對話裡，也不要提交到 repo）。建議先 `/jev preset shadow-jev`（詢問 Jev 但不改輸出），看 `/jev status` 一陣子，再考慮 `prune-jev`。
+先確認前面全部通過。**注意長度上限：** Jev 一次請求最多 96 個候選區塊或 60 KB；0.8.0 起較長的日誌會拆成最多 4 次請求（約 3,000 行短行），超過才不送出，原樣放行（紀錄原因 `budget_fallback_original`，`/jev savings` 的 `fell back to the original` 會加一）。要實際看到 Jev 被詢問，請用這個較短的日誌（約 10,700 字元）：`node -e "for(let i=0;i<600;i++){console.log('progress item '+i); if(i===300)console.log('ERROR demo')}"`。我在無頭模式用這個日誌實測過：Jev 回答正常、輸出從約 10,700 縮到約 980 字元。在終端機執行 `claude plugin configure jev-agent-kit` 設定金鑰（不要貼到對話裡，也不要提交到 repo）。建議先 `/jev preset shadow-jev`（詢問 Jev 但不改輸出），看 `/jev status` 一陣子，再考慮 `prune-jev`。
 
 ## 回報問題時請附上
 

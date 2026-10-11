@@ -62,7 +62,7 @@ Benefit (not measured): total cost per successful agent task, success rate, read
 | Risk | Mitigation / state |
 |---|---|
 | Pruning drops needed evidence | Errors pinned; read-back; evidence-survival check on the backlog |
-| Live Jev behaviour differs from the stubs | Live smoke and a synthetic benchmark passed; but in a real session a 27 KB log exceeded the per-request limit (96 blocks / 60 KB) and Jev was not called (JEV-29) |
+| Live Jev behaviour differs from the stubs | Live smoke and a synthetic benchmark passed; but in a real session a 27 KB log exceeded the per-request limit (96 blocks / 60 KB) and Jev was not called (fixed in 0.8.0 by splitting, JEV-29) |
 | Windows branch is wrong | Stubbed tests only; needs a real Windows run |
 | Claude Code mods API changes | `any` types hide drift until runtime; optional `tsc` check on the backlog |
 | Key exposure | Key only in the request header; never recorded; user-level sources only |

@@ -58,7 +58,7 @@ docs/                                          PRD, EPICS, TESTING, PLAN-node-ts
 - The test host normalizes `fs.write` paths against the macOS cwd, so Windows-path assertions use `includes`, not `startsWith`.
 - `$.fs` has no chmod, delete or mkdir; the POSIX path writes via `sh -c 'umask 077; ...'` with stdin, retention via `find`.
 - **Claude Code truncates Bash output at 30,000 characters before any hook sees it and keeps the complete text in its own file.** Rewriting that head hid the tail from the model (found by the eval suite); the guard leaves such output alone.
-- **The Jev backend only acts on small logs.** More than 96 non-pinned 8-line blocks or 60 KB per request returns the original untouched (`budget_fallback_original`); seen in a real session on a 27 KB log. Earlier Jev tests all used 320-line logs.
+- **The Jev backend splits long logs (0.8.0, JEV-29).** Up to 4 requests of at most 96 blocks / 60 KB; beyond that the original is untouched (`budget_fallback_original`). Seen live once on a synthetic 18 KB log (2 requests, 181 blocks, 1 kept, error and quiet lines both kept); not seen in a real session.
 - **A model cannot run slash commands.** Anything the model must be able to do (read the original) has to be a path or a tool it has.
 - `$.config.set` finds no `/config` row for the plugin in headless `claude -p`; it works interactively.
 - `claude plugin eval` publishes its report to claude.ai unless `--no-publish`; it needs `--scaffold`, `--allow-tools Bash,Read` and `--trust-plugin` for these cases; each run uses a throwaway `HOME`.
@@ -84,7 +84,7 @@ Built on the branch: broad default goal (held-out test: 0.0 to 5.0 of 12 quiet c
 
 Also built on the branch: JEV-47 (secret-like blocks withheld, `blocks_withheld`) and JEV-48 (optional `mask_pii` plugin setting, off by default).
 
-Not built, on purpose: JEV-29 (split long logs). Reason in the changelog. Jira JEV-36 tracks the batch.
+Also built: JEV-29 (long logs split into up to 4 Jev requests). Jira JEV-36 tracks the batch.
 
 Still to do before tagging 0.8.0: one independent audit of the cumulative diff, a live check of the Mod on a real session (a mixed log, observe and assist), a real upgrade-keeps-settings check, and the policy conditions below.
 
@@ -96,7 +96,7 @@ The user will run the plugin on real work and report back. Start from `docs/TEST
 
 ## Next steps
 
-1. JEV-29 (split long logs): deferred, see the changelog. Quiet-line retention first.
+1. Quiet-line retention: Jev keeps few quiet lines, and JEV-29 now lets it reach longer logs, so measure this on real cases first.
 2. If the user supplies a budget: run the real paired benchmark ([`EVALUATION.md`](EVALUATION.md), JEV-14): many tasks, real repositories, several repeats, the Jev arm. Until then the honest status is "mechanism works, benefit unproven".
 3. Run the Mod on a real Windows machine and fix what breaks (JEV-17).
 4. Not yet seen: the sensitive-key prompt on enabling the plugin, `backend: jev` in an interactive session (headless is verified under the 96-block limit), a narrow terminal for the pane, a real compaction with fast-jev-compaction active.

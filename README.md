@@ -62,7 +62,7 @@ Want the Jev model too? See [Using Jev](#using-jev-optional-costs-money) first.
 4. Start with `/jev preset shadow-jev`: it asks Jev and records what it would keep, but never changes your output.
 
 Limits worth knowing:
-- Jev only sees logs of roughly 8,000 to 14,000 characters (up to 96 blocks / 60 KB per request). Longer logs are **not sent** and come back unchanged.
+- A long log is sent to Jev in up to 4 requests (each at most 96 blocks / 60 KB), about 380 candidate blocks or roughly 3,000 short lines. Longer than that is **not sent** and comes back unchanged. Each extra request adds cost and latency, and Jev keeps few quiet (non-error) lines, so reaching longer logs also prunes more of them.
 - A log where every block contains an error or warning word is never sent either. To see Jev answer in a real session, the log needs ordinary lines as well as error lines, and must stay under the limit above. `/jev status` and `/jev savings` say "Jev not asked" for those, so they say nothing about Jev.
 
 ## What pruning can lose
@@ -124,7 +124,7 @@ Everything else (all settings in detail, the key lookup order, storage, the CLI,
 | `/jev` not found | Update Claude Code (2.1.287+) and restart. |
 | Nothing is pruned | Run `/jev doctor`: is the project opted in? Is the output over `minimumChars`? Is `mode` still `observe`? |
 | `/jev mode assist` changed nothing | A project file field wins. Edit it, or delete it and run `/jev preset prune-local`. |
-| `backend: jev` but the log is not shortened | Over 96 blocks (about 800 short lines): not sent. Or every block was an error/warning, so Jev was not asked. |
+| `backend: jev` but the log is not shortened | Over 4 requests' worth of blocks (about 3,000 short lines): not sent. Or every block was an error/warning, so Jev was not asked. |
 | A reason other than `ok` in `/jev status` | That is why the original was used (`missing_key`, `http_429`, `timeout`...). It also appears once as a notice. |
 | Stop it | One project: set `"enabled": false`. Everywhere: `claude plugin disable jev-agent-kit`. |
 

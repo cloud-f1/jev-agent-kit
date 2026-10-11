@@ -970,3 +970,21 @@ for (const bad of ['-5', 'abc', '0', 'NaN']) {
     expect(out.result.stdout).not.toBe(text)
   })
 }
+
+test('Mod: a long log is sent in several requests, the record counts them and status shows it', async ($, on) => {
+  const rows = Array.from({ length: 1500 }, (_, i) => `step ${i} ok\n`)
+  rows[700] = 'ERROR unit test failed: test_login\n'
+  const quiet = (_u: string, init: any) => {
+    const body = JSON.parse(init.body)
+    return { ok: true, status: 200, headers: {}, text: JSON.stringify({ model: 'jev-1.13.0', usage: { input_tokens: 500, output_tokens: 10 }, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }) }
+  }
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: quiet, tool: { result: { stdout: rows.join(''), stderr: '', interrupted: false, isImage: false }, text: 'kept' } })
+  await call($)
+  expect(s.requests.length).toBe(2)
+  for (const r of s.requests) expect(JSON.parse(r.init.body).state.blocks.length).toBeLessThanOrEqual(96)
+  const record = decisions(s.written).find((d) => d.backend === 'jev')
+  expect(record.reason).toBe('ok')
+  expect(record.jev_requests).toBe(2)
+  expect(record.api_input_tokens).toBe(1000)
+  expect((await jev($, 'status')).text).toContain('(2 requests)')
+})

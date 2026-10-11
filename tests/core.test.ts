@@ -3,7 +3,7 @@ import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginMaskPii, plu
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
 import { smokeBody, verifyKey } from '../core/verify.ts'
-import { collapseRepeats, jevNotAsked, looksSecretLike, makeBlocks, maskPii, prune, redact, redactBlocks, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
+import { charLength, collapseRepeats, jevNotAsked, looksSecretLike, makeBlocks, maskPii, prune, redact, redactBlocks, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
 const usage = { input_tokens: 100, output_tokens: 0 }
@@ -166,10 +166,10 @@ test('jev backend falls back to the exact original on every failure', async () =
   expect(none.meta.reason).toBe('missing_transport')
 })
 
-test('over-budget and oversized inputs are never sent', async () => {
+test('a log needing more than 4 requests, or too large, is never sent', async () => {
   let calls = 0
   const transport = async () => { calls += 1; return {} }
-  const huge = lines(2000).join('')
+  const huge = lines(5000).join('') // about 625 blocks: more than 4 requests of 96 can hold
   const budget = await prune(huge, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
   expect(budget.meta.reason).toBe('budget_fallback_original')
   const tooBig = await prune('x'.repeat(300_000), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
@@ -625,4 +625,87 @@ test('a secret-like run in the goal text is masked in the request, and an all-wi
   const r = await prune(all.join('').repeat(1), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async (b) => { calls += 1; return transport(b) } })
   expect(calls).toBe(0)
   expect(r.meta.jev_asked).toBe(false)
+})
+
+// ---- JEV-29: a long log is split into several requests ----------------------------------------------------------
+function longPlain(n: number): string {
+  const rows = Array.from({ length: n }, (_, i) => `progress item ${i} done\n`)
+  rows[Math.floor(n / 2)] = 'ERROR unit test failed: test_login\n'
+  return rows.join('')
+}
+
+function recordingTransport(probability = 0.01, model = MODEL) {
+  const sizes: number[] = []
+  const bytes: number[] = []
+  const transport = async (body: Record<string, any>) => {
+    sizes.push(body.state.blocks.length)
+    bytes.push(new TextEncoder().encode(JSON.stringify(body)).length)
+    return { model, usage: { input_tokens: 1000, output_tokens: 10 }, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: probability }])) }
+  }
+  return { transport, sizes, bytes }
+}
+
+test('a log with more than 96 candidate blocks is asked in several requests, each within the limits, and usage adds up', async () => {
+  const text = longPlain(2400) // about 300 blocks
+  const { transport, sizes, bytes } = recordingTransport()
+  const r = await prune(text, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.reason).toBe('ok')
+  expect(sizes.length).toBe(4)
+  expect(r.meta.jev_requests).toBe(4)
+  for (const n of sizes) expect(n).toBeLessThanOrEqual(96)
+  for (const b of bytes) expect(b).toBeLessThanOrEqual(60_000)
+  expect(r.meta.jev_blocks_asked).toBe(sizes.reduce((a, b) => a + b, 0))
+  expect(r.meta.api_input_tokens).toBe(4000)
+  expect(r.meta.api_output_tokens).toBe(40)
+  expect(r.output).toContain('ERROR unit test failed: test_login') // the error block is kept, never asked
+  expect(charLength(r.output)).toBeLessThan(charLength(text))
+})
+
+test('blocks Jev rates relevant in a later request are kept, with their neighbours', async () => {
+  const text = longPlain(2400)
+  let n = 0
+  const transport = async (body: Record<string, any>) => {
+    n += 1
+    const ids = Object.keys(body.questions)
+    return { model: MODEL, usage, answers: Object.fromEntries(ids.map((id, k) => [id, { type: 'noul', noul: n === 3 && k === 40 ? 0.99 : 0.01 }])) }
+  }
+  const r = await prune(text, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.reason).toBe('ok')
+  expect(r.meta.jev_blocks_kept).toBe(1)
+  expect(r.output.split('progress item').length).toBeGreaterThan(24) // the rescued block and its neighbours are there
+})
+
+test('if any request fails or answers badly, the whole original is kept and nothing partial is applied', async () => {
+  const text = longPlain(2400)
+  for (const failure of ['throw', 'wrong_model', 'bad_probability']) {
+    let n = 0
+    const transport = async (body: Record<string, any>) => {
+      n += 1
+      if (n === 3 && failure === 'throw') throw new JevError('http_500')
+      const model = n === 3 && failure === 'wrong_model' ? 'jev-9.9.9' : MODEL
+      const answers = Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: n === 3 && failure === 'bad_probability' ? 7 : 0.99 }]))
+      return { model, usage, answers }
+    }
+    const r = await prune(text, { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+    expect(r.output).toBe(text)
+    expect(r.meta.reason).not.toBe('ok')
+    expect(n).toBe(3) // stops at the failing request
+  }
+})
+
+test('one short log still uses one request and reports one', async () => {
+  const { transport, sizes } = recordingTransport()
+  const r = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(sizes.length).toBe(1)
+  expect(r.meta.jev_requests).toBe(1)
+})
+
+test('a single block too large for a request keeps the original and sends nothing', async () => {
+  const wide = 'x '.repeat(30_000) + '\n' // one line near 60 KB once escaped, in its own block
+  const rows = Array.from({ length: 40 }, (_, i) => `progress ${i}\n`)
+  rows[20] = wide
+  let calls = 0
+  const r = await prune(rows.join(''), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async () => { calls += 1; return {} } })
+  expect(calls).toBe(0)
+  expect(['budget_fallback_original', 'input_too_large'].includes(r.meta.reason)).toBe(true)
 })

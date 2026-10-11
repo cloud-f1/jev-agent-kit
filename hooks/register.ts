@@ -234,7 +234,7 @@ async function statusText($: Engine): Promise<string> {
         : typeof row.input_chars === 'number' ? ` · ${row.input_chars} chars in` : ''
       // backend jev but no request sent: every block was an error/warning line, kept by the local rules.
       const note = jevNotAsked(row) ? ' · Jev not asked (every block was an error/warning line; local rules only)' : ''
-      const kept = row.jev_asked === true && typeof row.jev_blocks_asked === 'number' && typeof row.jev_blocks_kept === 'number' ? ` · Jev kept ${row.jev_blocks_kept} of ${row.jev_blocks_asked} blocks it was asked about` : ''
+      const kept = row.jev_asked === true && typeof row.jev_blocks_asked === 'number' && typeof row.jev_blocks_kept === 'number' ? ` · Jev kept ${row.jev_blocks_kept} of ${row.jev_blocks_asked} blocks it was asked about${typeof row.jev_requests === 'number' && row.jev_requests > 1 ? ` (${row.jev_requests} requests)` : ''}` : ''
       const ms = typeof row.latency_ms === 'number' && Number.isFinite(row.latency_ms) && row.latency_ms > 0 ? ` · ${Math.round(row.latency_ms)} ms` : ''
       lines.push(`${row.feature ?? 'prune'} · ${row.reason ?? row.action ?? 'recorded'}${counts}${kept}${ms}${note}`)
     } catch {
