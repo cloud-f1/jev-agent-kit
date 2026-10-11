@@ -3,7 +3,7 @@
 import { ENDPOINT, JevError, MAX_BYTES, MODEL, VERSION } from '../core/contracts.ts'
 import type { Config, Transport } from '../core/contracts.ts'
 import type { EngineInterface as Engine, On, PluginOptions, RenderElement } from 'claude-code' // types only; erased at run time
-import { mergeConfig, parseEnvFile, pluginKey, pluginModel } from '../core/config.ts'
+import { mergeConfig, parseEnvFile, pluginKey, pluginMaskPii, pluginModel } from '../core/config.ts'
 import { digestString, sha256Hex } from '../core/hash.ts'
 import { charLength, jevNotAsked, prune, redact } from '../core/prune.ts'
 import { verifyKey } from '../core/verify.ts'
@@ -267,6 +267,7 @@ async function doctorText($: Engine, verify = false): Promise<string> {
   } catch {
     // Not worth failing the report for.
   }
+  lines.push('Personal-data masking before Jev: ' + (pluginMaskPii(pluginOptions) ? 'on (emails, ID and card numbers; best effort)' : 'off (secrets are always masked; emails and ID numbers are not)'))
   lines.push('Jev model: ' + (pluginModel(pluginOptions) ?? MODEL) + (pluginModel(pluginOptions) ? ' (plugin settings)' : ' (default)'))
   if (verify) {
     // Explicit request only: one synthetic sentence to the fixed endpoint; the reply is reduced to a fixed word.
@@ -529,7 +530,7 @@ export function register(on: On, options?: PluginOptions) {
       const startedAt = await $.clock.now()
       const { output, meta } = await prune(out.stdout, {
         backend: cfg.backend, goal: await loadGoal($, cwd), threshold: cfg.keepThreshold, transport,
-        model: pluginModel(pluginOptions), now: () => 0,
+        model: pluginModel(pluginOptions), maskPii: pluginMaskPii(pluginOptions), now: () => 0,
       })
       const latencyMs = Math.max(0, (await $.clock.now()) - startedAt) // measured here: the core never reads the clock
       $.ui.log(

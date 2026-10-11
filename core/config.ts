@@ -123,3 +123,8 @@ export function pluginKey(options: unknown): string | undefined {
   const value = (options as Record<string, unknown> | null)?.typesafe_api_key
   return typeof value === 'string' && value !== '' && value !== 'REPLACE_ME' ? value : undefined
 }
+
+// Optional PII masking before the Jev call; plugin settings only (a project file cannot turn it off or on).
+export function pluginMaskPii(options: unknown): boolean {
+  return (options as Record<string, unknown> | null)?.mask_pii === true
+}

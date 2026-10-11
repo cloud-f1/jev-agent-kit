@@ -68,6 +68,12 @@
       "description": "Off by default: a project must opt in with .claude/jev-agent-kit.json. Turn on to use the plugin everywhere without per-project files.",
       "default": false
     },
+    "mask_pii": {
+      "type": "boolean",
+      "title": "Mask personal data before Jev",
+      "description": "Off by default. When on, email addresses, Taiwan ID numbers, SSN-shaped numbers and card numbers (Luhn-checked) are masked before a log block is sent to Jev. Best effort: names, addresses and phone numbers are not masked.",
+      "default": false
+    },
     "typesafe_api_key": {
       "type": "string",
       "title": "TypeSafe API key",

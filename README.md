@@ -113,6 +113,7 @@ Open `/plugin` → Installed → Jev Agent Kit → Configure, or edit `.claude/j
 | `keepThreshold` | 0.8 | How sure Jev must be to keep a block. |
 | `retentionDays` | 7 | How long originals and records are kept. |
 | Jev model | `jev-1.13.0` | Pinned on purpose; `jev-latest` follows the newest. |
+| Mask personal data before Jev | off | Also masks emails, ID and card numbers (best effort). Plugin setting only. |
 
 Everything else (all settings in detail, the key lookup order, storage, the CLI, evaluation, other platforms) is in [docs/REFERENCE.md](docs/REFERENCE.md).
 
@@ -138,7 +139,11 @@ With `backend: jev`, each block and the goal text are passed through a redaction
 | A password inside a URL (also an empty user, or a password holding `@` or `:`) | `postgres://user:PASSWORD@host/db` becomes `postgres://user:[REDACTED]@host/db`; `redis://:PASSWORD@host` too |
 | PEM private keys, line by line, even when the key continues into the next block (a header with no END line masks everything after it, so a log that merely mentions the header loses the rest of its text to Jev) | `-----BEGIN ... PRIVATE KEY-----` through `-----END ...-----` |
 
-**Not masked:** email addresses, ID numbers, names and other personal data; a URL password that contains `/` or a space; `Cookie:` and `Set-Cookie:` values; command-line style secrets with no `=` or `:` (`--password hunter2`, `mysql -phunter2`); a two-part or truncated JWT; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
+**Optional personal-data masking (off by default).** In `/plugin` → Installed → Jev Agent Kit → Configure, turn on *Mask personal data before Jev* (`mask_pii`). It then also masks email addresses, Taiwan national ID numbers (checksum-validated), SSN-shaped numbers, and 15/16-digit card numbers that pass the Luhn check, with `[EMAIL]`, `[ID]` and `[CARD]`. It is a plugin setting only: a project file cannot change it. Names, addresses and phone numbers are never masked.
+
+**A block that still looks like a secret is not sent.** After redaction, a block with a long mixed-case run of letters and digits (at least 32 characters with at least three digits) or an AWS/Google key id stays on your machine and is kept in the output as it is. `/jev status` records how many blocks were withheld. Commit hashes, camelCase identifiers and paths do not trigger this.
+
+**Not masked (unless you turn on the setting above, and then only the formats listed):** names and other personal data; a URL password that contains `/` or a space; `Cookie:` and `Set-Cookie:` values; command-line style secrets with no `=` or `:` (`--password hunter2`, `mysql -phunter2`); a two-part or truncated JWT; a secret with no label and no known shape (a bare random string, a hex or base64 blob); a secret that is split, encoded or split across lines in a way the patterns do not see. If your logs hold such data, keep `backend: rules` (nothing is sent) or use `observe` with `rules`. The originals stored on your machine are **not** redacted (they are `0600` files).
 
 ## Limits
 

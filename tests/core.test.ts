@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
-import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
+import { defaultConfig, mergeConfig, parseEnvFile, pluginKey, pluginMaskPii, pluginModel, userDefaults, validateConfig } from '../core/config.ts'
 import { isJevModel, JevError, MODEL } from '../core/contracts.ts'
 import { digestString } from '../core/hash.ts'
 import { smokeBody, verifyKey } from '../core/verify.ts'
-import { collapseRepeats, jevNotAsked, makeBlocks, prune, redact, redactBlocks, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
+import { collapseRepeats, jevNotAsked, looksSecretLike, makeBlocks, maskPii, prune, redact, redactBlocks, splitLines, validateNouls, validateResponse } from '../core/prune.ts'
 import golden from './fixtures/golden.ts'
 
 const usage = { input_tokens: 100, output_tokens: 0 }
@@ -500,4 +500,101 @@ test('a request that cannot be redacted safely sends nothing (reason redaction_u
   const r = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
   expect(calls).toBe(1)
   expect(r.meta.reason).toBe('ok')
+})
+
+// ---- JEV-47: a block that still looks secret-like is never sent ----------------------------------------------------
+const TOKEN32 = 'Qx7LmZ3aVb9NcR2tYw5HkP8dFgJ4sUe1' // 32 chars, upper + lower + digit, no known prefix: redact() does not know it
+
+test('looksSecretLike: long mixed-case alphanumeric runs and cloud key ids; not hashes, words or paths', () => {
+  expect(looksSecretLike('auth ' + TOKEN32 + ' end')).toBe(true)
+  expect(looksSecretLike('key AKIAABCDEFGHIJKLMNOP here')).toBe(true)
+  expect(looksSecretLike('commit 9fceb02d0ae598e95dc970b74767f19372d61af8 merged')).toBe(false) // pure hex
+  expect(looksSecretLike('src/components/UserProfileSettingsPanelContainer2/index.tsx')).toBe(false) // slashes break the run
+  expect(looksSecretLike('a'.repeat(80))).toBe(false)
+  expect(looksSecretLike('1234567890'.repeat(5))).toBe(false)
+  expect(looksSecretLike('ordinary log line with words and 12345 numbers')).toBe(false)
+})
+
+test('a block with an unknown-shape token is kept locally and never reaches the transport; other blocks are still asked', async () => {
+  const lines = Array.from({ length: 160 }, (_, i) => `step ${i} ok\n`)
+  lines[20] = 'session ' + TOKEN32 + ' opened\n'
+  const sent: string[] = []
+  const transport = async (body: Record<string, any>) => {
+    for (const b of body.state.blocks) sent.push(b.text)
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  const r = await prune(lines.join(''), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.reason).toBe('ok')
+  expect(sent.length).toBeGreaterThan(0)
+  expect(sent.join('')).not.toContain(TOKEN32)
+  expect(r.meta.blocks_withheld).toBe(1)
+  expect(r.output).toContain(TOKEN32) // kept in what the model sees, not dropped
+})
+
+test('with no secret-like block, nothing is withheld and the field is absent', async () => {
+  const transport = async (body: Record<string, any>) => ({ model: MODEL, usage, answers: Object.fromEntries(Object.keys(body.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) })
+  const r = await prune(longLog(), { backend: 'jev', goal: 'g', threshold: 0.8, transport })
+  expect(r.meta.blocks_withheld).toBeUndefined()
+})
+
+// ---- JEV-48: optional personal-data masking -----------------------------------------------------------------------
+test('maskPii masks emails, valid Taiwan IDs, SSN-shaped numbers and Luhn-valid card numbers', () => {
+  expect(maskPii('mail alice.o+x@example.co.uk now')).toBe('mail [EMAIL] now')
+  expect(maskPii('id A123456789 ok')).toBe('id [ID] ok')
+  expect(maskPii('ssn 123-45-6789 ok')).toBe('ssn [ID] ok')
+  expect(maskPii('card 4111111111111111 ok')).toBe('card [CARD] ok')
+  expect(maskPii('card 4111 1111 1111 1111 ok')).toBe('card [CARD] ok')
+})
+
+test('maskPii leaves look-alikes alone: bad checksums, timestamps, versions, ids that are not PII', () => {
+  for (const text of ['id A123456780 bad checksum', 'at 2026-10-11 12:34:56', 'ts 1760000000000', 'version 1.2.3-rc.4', 'card 4111111111111112 not luhn', 'job B200000000x', 'user@localhost only', 'proc 12345678901']) {
+    expect(maskPii(text)).toBe(text)
+  }
+})
+
+test('redact masks personal data only when asked; secrets are masked either way', () => {
+  const line = 'user bob@example.com token=abc123secretvalue id A123456789'
+  expect(redact(line)).toContain('bob@example.com')
+  expect(redact(line)).toContain('A123456789')
+  expect(redact(line)).not.toContain('abc123secretvalue')
+  const on = redact(line, true)
+  expect(on).toContain('[EMAIL]')
+  expect(on).toContain('[ID]')
+  expect(on).not.toContain('bob@example.com')
+  expect(on).not.toContain('abc123secretvalue')
+})
+
+test('with maskPii on, the request body holds no email or ID; with it off, they are sent (documented)', async () => {
+  const lines = Array.from({ length: 160 }, (_, i) => `step ${i} ok\n`)
+  lines[40] = 'contact bob@example.com id A123456789\n'
+  for (const [maskOn, expected] of [[true, false], [false, true]] as const) {
+    let body = ''
+    const transport = async (b: Record<string, any>) => {
+      body = JSON.stringify(b)
+      return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(b.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+    }
+    await prune(lines.join(''), { backend: 'jev', goal: 'mail bob@example.com', threshold: 0.8, transport, maskPii: maskOn })
+    expect(body.includes('bob@example.com')).toBe(expected)
+    expect(body.includes('A123456789')).toBe(expected)
+  }
+})
+
+test('pluginMaskPii is true only for the boolean true in plugin settings', () => {
+  expect(pluginMaskPii({ mask_pii: true })).toBe(true)
+  for (const v of [undefined, false, 'true', 1, null]) expect(pluginMaskPii({ mask_pii: v })).toBe(false)
+  expect(pluginMaskPii(null)).toBe(false)
+})
+
+test('a project file cannot set mask_pii (unknown field is rejected)', () => {
+  expect(() => validateConfig({ schemaVersion: 1, mask_pii: true })).toThrow()
+  expect(() => validateConfig({ schemaVersion: 1, maskPii: true })).toThrow()
+})
+
+test('PII and secret-like patterns stay fast on hostile input', () => {
+  const started = Date.now()
+  for (const hostile of ['a'.repeat(60_000), 'a@'.repeat(30_000), 'a.'.repeat(30_000) + '@', '4'.repeat(60_000), 'A1'.repeat(30_000), ('Ab1'.repeat(11) + ' ').repeat(1500)]) {
+    maskPii(hostile)
+    looksSecretLike(hostile)
+  }
+  expect(Date.now() - started).toBeLessThan(2500)
 })

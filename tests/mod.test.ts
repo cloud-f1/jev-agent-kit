@@ -577,6 +577,40 @@ test('the request the Mod sends to Jev holds no bare token, JWT, URL password or
   expect(body).toContain('[REDACTED]')
 })
 
+const PII_LOG = (() => {
+  const lines = Array.from({ length: 120 }, (_, i) => `step ${i} ok\n`)
+  lines[40] = 'contact bob@example.com id A123456789\n'
+  lines[80] = 'session Qx7LmZ3aVb9NcR2tYw5HkP8dFgJ4sUe1 opened\n'
+  return lines.join('')
+})()
+
+test('Mod: personal data is sent by default, and a secret-like block is never sent', async ($, on) => {
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: VERIFY_OK, tool: { result: { stdout: PII_LOG, stderr: '', interrupted: false, isImage: false }, text: 'kept' } })
+  await call($)
+  const body: string = s.requests[0]!.init.body
+  expect(body).toContain('bob@example.com')
+  expect(body).not.toContain('Qx7LmZ3aVb9NcR2tYw5HkP8dFgJ4sUe1')
+})
+
+optsTest('Mod: the mask_pii plugin setting masks emails and ID numbers before the request', { mask_pii: true }, async ($, on) => {
+  const s = stubs(on, { config: { ...JEV_ASSIST, mode: 'observe' }, env: { TYPESAFE_API_KEY: 'test-key-123' }, http: VERIFY_OK, tool: { result: { stdout: PII_LOG, stderr: '', interrupted: false, isImage: false }, text: 'kept' } })
+  await call($)
+  const body: string = s.requests[0]!.init.body
+  expect(body).not.toContain('bob@example.com')
+  expect(body).not.toContain('A123456789')
+  expect(body).toContain('[EMAIL]')
+})
+
+optsTest('/jev doctor reports the personal-data masking setting', { mask_pii: true }, async ($, on) => {
+  stubs(on)
+  expect((await jev($, 'doctor')).text).toContain('Personal-data masking before Jev: on')
+})
+
+test('/jev doctor says personal-data masking is off by default', async ($, on) => {
+  stubs(on)
+  expect((await jev($, 'doctor')).text).toContain('Personal-data masking before Jev: off')
+})
+
 test('/jev doctor says how updates work: Claude Code does them, auto-update is opt-in, the plugin never checks the network', async ($, on) => {
   const s = stubs(on)
   const out = await jev($, 'doctor')

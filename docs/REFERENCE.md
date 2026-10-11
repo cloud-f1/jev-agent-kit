@@ -21,6 +21,7 @@ Precedence: **built-in defaults < plugin settings (the Configure form, applies t
 | Jev keep threshold | `keepThreshold` | 0.8 | Probability a non-error block needs for Jev to keep it. |
 | Keep stored logs (days) | `retentionDays` | 7 | How long originals and records are kept. |
 | Jev model | (settings only) | `jev-1.13.0` | Model requested from TypeSafe. Pinned by default so decisions stay calibrated; set `jev-latest` to follow the newest model (re-check results when it changes). A pinned model must answer as itself (otherwise `model_mismatch` and the original output is kept); `jev-latest` may resolve to any `jev-*` name. A project file cannot set it. `/jev status` records the model that actually answered. |
+| Mask personal data before Jev | (settings only) `mask_pii` | off | Also masks emails, Taiwan IDs, SSN-shaped numbers and Luhn-valid card numbers before a block is sent. A project file cannot set it. |
 | (file only) | `timeoutSeconds` | 3 | Jev request deadline; on timeout the original is used. |
 
 Unknown fields in a project file are rejected on purpose: a project cannot set the endpoint, key or credential paths (an untrusted repo must not redirect your key). A bad plugin-setting value is ignored (the default applies); a bad project file leaves output untouched and `/jev doctor` says why.
@@ -151,7 +152,7 @@ What leaves your machine depends on `backend`, not on `mode`:
 | `jev` | `observe` (shadow) | **Yes**: redacted log blocks, the goal text and your API key, for each long output that reaches Jev (not below `minimumChars`, not at the host cap, not over the 96-block / 60 KB budget, not without a key). | No (records what Jev would keep). |
 | `jev` | `assist` | **Yes**, same as above. | Yes, pruned with Jev relevance; falls back to the original on any failure. |
 
-For `jev`, redacted log blocks (secrets pattern-masked, best effort), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.
+For `jev`, redacted log blocks (secrets pattern-masked, best effort; emails and ID numbers only with `mask_pii`; a block that still looks like a secret is withheld), the goal text and your API key go **only** to `https://api.typesafe.ai/v1/systemone`. Output that is too large (over 96 blocks or about 60 KB per request) is not sent; the original is used. `/jev preset` and `/jev init` print this when they write `backend: jev`, and `/jev doctor` shows the backend and where its value came from.
 
 Decision records hold counts, reason codes, timing, token usage and an artifact id. They never hold code, prompts, commands, full logs, keys, response bodies or exception text. Optionally put a one-line task description in `.claude/jev-goal.txt` to tell Jev what evidence is relevant (it is redacted before sending).
 

@@ -30,6 +30,11 @@ Driven by a user's own shadow-mode and `assist` tests on 0.6.5 (summarized in Ji
 - **Default goal sent to Jev.** Was "Diagnose the current test or build failure"; now a broad goal that asks to keep quiet lines about a setting, mode, version, fallback or environment that differs from what was intended. Reason: in a held-out test (12 quiet cues in a 31 KB synthetic log, 3 shuffled runs, real API) the old default kept 0 of 12 (same as local rules alone), the new one 5 of 12 (reduction 95% to 74%). A project goal file `.claude/jev-goal.txt` still replaces it. `keepThreshold` default is unchanged (0.8).
 - **Omitted marker.** `[omitted original lines; use readback for the full log]` became `[omitted N lines; use readback for the full log]` with the exact number of lines left out (it never claimed a position, because block positions are counted after repeated-warning collapse). The golden fixture was regenerated for this; inputs, reasons and which lines are kept are unchanged.
 
+### Added
+- **JEV-47: secret-like blocks are withheld.** After redaction, a block that still has a long mixed-case alphanumeric run (32+ characters, upper and lower case, at least three digits) or an AWS/Google key id is kept locally and never sent to Jev; the other blocks are still asked. The record gets `blocks_withheld`. It is a safety net for token shapes `redact` does not know, not a guarantee.
+- **JEV-48: optional personal-data masking.** New plugin setting `mask_pii` (off by default; plugin settings only, a project file cannot set it). When on, emails, valid Taiwan national IDs, SSN-shaped numbers and Luhn-valid 15/16-digit card numbers are masked in blocks and goal before the request. `/jev doctor` shows the setting. Names, addresses and phone numbers are not masked.
+- Tests: 158 Mod tests and 50 Node tests pass; 14 of them are new (core and Mod), including look-alikes that must not be masked (timestamps, epoch numbers, versions, bad checksums) and a hostile-input timing test. Mutation checks: removing the withhold filter or ignoring the setting makes tests fail.
+
 ### Fixed
 - `latency_ms` was always 0 in session records (the Mod handed the core a clock that returned 0). It is now measured around the prune call, including the Jev request.
 
