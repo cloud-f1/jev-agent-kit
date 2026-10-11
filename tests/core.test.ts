@@ -598,3 +598,31 @@ test('PII and secret-like patterns stay fast on hostile input', () => {
   }
   expect(Date.now() - started).toBeLessThan(2500)
 })
+
+test('looksSecretLike: an underscore or dash next to the token does not hide it', () => {
+  expect(looksSecretLike('session_' + TOKEN32)).toBe(true)
+  expect(looksSecretLike('api_token_' + TOKEN32 + '_x')).toBe(true)
+  expect(looksSecretLike('sk-' + TOKEN32)).toBe(true)
+})
+
+test('maskPii: an underscore-adjacent Taiwan ID or card number is masked too', () => {
+  expect(maskPii('id_A123456789')).toBe('id_[ID]')
+  expect(maskPii('card_4111111111111111')).toBe('card_[CARD]')
+})
+
+test('a secret-like run in the goal text is masked in the request, and an all-withheld log sends no request', async () => {
+  const lines = Array.from({ length: 160 }, (_, i) => `step ${i} ok\n`)
+  let body = ''
+  const transport = async (b: Record<string, any>) => {
+    body = JSON.stringify(b)
+    return { model: MODEL, usage, answers: Object.fromEntries(Object.keys(b.questions).map((id) => [id, { type: 'noul', noul: 0.01 }])) }
+  }
+  await prune(lines.join(''), { backend: 'jev', goal: 'find why ' + TOKEN32 + ' failed', threshold: 0.8, transport })
+  expect(body).not.toContain(TOKEN32)
+  expect(body).toContain('[REDACTED]')
+  let calls = 0
+  const all = Array.from({ length: 16 }, (_, i) => `row ${i} ${TOKEN32.slice(0, 31)}${i % 10}x\n`) // every block holds a token-shaped run
+  const r = await prune(all.join('').repeat(1), { backend: 'jev', goal: 'g', threshold: 0.8, transport: async (b) => { calls += 1; return transport(b) } })
+  expect(calls).toBe(0)
+  expect(r.meta.jev_asked).toBe(false)
+})
