@@ -6,9 +6,9 @@ For the next Claude Code session. Read in this order: [`CLAUDE.md`](../CLAUDE.md
 
 | Item | State |
 |---|---|
-| Latest release | **v0.7.1** (privacy fix: stronger redaction before the Jev call, JEV-34; on top of 0.7.0's in-session `/jev doctor --verify`; tag + GitHub release, installed from the real marketplace and checked). Releases `v0.2.0` to `v0.7.0` all exist; the changelog has a version-history table. |
+| Latest release | **v0.8.0** (2026-10-11, released ahead of the 3-day cadence gap on the user's explicit override): long logs split across up to 4 Jev requests (JEV-29), broad default goal (JEV-35), omitted-lines count, measured latency and block counts (JEV-36), secret-like blocks withheld (JEV-47), optional `mask_pii` setting (JEV-48). Tagged, GitHub release published, installed from the real marketplace and `/jev doctor` checked (0.8.0). Previous: v0.7.1 (privacy fix, JEV-34). |
 | Release approval | The user gave a standing approval for releases (see `.claude/skills/release/SKILL.md`): fresh read-only audit with no unfixed high finding + green `node scripts/release-check.ts --release`. Still ask for: deleting or moving a tag, sending real (non-synthetic) project data to a third party, benefit claims, a failing gate or audit. |
-| Open work | Jira **JEV-14** (the real paired benchmark: needs a budget decision from the user), **JEV-17** (a run on real Windows: needs a Windows machine) and **JEV-29** (the Jev backend sends nothing for logs above 96 candidate blocks, about 14 KB of short lines: needs a decision on splitting into several requests). Everything else in `EPICS.md` is done. |
+| Open work | Jira **JEV-14** (the real paired benchmark: needs a budget decision from the user) and **JEV-17** (a run on real Windows: needs a Windows machine). The user will now test the plugin on real cases and send feedback: ask for mode and backend, what `/jev status` and `/jev savings` showed, any `/jev readback` need, and anything surprising. A real upgrade keeping settings is still unverified (check it on the next release). |
 | Installs on this machine | None: the stale 0.2.0 entry and the test install of 0.6.0 were uninstalled (2026-10-10). Old version folders remain in `~/.claude/plugins/cache/jev-agent-kit/`; they are inert (no install references them) and Claude Code has no command to prune them. |
 | Public claim status | Mechanism works; **cost or success benefit is unproven.** A 4-task smoke eval passed 32/32 in both arms (agent cost per run $0.0031 with vs $0.0040 without); it is a smoke result, never write it up as savings. |
 
@@ -76,23 +76,13 @@ Project `JEV` on cloud-f1.atlassian.net, **Epic -> Story -> Subtask**, everythin
 
 One per release from 0.2.0 on, each by a fresh read-only agent; no unfixed high findings. The one high ever found (0.2.0): redaction let Bearer and JSON-quoted secrets reach the Jev API (fixed). Others fixed along the way: a project `settings.json` could supply the key; the pinned model was not required to answer as itself; `/jev savings` over-counting; `--env-file PATH` regression; the transport deadline not covering the body; a nonsense `BASH_MAX_OUTPUT_LENGTH` switching pruning off. Residual: `$.http.fetch` in the Mod may follow redirects (the key is only ever sent to the fixed endpoint). Details: [`CHANGELOG.md`](../CHANGELOG.md).
 
-## Unreleased backlog (the next batch; do not tag until the policy says so)
+## Unreleased backlog
 
-Next planned version: **0.8.0** (a minor: behavior change in the goal sent to Jev, output marker text, record fields). Work is on branch `v0.8.0` (not tagged); the changelog heading is `## 0.8.0 (unreleased)`.
-
-Built on the branch: broad default goal (held-out test: 0.0 to 5.0 of 12 quiet cues kept, reduction 95% to 74%), omitted-lines count in the marker (golden regenerated), measured `latency_ms`, block counts in records and in `/jev status`, goal line in `/jev doctor`, `scripts/quiet-cues-experiment.ts`, README/REFERENCE/operate-skill risk text.
-
-Also built on the branch: JEV-47 (secret-like blocks withheld, `blocks_withheld`) and JEV-48 (optional `mask_pii` plugin setting, off by default).
-
-Also built: JEV-29 (long logs split into up to 4 Jev requests). Jira JEV-36 tracks the batch.
-
-Still to do before tagging 0.8.0: one independent audit of the cumulative diff, a live check of the Mod on a real session (a mixed log, observe and assist), a real upgrade-keeps-settings check, and the policy conditions below.
-
-Release the batch when the policy says: it has a behavior change (yes) and at least 3 days have passed since 0.7.0 (2026-10-10), i.e. not before 2026-10-13. A safety, privacy or data-handling bug found meanwhile is released alone and promptly.
+Nothing is waiting: 0.8.0 shipped everything built so far. The next batch starts from the user's real-case feedback, on a branch named for the next version, and follows the cadence policy in the release skill. Note: the old local branch `v0.8.0` still has two accidental symlinks in its history (made in a worktree); `v0.8.0-clean` was merged instead. Delete both when convenient.
 
 ## Next session: real-case testing and feedback
 
-The user will run the plugin on real work and report back. Start from `docs/TESTING.md` and `/jev savings`, `/jev status`. Ask for: mode and backend used, what `/jev status` showed, any case where the model needed `/jev readback`, and anything surprising. Fold fixes into the 0.8.0 batch on branch `v0.8.0` (JEV-35, 36, 47, 48 built; not due for a tag before 2026-10-13; release only per the cadence policy). Check out `v0.8.0` for the new behavior; the marketplace install is still 0.7.1.
+The user will run the plugin on real work and report back. Start from `docs/TESTING.md` and `/jev savings`, `/jev status`. Ask for: mode and backend used, what `/jev status` showed, any case where the model needed `/jev readback`, and anything surprising. Fold fixes into the next batch (release only per the cadence policy). 0.8.0 is on `main` and installable from the marketplace.
 
 ## Next steps
 
