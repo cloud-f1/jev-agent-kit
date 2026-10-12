@@ -6,12 +6,12 @@ The Jira structure (epic -> story -> subtask) and its rules are in [JIRA.md](JIR
 
 | Epic | Theme | Version | State |
 |---|---|---|---|
-| E1 (JEV-1) | Core pruning with read-back | 0.1.0 / 0.2.0 / 0.8.0 | Core done and verified; the default-goal fix (JEV-35) is on the unreleased `v0.8.0` branch |
+| E1 (JEV-1) | Core pruning with read-back | 0.1.0 / 0.2.0 / 0.8.0 | Done: core pruning with read-back, and the broad default goal (JEV-35, released in 0.8.0) |
 | E2 (JEV-2) | Native TypeScript Mod | 0.2.0 | Done; Windows branch unrun |
 | E3 (JEV-3) | Settings and `/jev` commands | 0.2.0 | Done; interactive `/config` screen not seen |
-| E4 (JEV-4) | Safety and audit | 0.2.0 to 0.7.1 | Audits done and fixed; redaction fix released in 0.7.1 (JEV-34); open: refuse-to-send and optional PII masking (JEV-47, JEV-48) |
+| E4 (JEV-4) | Safety and audit | 0.2.0 to 0.8.0 | Done: audits fixed, redaction fix in 0.7.1 (JEV-34), secret-like blocks withheld and optional `mask_pii` in 0.8.0 (JEV-47, JEV-48) |
 | E5 (JEV-5) | Visibility and Jev model/key handling | 0.2.1 | Released |
-| E6 (JEV-6) | Live Jev validation | 0.3.0 | Smoke and synthetic bench passed; `backend: jev` in a real session not run |
+| E6 (JEV-6) | Live Jev validation | 0.3.0 to 0.8.0 | Epic closed in Jira on the built scope: smoke, synthetic bench, long-log split. Still not seen: `backend: jev` in a real interactive session |
 | E7 (JEV-7) | Usability | 0.6.5 | Presets, savings, init, receipt, pane released; `/jev on|off|mode` verified interactively |
 | E8 (JEV-8) | Evidence of benefit | 0.3.0 partial | Needs budget decision |
 | E9 (JEV-9) | Platform and maintainability | 0.5.0 partial | Node + TypeScript only done; Windows run open |

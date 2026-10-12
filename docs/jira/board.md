@@ -1,14 +1,14 @@
 # Jira board mirror (project JEV)
 
-A snapshot of Jira status taken 2026-10-10; Jira is the source of truth. Structure is declared in [plan.json](plan.json) (story -> subtasks); the rules are in [../JIRA.md](../JIRA.md). Do not hand-edit statuses here.
+A snapshot of Jira status taken 2026-10-10, with the 0.8.0 closures (JEV-29, 35, 36, 47, 48 and epics E1, E4, E6) applied by hand on 2026-10-12; Jira is the source of truth. Structure is declared in [plan.json](plan.json) (story -> subtasks); the rules are in [../JIRA.md](../JIRA.md). Do not hand-edit statuses here.
 
 10 epics, 38 stories/bugs/tasks, 144 subtasks.
 
-## JEV-1 JEV-E1: Core pruning with read-back [In Progress]
+## JEV-1 JEV-E1: Core pruning with read-back [Done]
 
 | Story | Type | Status | Subtasks | Title |
 |---|---|---|---|---|
-| JEV-35 | Bug | In Progress | 4/5 | The default goal no longer drops quiet root-cause lines |
+| JEV-35 | Bug | Done | 5/5 | The default goal no longer drops quiet root-cause lines |
 | JEV-37 | Story | Done | 3/3 | Pruning keeps the head, tail and error blocks, and the original can be read back |
 | JEV-38 | Story | Done | 3/3 | Raw originals are stored privately and expire after the retention period |
 
@@ -27,13 +27,13 @@ A snapshot of Jira status taken 2026-10-10; Jira is the source of truth. Structu
 | JEV-42 | Story | Done | 3/3 | /jev status, /jev doctor and /jev readback work inside a session |
 | JEV-43 | Story | Done | 3/3 | A project cannot set the endpoint, key, credential paths or model |
 
-## JEV-4 JEV-E4: Safety and audit [In Progress]
+## JEV-4 JEV-E4: Safety and audit [Done]
 
 | Story | Type | Status | Subtasks | Title |
 |---|---|---|---|---|
 | JEV-34 | Bug | Done | 6/6 | Redaction masks common credential formats before anything is sent |
-| JEV-47 | Story | To Do | 0/4 | The Jev request refuses to go out when a block still looks secret-like after redaction |
-| JEV-48 | Story | To Do | 0/4 | Optional masking of personal data (email, ID numbers) behind a setting |
+| JEV-47 | Story | Done | 4/4 | The Jev request refuses to go out when a block still looks secret-like after redaction |
+| JEV-48 | Story | Done | 4/4 | Optional masking of personal data (email, ID numbers) behind a setting |
 
 ## JEV-5 JEV-E5: Visibility and key/model handling [Done]
 
@@ -43,14 +43,14 @@ A snapshot of Jira status taken 2026-10-10; Jira is the source of truth. Structu
 | JEV-45 | Story | Done | 3/3 | The API key is found in the environment, plugin settings, user settings.json or a key file |
 | JEV-46 | Story | Done | 3/3 | The Jev model is a setting and records show the model that answered |
 
-## JEV-6 JEV-E6: Live Jev validation [In Progress]
+## JEV-6 JEV-E6: Live Jev validation [Done]
 
 | Story | Type | Status | Subtasks | Title |
 |---|---|---|---|---|
 | JEV-10 | Story | Done | 4/4 | Jev API accepts our request (smoke test returns api_validated) |
 | JEV-11 | Story | Done | 3/3 | The pinned Jev model answers as itself (jev-1.13.0) |
 | JEV-12 | Story | Done | 4/4 | Live synthetic benchmark compares local rules and Jev |
-| JEV-29 | Story | To Do | 1/4 | Jev can see logs longer than 96 blocks (deferred) |
+| JEV-29 | Story | Done | 4/4 | Jev can see logs longer than 96 blocks (split across up to 4 requests, released in 0.8.0) |
 
 ## JEV-7 JEV-E7: Usability [Done]
 
@@ -69,7 +69,7 @@ A snapshot of Jira status taken 2026-10-10; Jira is the source of truth. Structu
 | JEV-14 | Story | To Do | 0/5 | Paired agent-task benchmark shows whether the kit saves cost |
 | JEV-15 | Story | Done | 4/4 | Shadow mode and pause-after-read-back protect task success |
 | JEV-16 | Story | Done | 3/3 | Pruned output carries a measured, readable receipt |
-| JEV-36 | Task | In Progress | 5/6 | Quiet-line retention is measured and 0.8.0 ships the fixes |
+| JEV-36 | Task | Done | 6/6 | Quiet-line retention is measured and 0.8.0 ships the fixes |
 
 ## JEV-9 JEV-E9: Platform and maintainability [In Progress]
 
