@@ -218,5 +218,11 @@
   "Mask email addresses and ID numbers when the setting is on",
   "Document what is and is not masked",
   "Tests: masked when on, untouched when off, no false positives on log text"
+ ],
+ "JEV-193": [
+  "Write docs/TEST_REPORT.md: safety rules, four phases, what to collect",
+  "Add the report template, honesty rules and the unverified-areas list",
+  "Link docs/TESTING.md to it and bring its version to 0.8.0",
+  "Tests: the markdown-link check in the release gate passes with the new file"
  ]
 }
